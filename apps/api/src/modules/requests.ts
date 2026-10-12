@@ -123,20 +123,24 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const { category_visible: _cv, moderation_note, ...rest } = r;
 
     // Numara: ücret ödeyen satıcı görür. Talep kapanınca yalnızca teklifi kabul edilen satıcıda açık kalır.
+    // Alıcı paylaşımı durdurduysa ya da o satıcıyı şikâyet ettiyse numara gösterilmez.
     const s = await unlockSettings(pool);
-    const unlockRows = (await pool.query<{ seller_id: string; seller_name: string; created_at: string }>(
-      `SELECT cu.seller_id, u.name AS seller_name, cu.created_at FROM contact_unlocks cu JOIN users u ON u.id = cu.seller_id
-        WHERE cu.request_id = $1 ORDER BY cu.created_at`, [id])).rows;
-    const mineUnlocked = !!viewer && unlockRows.some((u) => u.seller_id === viewer.id);
+    const extra = (await pool.query<{ hidden: boolean }>("SELECT contact_hidden_at IS NOT NULL AS hidden FROM requests WHERE id = $1", [id])).rows[0]!;
+    const unlockRows = (await pool.query<{ id: number; seller_id: string; seller_name: string; created_at: string; revoked: boolean; reported: boolean }>(
+      `SELECT cu.id, cu.seller_id, u.name AS seller_name, cu.created_at, cu.revoked_at IS NOT NULL AS revoked,
+              EXISTS (SELECT 1 FROM contact_reports cr WHERE cr.unlock_id = cu.id AND cr.side = 'buyer') AS reported
+         FROM contact_unlocks cu JOIN users u ON u.id = cu.seller_id WHERE cu.request_id = $1 ORDER BY cu.created_at`, [id])).rows;
+    const mine = viewer ? unlockRows.find((u) => u.seller_id === viewer.id) : undefined;
     const accepted = (offers as { mine: boolean; status: string }[]).some((o) => o.mine && o.status === "accepted");
-    const showPhone = mineUnlocked && (r.status === "active" || accepted);
+    const showPhone = !!mine && !mine.revoked && !extra.hidden && (r.status === "active" || accepted);
     const phone = showPhone ? (await pool.query<{ phone: string | null }>("SELECT phone FROM users WHERE id = $1", [r.buyer_id])).rows[0]?.phone ?? null : null;
     const contact = {
-      price: priceFor(s, String(r.top_id)), limit: s.limit, used: unlockRows.length,
+      price: priceFor(s, String(r.top_id), Number(r.budget_max)), limit: s.limit, used: unlockRows.length,
       slots_left: s.limit > 0 ? Math.max(0, s.limit - unlockRows.length) : null,
-      unlocked: mineUnlocked, phone,
-      // Alıcı, numarasını kimlerin gördüğünü görür.
-      viewers: isOwner || isAdmin ? unlockRows.map((u) => ({ seller_name: publicName(u.seller_name), created_at: u.created_at })) : undefined,
+      unlocked: !!mine, unlock_id: mine?.id ?? null, phone, hidden: extra.hidden,
+      blocked: !!mine && (mine.revoked || extra.hidden),
+      // Alıcı, numarasını kimlerin gördüğünü görür ve rahatsız edeni şikâyet edebilir.
+      viewers: isOwner || isAdmin ? unlockRows.map((u) => ({ unlock_id: u.id, seller_name: publicName(u.seller_name), created_at: u.created_at, reported: u.reported })) : undefined,
     };
     return { request: { ...pub(rest as Row), media, is_owner: isOwner, is_favorite: !!fav, moderation_note: isOwner || isAdmin ? moderation_note : undefined }, offers, contact };
   });
@@ -156,6 +160,11 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const user = requireUser(req);
     if (!user.phone) throw new HttpError(409, "telefon_gerekli", "Talep vermek için önce telefon numaranızı doğrulayın.");
     const b = CreateBody.parse(req.body);
+    // Sahte taleplerle satıcıları kendine aratmayı önlemek için kişi başı açık talep sınırı.
+    const { maxActive } = await unlockSettings(pool);
+    const active = (await pool.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM requests WHERE buyer_id = $1 AND status IN ('active','pending_review') AND expires_at > now()", [user.id])).rows[0]!.n;
+    if (maxActive > 0 && active >= maxActive) throw new HttpError(409, "talep_siniri", `Aynı anda en fazla ${maxActive} açık talebiniz olabilir. Önce eski taleplerinizden birini kapatın.`);
     const cat = await visibleSubcategory(pool, b.category_id);
     if (!cat) throw new HttpError(400, "kategori_gecersiz", "Bu kategori şu anda talep kabul etmiyor.");
     const budgetMin = b.budget_min ?? Math.round(b.budget_max * 0.8);

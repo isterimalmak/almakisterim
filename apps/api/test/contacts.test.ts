@@ -20,7 +20,7 @@ describe("numarayı gör", () => {
     const id = await createRequest(ctx, buyer);
 
     const before = await detail(id, seller);
-    expect(before.contact).toMatchObject({ unlocked: false, phone: null, price: 1, slots_left: 10 });
+    expect(before.contact).toMatchObject({ unlocked: false, phone: null, price: 3, slots_left: 10 });
     expect(JSON.stringify(await detail(id))).not.toContain("905321112233");
 
     const r = await unlock(seller, id);
@@ -111,5 +111,129 @@ describe("numarayı gör", () => {
     const other = await login(ctx, "mehmet@example.com");
     const taken = await ctx.app.inject({ method: "POST", url: "/api/me/phone/code", headers: { cookie: other }, payload: { phone: "05321112288" } });
     expect(taken.statusCode).toBe(409);
+  });
+});
+
+describe("numara güvenliği", () => {
+  it("satıcının telefonu doğrulanmamışsa numara açamaz", async () => {
+    const buyer = await login(ctx, "05321112233");
+    const id = await createRequest(ctx, buyer);
+    const mailSeller = await login(ctx, "satici@example.com");
+    const r = await unlock(mailSeller, id);
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error).toBe("telefon_gerekli");
+  });
+
+  it("fiyat bütçe kademesine göre; kategoriye özel fiyat önceliklidir", async () => {
+    const buyer = await login(ctx, "05321112233");
+    const cheap = await createRequest(ctx, buyer, { budget_min: 500, budget_max: 900 });
+    const mid = await createRequest(ctx, buyer);
+    const big = await createRequest(ctx, buyer, { budget_min: 1_000_000, budget_max: 1_500_000 });
+    expect((await detail(cheap)).contact.price).toBe(1);
+    expect((await detail(mid)).contact.price).toBe(3);
+    expect((await detail(big)).contact.price).toBe(5);
+    await setting("unlock_price_by_top", { elektronik: 2 });
+    expect((await detail(big)).contact.price).toBe(2);
+  });
+
+  it("alıcı aynı anda en fazla N açık talep verebilir", async () => {
+    await setting("max_active_requests_per_user", 2);
+    const buyer = await login(ctx, "05321112233");
+    const a = await createRequest(ctx, buyer);
+    await createRequest(ctx, buyer);
+    const third = await ctx.app.inject({ method: "POST", url: "/api/requests", headers: { cookie: buyer }, payload: sampleRequest });
+    expect(third.statusCode).toBe(409);
+    expect(third.json().error).toBe("talep_siniri");
+    await ctx.app.inject({ method: "POST", url: `/api/requests/${a}/close`, headers: { cookie: buyer }, payload: {} });
+    expect(await createRequest(ctx, buyer)).toBeGreaterThan(0);
+  });
+
+  it("numara açılınca alıcıya site içi bildirim gider", async () => {
+    const buyer = await login(ctx, "05321112233");
+    const seller = await login(ctx, "05321112244");
+    const id = await createRequest(ctx, buyer);
+    await unlock(seller, id);
+    const me = (await ctx.app.inject({ url: "/api/me", headers: { cookie: buyer } })).json().user;
+    expect(me.unread_notifications).toBe(1);
+    const n = (await ctx.app.inject({ url: "/api/me/notifications", headers: { cookie: buyer } })).json().items;
+    expect(n[0]).toMatchObject({ link: `/talep/${id}` });
+    expect(n[0].text).toContain("numaranızı gördü");
+    await ctx.app.inject({ method: "POST", url: "/api/me/notifications/read", headers: { cookie: buyer }, payload: {} });
+    expect((await ctx.app.inject({ url: "/api/me", headers: { cookie: buyer } })).json().user.unread_notifications).toBe(0);
+  });
+
+  it("alıcı numarasını gizleyince kimse göremez ve yeni satıcı açamaz; yeniden açabilir", async () => {
+    const buyer = await login(ctx, "05321112233");
+    const seller = await login(ctx, "05321112244");
+    const id = await createRequest(ctx, buyer);
+    await unlock(seller, id);
+    const hide = await ctx.app.inject({ method: "POST", url: `/api/requests/${id}/contact`, headers: { cookie: seller }, payload: { hidden: true } });
+    expect(hide.statusCode).toBe(404);
+    await ctx.app.inject({ method: "POST", url: `/api/requests/${id}/contact`, headers: { cookie: buyer }, payload: { hidden: true } });
+    expect((await detail(id, seller)).contact).toMatchObject({ phone: null, blocked: true, hidden: true });
+    expect((await unlock(await login(ctx, "05321112255"), id)).json().error).toBe("numara_gizli");
+    expect((await ctx.app.inject({ url: "/api/me/unlocks", headers: { cookie: seller } })).json().items[0]).toMatchObject({ phone: null, phone_note: "Alıcı numarasını paylaşmayı durdurdu" });
+    await ctx.app.inject({ method: "POST", url: `/api/requests/${id}/contact`, headers: { cookie: buyer }, payload: { hidden: false } });
+    expect((await detail(id, seller)).contact.phone).toBe("905321112233");
+  });
+
+  it("alıcı rahatsız eden satıcıyı şikâyet edince numara o satıcıdan gizlenir, teklif veremez", async () => {
+    const buyer = await login(ctx, "05321112233");
+    const seller = await login(ctx, "05321112244");
+    const id = await createRequest(ctx, buyer);
+    await unlock(seller, id);
+    const viewer = (await detail(id, buyer)).contact.viewers[0];
+    const wrong = await ctx.app.inject({ method: "POST", url: `/api/unlocks/${viewer.unlock_id}/report`, headers: { cookie: buyer }, payload: { reason: "ulasilamiyor" } });
+    expect(wrong.statusCode).toBe(400);
+    const rep = await ctx.app.inject({ method: "POST", url: `/api/unlocks/${viewer.unlock_id}/report`, headers: { cookie: buyer }, payload: { reason: "rahatsiz_etti", note: "Gece aradı" } });
+    expect(rep.statusCode).toBe(201);
+    expect((await detail(id, buyer)).contact.viewers[0].reported).toBe(true);
+    expect((await detail(id, seller)).contact).toMatchObject({ phone: null, blocked: true });
+    expect((await unlock(seller, id)).statusCode).toBe(403);
+    const o = await ctx.app.inject({ method: "POST", url: `/api/requests/${id}/offers`, headers: { cookie: seller }, payload: { price: 18000 } });
+    expect(o.json().error).toBe("numara_acilmadi");
+    const other = await login(ctx, "05321112255");
+    expect((await ctx.app.inject({ method: "POST", url: `/api/unlocks/${viewer.unlock_id}/report`, headers: { cookie: other }, payload: { reason: "rahatsiz_etti" } })).statusCode).toBe(404);
+  });
+
+  it("satıcı 'ulaşılamıyor' bildirir; yönetici iade eder, kredi geri yüklenir ve satıcıya haber gider", async () => {
+    await setting("free_unlocks_per_month", 0);
+    const buyer = await login(ctx, "05321112233");
+    const seller = await login(ctx, "05321112244");
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    await ctx.pool.query("UPDATE users SET credits = 10 WHERE phone = '905321112244'");
+    const id = await createRequest(ctx, buyer);
+    await unlock(seller, id);
+    const mine = (await ctx.app.inject({ url: "/api/me/unlocks", headers: { cookie: seller } })).json().items[0];
+    expect(mine).toMatchObject({ request_id: id, credits: 3, phone: "905321112233", report_status: null });
+
+    const rep = await ctx.app.inject({ method: "POST", url: `/api/unlocks/${mine.id}/report`, headers: { cookie: seller }, payload: { reason: "ulasilamiyor" } });
+    expect(rep.statusCode).toBe(201);
+    expect((await ctx.app.inject({ method: "POST", url: `/api/unlocks/${mine.id}/report`, headers: { cookie: seller }, payload: { reason: "sahte_talep" } })).statusCode).toBe(409);
+
+    expect((await ctx.app.inject({ url: "/api/admin/contact-reports", headers: { cookie: seller } })).statusCode).toBe(403);
+    const list = (await ctx.app.inject({ url: "/api/admin/contact-reports", headers: { cookie: admin } })).json().items;
+    expect(list[0]).toMatchObject({ reason_text: "Numaraya ulaşılamıyor", credits: 3, seller_phone: "0532 111 22 44" });
+    const res = await ctx.app.inject({ method: "POST", url: `/api/admin/contact-reports/${list[0].id}/resolve`, headers: { cookie: admin }, payload: { action: "refund" } });
+    expect(res.json()).toMatchObject({ status: "refunded", refunded_credits: 3 });
+    expect((await ctx.pool.query("SELECT credits FROM users WHERE phone = '905321112244'")).rows[0].credits).toBe(10);
+    expect((await ctx.pool.query("SELECT delta, reason FROM credit_ledger ORDER BY id")).rows).toEqual([{ delta: -3, reason: "numara" }, { delta: 3, reason: "numara_iade" }]);
+    expect((await ctx.app.inject({ method: "POST", url: `/api/admin/contact-reports/${list[0].id}/resolve`, headers: { cookie: admin }, payload: { action: "refund" } })).statusCode).toBe(409);
+    expect((await ctx.app.inject({ url: "/api/me/notifications", headers: { cookie: seller } })).json().items[0].text).toContain("3 kredi iade edildi");
+    expect((await ctx.app.inject({ url: "/api/me/unlocks", headers: { cookie: seller } })).json().items[0]).toMatchObject({ refunded: true, report_status: "refunded" });
+
+    const stats = (await ctx.app.inject({ url: "/api/admin/unlocks", headers: { cookie: admin } })).json();
+    expect(stats.summary).toMatchObject({ month: 1, month_credits: 3, refunded_credits: 3 });
+    expect(stats.by_top[0]).toMatchObject({ id: "elektronik", unlocks: 1, credits: 3 });
+  });
+
+  it("satıcı bildirimi 7 günden sonra yapılamaz", async () => {
+    const buyer = await login(ctx, "05321112233");
+    const seller = await login(ctx, "05321112244");
+    const id = await createRequest(ctx, buyer);
+    await unlock(seller, id);
+    await ctx.pool.query("UPDATE contact_unlocks SET created_at = now() - interval '8 days'");
+    const u = (await ctx.app.inject({ url: "/api/me/unlocks", headers: { cookie: seller } })).json().items[0];
+    expect((await ctx.app.inject({ method: "POST", url: `/api/unlocks/${u.id}/report`, headers: { cookie: seller }, payload: { reason: "sahte_talep" } })).json().error).toBe("sure_doldu");
   });
 });

@@ -11,15 +11,20 @@ import { dateTr } from "@/lib/format";
 type Stats = { users: number; active_requests: number; pending_review: number; offers: number; deals: number; reports: number };
 type Pending = { id: number; title: string; description: string; moderation_note: string | null; created_at: string; buyer_name: string; media: Media[] };
 type Report = { id: number; request_id: number; reason: string; created_at: string; title: string; status: string };
+type UnlockStats = { summary: { today: number; month: number; month_credits: number; month_free: number; refunded_credits: number }; by_top: { id: string; name: string; unlocks: number; credits: number }[] };
+type ContactReport = { id: number; side: "seller" | "buyer"; reason_text: string; note: string; status: string; created_at: string; credits: number; request_id: number; title: string;
+  seller_name: string; seller_phone: string | null; buyer_name: string; buyer_phone: string | null; seller_complaints: number; buyer_complaints: number };
 type UserRow = { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; created_at: string };
 
 export default function Admin() {
   const { user, ready, refresh, toast } = useSession();
-  const [tab, setTab] = useState<"kat" | "den" | "kul" | "ayar">("kat");
+  const [tab, setTab] = useState<"kat" | "den" | "num" | "kul" | "ayar">("kat");
+  const [unl, setUnl] = useState<UnlockStats | null>(null);
+  const [creps, setCreps] = useState<ContactReport[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [cats, setCats] = useState<CategoryTop[]>([]);
   const [mod, setMod] = useState<{ pending: Pending[]; reports: Report[] } | null>(null);
-  const [settings, setSettings] = useState<{ free_unlocks_per_month?: number; unlock_price_credits?: number; unlock_limit_per_request?: number; unlock_price_by_top?: Record<string, number>; store_monthly_price_try?: number } | null>(null);
+  const [settings, setSettings] = useState<{ unlock_price_tiers?: { max_budget: number | null; credits: number }[]; max_active_requests_per_user?: number; free_unlocks_per_month?: number; unlock_price_credits?: number; unlock_limit_per_request?: number; unlock_price_by_top?: Record<string, number>; store_monthly_price_try?: number } | null>(null);
   const [q, setQ] = useState("");
   const [users, setUsers] = useState<UserRow[]>([]);
 
@@ -29,6 +34,8 @@ export default function Admin() {
       api<{ pending: Pending[]; reports: Report[] }>("/admin/moderation"), api<typeof settings>("/admin/settings"),
     ]);
     setStats(s); setCats(c.categories); setMod(m); setSettings(st);
+    const [u, cr] = await Promise.all([api<UnlockStats>("/admin/unlocks"), api<{ items: ContactReport[] }>("/admin/contact-reports")]);
+    setUnl(u); setCreps(cr.items);
   }, []);
   useEffect(() => { if (user?.role === "admin") void load().catch((e) => toast(e.message)); }, [user, load, toast]);
 
@@ -44,6 +51,10 @@ export default function Admin() {
     await api(`/admin/requests/${id}/${action}`, { body: {} });
     toast(action === "approve" ? "Talep onaylandı ve yayına alındı." : "Talep yayından kaldırıldı.");
     void load();
+  };
+  const resolveReport = async (id: number, action: "refund" | "reject" | "resolve") => {
+    try { const r = await api<{ refunded_credits: number }>(`/admin/contact-reports/${id}/resolve`, { body: { action } }); toast(action === "refund" ? `${r.refunded_credits} kredi iade edildi.` : "Bildirim kapatıldı."); void load(); }
+    catch (e) { toast((e as Error).message); }
   };
   const searchUsers = async () => setUsers((await api<{ items: UserRow[] }>(`/admin/users?q=${encodeURIComponent(q)}`)).items);
   const credit = async (u: UserRow) => {
@@ -66,6 +77,7 @@ export default function Admin() {
       <div className="res-bar" style={{ borderBottom: "1px solid var(--line)", borderRadius: 4, marginBottom: 14 }}><div className="tabs">
         <button className={tab === "kat" ? "on" : ""} onClick={() => setTab("kat")}>Kategoriler</button>
         <button className={tab === "den" ? "on" : ""} onClick={() => setTab("den")}>İçerik Denetimi ({(mod?.pending.length ?? 0) + (mod?.reports.length ?? 0)})</button>
+        <button className={tab === "num" ? "on" : ""} onClick={() => setTab("num")}>Numaralar ve Şikâyetler ({creps.length})</button>
         <button className={tab === "kul" ? "on" : ""} onClick={() => setTab("kul")}>Kullanıcılar ve Kredi</button>
         <button className={tab === "ayar" ? "on" : ""} onClick={() => setTab("ayar")}>Ayarlar</button>
       </div></div>
@@ -114,12 +126,57 @@ export default function Admin() {
         </div></div>
       )}
 
+      {tab === "num" && unl && (
+        <>
+          <div className="kpis">
+            <div className="kpi"><small>Bugün açılan numara</small><b>{unl.summary.today}</b></div>
+            <div className="kpi"><small>Bu ay açılan</small><b>{unl.summary.month}</b></div>
+            <div className="kpi"><small>Bu ay harcanan kredi</small><b>{unl.summary.month_credits}</b></div>
+            <div className="kpi"><small>Ücretsiz haktan</small><b>{unl.summary.month_free}</b></div>
+            <div className="kpi"><small>Bu ay iade</small><b>{unl.summary.refunded_credits} kredi</b></div>
+          </div>
+          <div className="box" style={{ marginBottom: 14 }}><div className="box-h"><h2>Kategorilere göre (bu ay)</h2></div>
+            {unl.by_top.length ? <table className="tbl"><thead><tr><th>Kategori</th><th className="r">Açılan numara</th><th className="r">Kredi</th></tr></thead><tbody>
+              {unl.by_top.map((t) => <tr key={t.id}><td>{t.name}</td><td className="r">{t.unlocks}</td><td className="r">{t.credits}</td></tr>)}
+            </tbody></table> : <div className="empty">Bu ay henüz numara açılmadı.</div>}
+          </div>
+          <div className="box"><div className="box-h"><h2>Açık bildirim ve şikâyetler</h2></div>
+            {creps.length ? <table className="tbl"><thead><tr><th>Bildirim</th><th>Satıcı</th><th>Alıcı</th><th></th></tr></thead><tbody>
+              {creps.map((r) => <tr key={r.id}>
+                <td><span className={"lbl " + (r.side === "buyer" ? "l-acil" : "l-am")}>{r.side === "buyer" ? "Alıcı şikâyeti" : "Satıcı bildirimi"}</span> <b>{r.reason_text}</b>
+                  <div className="ti-s"><Link className="link" href={`/talep/${r.request_id}`}>{r.title}</Link> · {dateTr(r.created_at)}{r.side === "seller" && <> · {r.credits} kredi ödendi</>}</div>{r.note && <div className="o-note">{r.note}</div>}</td>
+                <td data-m="Satıcı">{r.seller_name}<div className="ti-s">{r.seller_phone}{r.seller_complaints > 0 && <> · <b style={{ color: "var(--red)" }}>{r.seller_complaints} şikâyet</b></>}</div></td>
+                <td data-m="Alıcı">{r.buyer_name}<div className="ti-s">{r.buyer_phone}{r.buyer_complaints > 0 && <> · <b style={{ color: "var(--red)" }}>{r.buyer_complaints} bildirim</b></>}</div></td>
+                <td className="r act-cell nowrap">
+                  {r.side === "seller" && <button className="btn btn-bl btn-sm" onClick={() => resolveReport(r.id, "refund")}>İade et</button>}{" "}
+                  <button className="btn btn-wh btn-sm" onClick={() => resolveReport(r.id, r.side === "seller" ? "reject" : "resolve")}>{r.side === "seller" ? "Reddet" : "İncelendi"}</button>
+                </td>
+              </tr>)}
+            </tbody></table> : <div className="empty">Açık bildirim yok.</div>}
+          </div>
+        </>
+      )}
+
       {tab === "ayar" && settings && (
         <div className="box"><div className="box-h"><h2>Ayarlar</h2></div><div className="box-b">
           <div className="form-grid" style={{ maxWidth: 560 }}>
             <div className="fg"><label htmlFor="s-price">Numara görme ücreti (kredi)</label><input className="inp" id="s-price" type="number" min={0} value={settings.unlock_price_credits ?? 1} onChange={(e) => setSettings({ ...settings, unlock_price_credits: Number(e.target.value) })} /><span className="hint">Kategoriye özel fiyat girilmemişse bu kullanılır.</span></div>
             <div className="fg"><label htmlFor="s-limit">Bir talepte en fazla kaç satıcı</label><input className="inp" id="s-limit" type="number" min={0} value={settings.unlock_limit_per_request ?? 10} onChange={(e) => setSettings({ ...settings, unlock_limit_per_request: Number(e.target.value) })} /><span className="hint">0 = sınırsız.</span></div>
             <div className="fg"><label htmlFor="s-free">Aylık ücretsiz numara hakkı</label><input className="inp" id="s-free" type="number" min={0} value={settings.free_unlocks_per_month ?? 0} onChange={(e) => setSettings({ ...settings, free_unlocks_per_month: Number(e.target.value) })} /></div>
+            <div className="fg"><label htmlFor="s-active">Kişi başı en fazla açık talep</label><input className="inp" id="s-active" type="number" min={0} value={settings.max_active_requests_per_user ?? 5} onChange={(e) => setSettings({ ...settings, max_active_requests_per_user: Number(e.target.value) })} /><span className="hint">Sahte taleplere karşı. 0 = sınırsız.</span></div>
+            <div className="fg full"><label>Bütçeye göre numara ücreti</label>
+              <table className="tbl tiers"><thead><tr><th>Talebin en fazla bütçesi (TL)</th><th>Kredi</th><th></th></tr></thead><tbody>
+                {(settings.unlock_price_tiers ?? []).map((t, i, arr) => (
+                  <tr key={i}>
+                    <td>{t.max_budget === null ? <span className="muted">ve üzeri</span> : <input className="inp" type="number" min={1} aria-label={`${i + 1}. kademe bütçe sınırı`} value={t.max_budget} onChange={(e) => setSettings({ ...settings, unlock_price_tiers: arr.map((x, k) => (k === i ? { ...x, max_budget: Number(e.target.value) } : x)) })} />}</td>
+                    <td><input className="inp" type="number" min={0} aria-label={`${i + 1}. kademe kredi`} value={t.credits} onChange={(e) => setSettings({ ...settings, unlock_price_tiers: arr.map((x, k) => (k === i ? { ...x, credits: Number(e.target.value) } : x)) })} /></td>
+                    <td className="r">{t.max_budget !== null && <button className="link" onClick={() => setSettings({ ...settings, unlock_price_tiers: arr.filter((_, k) => k !== i) })}>Sil</button>}</td>
+                  </tr>
+                ))}
+              </tbody></table>
+              <button className="link" style={{ marginTop: 6 }} onClick={() => { const arr = settings.unlock_price_tiers ?? []; const top = arr.find((t) => t.max_budget === null) ?? { max_budget: null, credits: settings.unlock_price_credits ?? 1 }; const rest = arr.filter((t) => t.max_budget !== null); const last = rest.at(-1)?.max_budget ?? 0; setSettings({ ...settings, unlock_price_tiers: [...rest, { max_budget: last ? last * 10 : 10000, credits: top.credits }, top] }); }}>+ Kademe ekle</button>
+              <span className="hint">Kategoriye özel ücret girilirse o kategoride kademe yerine o ücret kullanılır.</span>
+            </div>
             <div className="fg full"><label>Kategoriye özel numara ücreti (kredi)</label>
               <div className="form-grid">{cats.map((t) => (
                 <div className="fg" key={t.id}><label htmlFor={`s-top-${t.id}`} style={{ fontWeight: 500 }}>{t.name}</label>

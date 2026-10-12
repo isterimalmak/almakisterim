@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker, Thumbs } from "@/components/Media";
+import { PhoneVerify } from "@/components/PhoneVerify";
 import { CatIcon, Labels } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type Contact, type Media, type Offer, type RequestDetail } from "@/lib/api";
@@ -80,6 +81,7 @@ export default function RequestPage() {
             {r.is_owner ? <OwnerOffers r={r} offers={data.offers} onChange={load} />
               : myOffer ? <div className="box-b"><div className="note n-ok"><Icon name="check" size={15} sw={3} /><span>Teklifiniz: <b>{fmt(myOffer.price)} TL</b> · Durum: {myOffer.status === "accepted" ? "Kabul edildi 🎉" : myOffer.status === "rejected" ? "Alıcı başka bir teklifi seçti" : "Alıcı inceliyor"}</span></div><Thumbs media={myOffer.media} /></div>
               : !open ? <div className="box-b"><div className="note n-info">Bu talep artık teklif kabul etmiyor.</div></div>
+              : c.blocked ? <div className="box-b"><div className="note n-info">Alıcı numarasını sizinle paylaşmayı durdurdu; bu talebe teklif veremezsiniz.</div></div>
               : user && !c.unlocked ? <UnlockBox r={r} c={c} onDone={() => { void load(); void refresh(); }} />
               : user ? <OfferForm r={r} onDone={() => { void load(); void refresh(); }} />
               : <div className="empty">Alıcının numarasını görmek ve teklif vermek için <Link className="link" href={`/giris?sonra=/talep/${r.id}`}>giriş yapın</Link>. Teklif fiyatlarını yalnızca talep sahibi görür.</div>}
@@ -89,18 +91,17 @@ export default function RequestPage() {
         <aside>
           <div className="box"><div className="box-b">
             <div className="who"><span className="av" style={{ width: 42, height: 42, fontSize: 14, background: r.is_corporate ? "var(--navy)" : "#5B6B8C" }}>{initials(r.buyer_name)}</span><div><b>{r.buyer_name}</b><div className="muted" style={{ fontSize: 12 }}>{r.is_corporate ? "Kurumsal alıcı" : "Bireysel alıcı"}</div></div></div>
-            {r.is_owner
-              ? <div className="phone-hidden"><Icon name="lock" size={15} /><span>Numaranızı şu ana kadar <b>{c.used}</b>{c.limit > 0 && <> / {c.limit}</>} satıcı gördü.{c.viewers && c.viewers.length > 0 && <> ({c.viewers.map((v) => v.seller_name).join(", ")})</>}</span></div>
-              : c.phone
-                ? <a className="phone-open" href={`tel:+${c.phone}`}><Icon name="phone" size={16} /><span>{phoneTxt(c.phone)}</span></a>
-                : <div className="phone-hidden"><Icon name="lock" size={15} /><span>Alıcının numarası gizli. {open ? <>Numarayı görmek {c.price ? <><b>{c.price} kredi</b></> : "ücretsiz"}{c.slots_left !== null && <> · {c.slots_left} satıcı hakkı kaldı</>}.</> : "Talep kapandı."}</span></div>}
+            {r.is_owner ? <OwnerContact r={r} c={c} onChange={load} />
+              : c.phone ? <SellerContact c={c} />
+              : c.blocked ? <div className="phone-hidden"><Icon name="lock" size={15} /><span>Alıcı numarasını sizinle paylaşmayı durdurdu.</span></div>
+              : <div className="phone-hidden"><Icon name="lock" size={15} /><span>Alıcının numarası gizli. {open ? <>Numarayı görmek {c.price ? <b>{c.price} kredi</b> : "ücretsiz"}{c.slots_left !== null && <> · {c.slots_left} satıcı hakkı kaldı</>}.</> : "Talep kapandı."}</span></div>}
             <div className="muted" style={{ fontSize: 12 }}>Teklif toplama süresinin bitmesine</div>
             <div className="time-left"><div><b>{lp.d}</b><small>gün</small></div><div><b>{lp.h}</b><small>saat</small></div><div><b>{lp.m}</b><small>dakika</small></div></div>
             <div className="act-list">
               {open && !r.is_owner && !myOffer && <a className="btn btn-or btn-lg btn-block" href="#teklifler">{c.unlocked ? "Teklif Ver" : "Numarayı Gör ve Teklif Ver"}</a>}
               {!r.is_owner && <button className="btn btn-wh btn-block" onClick={fav}><Icon name="heart" size={15} /> {r.is_favorite ? "Favorilerden çıkar" : "Favorilere ekle"}</button>}
               <button className="btn btn-wh btn-block" onClick={alarm}><Icon name="bell" size={15} /> Benzer talepler için alarm kur</button>
-              {r.is_owner && open && <button className="btn btn-wh btn-block" onClick={async () => { if (!confirm("Talebi kapatmak istiyor musunuz?")) return; await api(`/requests/${r.id}/close`, { body: {} }); toast("Talep kapatıldı."); void load(); }}>Talebi kapat</button>}
+              {r.is_owner && open && <button className="btn btn-wh btn-block" onClick={async () => { if (!confirm("Aradığınızı buldunuz mu? Talep kapanır ve numaranız yeni satıcılara gösterilmez.")) return; await api(`/requests/${r.id}/close`, { body: {} }); toast("Talep kapatıldı, numaranız artık yeni satıcılara gösterilmiyor."); void load(); }}>Aldım / Talebi kapat</button>}
               {!r.is_owner && <button className="btn btn-gh btn-sm" onClick={report}><Icon name="flag" size={13} /> Talebi şikayet et</button>}
             </div>
           </div></div>
@@ -165,6 +166,55 @@ function phoneTxt(p: string) {
   return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7, 9)} ${d.slice(9)}`;
 }
 
+function SellerContact({ c }: { c: Contact }) {
+  const { toast } = useSession();
+  const report = async () => {
+    const pick = window.prompt("Sorun nedir? Numarasını yazın:\n1 - Numaraya ulaşılamıyor\n2 - Yanlış numara\n3 - Sahte talep");
+    const reason = ({ "1": "ulasilamiyor", "2": "yanlis_numara", "3": "sahte_talep" } as Record<string, string>)[(pick ?? "").trim()];
+    if (!reason || !c.unlock_id) return;
+    const note = window.prompt("Kısaca açıklayın (isteğe bağlı):") ?? "";
+    try { await api(`/unlocks/${c.unlock_id}/report`, { body: { reason, note } }); toast("Bildiriminiz alındı. İncelenip haklıysanız krediniz iade edilecek."); }
+    catch (e) { toast((e as Error).message); }
+  };
+  return (
+    <>
+      <a className="phone-open" href={`tel:+${c.phone}`}><Icon name="phone" size={16} /><span>{phoneTxt(c.phone!)}</span></a>
+      <div className="phone-acts">
+        <a className="btn btn-wh btn-sm" href={`https://wa.me/${c.phone}`} target="_blank" rel="noreferrer">WhatsApp&apos;tan yaz</a>
+        <button className="btn btn-gh btn-sm" onClick={report}>Sorun bildir</button>
+      </div>
+      <p className="muted" style={{ fontSize: 11.5, margin: "0 0 10px" }}>Numarayı yalnızca bu talep için kullanın. Alıcıyı rahatsız eden satıcıların hesabı kapatılır.</p>
+    </>
+  );
+}
+
+function OwnerContact({ r, c, onChange }: { r: RequestDetail; c: Contact; onChange: () => void }) {
+  const { toast } = useSession();
+  const setHidden = async (hidden: boolean) => {
+    if (hidden && !confirm("Numaranız hiçbir satıcıya gösterilmeyecek ve yeni satıcılar sizi arayamayacak. Devam edilsin mi?")) return;
+    try { await api(`/requests/${r.id}/contact`, { body: { hidden } }); toast(hidden ? "Numaranız gizlendi." : "Numaranız yeniden paylaşılıyor."); onChange(); }
+    catch (e) { toast((e as Error).message); }
+  };
+  const complain = async (unlockId: number) => {
+    const note = window.prompt("Satıcı sizi nasıl rahatsız etti? (isteğe bağlı)");
+    if (note === null) return;
+    try { await api(`/unlocks/${unlockId}/report`, { body: { reason: "rahatsiz_etti", note } }); toast("Şikâyetiniz alındı; numaranız bu satıcıdan gizlendi."); onChange(); }
+    catch (e) { toast((e as Error).message); }
+  };
+  return (
+    <div className="phone-hidden" style={{ display: "block" }}>
+      <div style={{ display: "flex", gap: 8 }}><Icon name="lock" size={15} /><span>{c.hidden ? <b>Numaranız gizli; hiçbir satıcı göremez.</b> : <>Numaranızı şu ana kadar <b>{c.used}</b>{c.limit > 0 && <> / {c.limit}</>} satıcı gördü.</>}</span></div>
+      {!!c.viewers?.length && (
+        <ul className="viewers">{c.viewers.map((v) => (
+          <li key={v.unlock_id}><span>{v.seller_name} <span className="muted">· {ago(v.created_at)}</span></span>
+            {v.reported ? <span className="lbl l-gy">Şikâyet edildi</span> : <button className="link" onClick={() => complain(v.unlock_id)}>Rahatsız etti</button>}</li>
+        ))}</ul>
+      )}
+      <button className="link" style={{ fontSize: 12, marginTop: 6 }} onClick={() => setHidden(!c.hidden)}>{c.hidden ? "Numaramı yeniden paylaş" : "Numaramı artık gösterme"}</button>
+    </div>
+  );
+}
+
 function UnlockBox({ r, c, onDone }: { r: RequestDetail; c: Contact; onDone: () => void }) {
   const { user, toast } = useSession();
   const [busy, setBusy] = useState(false);
@@ -186,10 +236,12 @@ function UnlockBox({ r, c, onDone }: { r: RequestDetail; c: Contact; onDone: () 
         <li>Bu talepte numarayı en fazla <b>{c.limit || "sınırsız"}</b> satıcı görebilir{c.slots_left !== null && <>; <b>{c.slots_left}</b> hak kaldı</>}.</li>
         <li>Ücret: <b>{c.price ? `${c.price} kredi` : "ücretsiz"}</b>{c.price > 0 && <> · Bu ay kalan ücretsiz hakkınız: <b>{user?.free_unlocks_left ?? 0}</b> · Krediniz: <b>{user?.credits ?? 0}</b></>}</li>
       </ul>
-      {full
+      {!user?.phone
+        ? <div className="note n-warn" style={{ display: "block" }}><b>Önce kendi numaranızı doğrulayın.</b> Alıcıların güvenliği için numara görmek isteyen satıcıların telefonu doğrulanmış olmalı.<div style={{ marginTop: 10 }}><PhoneVerify /></div></div>
+        : full
         ? <div className="note n-info">Bu talepte numara görme hakları doldu.</div>
         : <button className="btn btn-or btn-lg" disabled={busy} onClick={go}>{busy ? "Açılıyor…" : free ? "Numarayı Gör (ücretsiz hak)" : `Numarayı Gör (${c.price} kredi)`}</button>}
-      {!full && !free && (user?.credits ?? 0) < c.price && <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Krediniz yetersiz. <Link className="link" href="/bana-ozel?s=kredi">Kredi yükleyin</Link>.</p>}
+      {user?.phone && !full && !free && (user?.credits ?? 0) < c.price && <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Krediniz yetersiz. <Link className="link" href="/bana-ozel?s=kredi">Kredi yükleyin</Link>.</p>}
     </div>
   );
 }

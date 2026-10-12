@@ -57,8 +57,12 @@ test("alıcı talep verir, satıcı teklif verir, alıcı kabul eder", async ({ 
   await seller.getByRole("button", { name: "Teklifi Gönder" }).click();
   await expect(seller.getByText("Teklifiniz:")).toBeVisible();
 
+  await expect(seller.getByRole("link", { name: "WhatsApp'tan yaz" })).toBeVisible();
+
   await buyer.reload();
   await expect(buyer.locator(".phone-hidden")).toContainText("1 / 10 satıcı gördü");
+  await expect(buyer.getByRole("button", { name: "Rahatsız etti" })).toBeVisible();
+  await expect(buyer.locator(".badge")).toHaveText("1");
   await expect(buyer.getByText("14.250 TL").first()).toBeVisible();
   await expect(buyer.getByText("[numara gizlendi]")).toBeVisible();
   buyer.once("dialog", (d) => d.accept());
@@ -67,6 +71,8 @@ test("alıcı talep verir, satıcı teklif verir, alıcı kabul eder", async ({ 
 
   await seller.reload();
   await expect(seller.getByText("Kabul edildi 🎉")).toBeVisible();
+  await seller.goto("/bana-ozel?s=numaralar");
+  await expect(seller.getByText(title)).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
 });
 

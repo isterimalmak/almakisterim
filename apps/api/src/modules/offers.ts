@@ -39,7 +39,7 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
       if (dup.rowCount) throw new HttpError(409, "zaten_teklif", "Bu talebe zaten teklif verdiniz.");
 
       // Teklif vermek için önce numaranın açılmış (ücretinin ödenmiş) olması gerekir.
-      const unlocked = await c.query("SELECT 1 FROM contact_unlocks WHERE request_id = $1 AND seller_id = $2", [requestId, user.id]);
+      const unlocked = await c.query("SELECT 1 FROM contact_unlocks WHERE request_id = $1 AND seller_id = $2 AND revoked_at IS NULL", [requestId, user.id]);
       if (!unlocked.rowCount) throw new HttpError(402, "numara_acilmadi", "Teklif vermek için önce alıcının numarasını açın.");
       const ins = await c.query<{ id: number }>(
         `INSERT INTO offers (request_id, seller_id, price, condition, delivery, warranty, note) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,

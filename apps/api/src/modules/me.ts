@@ -11,7 +11,8 @@ export function meRoutes(app: FastifyInstance, { pool }: Deps) {
     if (!req.user) return { user: null };
     const s = await unlockSettings(pool);
     const used = await freeUnlocksUsed(pool, req.user.id);
-    return { user: { ...req.user, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.price } };
+    const unread = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND read_at IS NULL", [req.user.id])).rows[0]!.n;
+    return { user: { ...req.user, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.price, unread_notifications: unread } };
   });
 
   app.patch("/me", async (req) => {

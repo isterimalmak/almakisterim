@@ -32,7 +32,7 @@ export function Header() {
               <>
                 <Link className="t" href="/bana-ozel">Bana Özel</Link>
                 <span className="credit">{user.free_unlocks_left} ücretsiz numara · {user.credits} kredi</span>
-                <Link href="/bana-ozel" title="Bana Özel"><span className="av">{initials(user.name || "Üye")}</span></Link>
+                <Link href={user.unread_notifications > 0 ? "/bana-ozel?s=bildirim" : "/bana-ozel"} title="Bana Özel" className="av-link"><span className="av">{initials(user.name || "Üye")}</span>{user.unread_notifications > 0 && <span className="badge" aria-label={`${user.unread_notifications} okunmamış bildirim`}>{user.unread_notifications}</span>}</Link>
               </>
             ) : (
               <>
