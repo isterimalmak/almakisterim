@@ -56,3 +56,10 @@ export function maskTarget(channel: "email" | "sms", target: string): string {
   const [u = "", d = ""] = target.split("@");
   return u.slice(0, 2) + "***@" + d;
 }
+
+// Adres çubuğundaki kimlik (Talep No, teklif no) geçersizse "bulunamadı" döner.
+export function idParam(params: unknown): number {
+  const raw = (params as { id?: string }).id ?? "";
+  if (!/^\d{1,12}$/.test(raw)) throw new HttpError(404, "bulunamadi", "Aradığınız kayıt bulunamadı.");
+  return Number(raw);
+}

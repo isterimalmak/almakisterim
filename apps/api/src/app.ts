@@ -2,7 +2,10 @@ import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyServerOptions } from "fastify";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
+
+// Doğrulama mesajları Türkçe.
+z.config(z.locales.tr());
 import { loadUser, SESSION_COOKIE, type Deps } from "./context.js";
 import { HttpError } from "./lib/util.js";
 import { adminRoutes } from "./modules/admin.js";
@@ -11,6 +14,7 @@ import { categoryRoutes } from "./modules/categories.js";
 import { meRoutes } from "./modules/me.js";
 import { offerRoutes } from "./modules/offers.js";
 import { requestRoutes } from "./modules/requests.js";
+import { MemoryOutbox } from "./services/notify.js";
 
 // Loglara gizli bilgi düşmesin: çerez ve yetki başlıkları maskelenir; istek gövdeleri hiç loglanmaz.
 const REDACT = ["req.headers.cookie", "req.headers.authorization", "req.headers[\"x-job-token\"]", "res.headers[\"set-cookie\"]"];
@@ -62,6 +66,11 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     offerRoutes(api, deps);
     meRoutes(api, deps);
     adminRoutes(api, deps);
+    // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.
+    if (deps.config.NODE_ENV === "test" && deps.sms instanceof MemoryOutbox) {
+      const outbox = deps.sms;
+      api.get("/__test/last-message", async (req) => ({ text: outbox.last(String((req.query as { to?: string }).to ?? ""))?.text ?? null }));
+    }
   }, { prefix: "/api" });
 
   return app;

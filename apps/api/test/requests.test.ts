@@ -128,3 +128,16 @@ describe("talepler", () => {
   });
 });
 
+
+describe("hatalı adresler", () => {
+  it("geçersiz Talep No 404 ve Türkçe mesaj döner", async () => {
+    const r = await ctx.app.inject({ url: "/api/requests/undefined" });
+    expect(r.statusCode).toBe(404);
+    expect(r.json().message).toBe("Aradığınız kayıt bulunamadı.");
+  });
+  it("doğrulama hataları Türkçe döner", async () => {
+    const r = await ctx.app.inject({ method: "POST", url: "/api/auth/code", payload: { channel: "faks", target: "x" } });
+    expect(r.statusCode).toBe(400);
+    expect(r.json().message).toMatch(/[ğüşıöçĞÜŞİÖÇ]|Geçersiz/);
+  });
+});

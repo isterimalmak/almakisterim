@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser, type Deps } from "../context.js";
-import { HttpError, maskContacts, publicName } from "../lib/util.js";
+import { HttpError, maskContacts, publicName, idParam } from "../lib/util.js";
 import { CITIES, CONDITIONS, type CategoryRef } from "../services/ai.js";
 import { listCategories, VISIBLE_CATEGORY_SQL, visibleSubcategory } from "./categories.js";
 import { notifyAlarmMatches } from "./notifications.js";
@@ -81,7 +81,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   app.get("/requests/:id", async (req) => {
-    const id = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const id = idParam(req.params);
     const { rows } = await pool.query<Row & { status: string; category_visible: boolean }>(
       `SELECT ${LIST_COLUMNS}, (${VISIBLE_CATEGORY_SQL}) AS category_visible, r.accepted_offer_id, r.moderation_note ${FROM} WHERE r.id = $1`, [id]);
     const r = rows[0];
@@ -144,14 +144,14 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/requests/:id/close", async (req) => {
     const user = requireUser(req);
-    const id = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const id = idParam(req.params);
     const r = await pool.query("UPDATE requests SET status = 'closed' WHERE id = $1 AND buyer_id = $2 AND status IN ('active','pending_review') RETURNING id", [id, user.id]);
     if (!r.rowCount) throw new HttpError(404, "bulunamadi", "Kapatılabilecek talep bulunamadı.");
     return { ok: true };
   });
 
   app.post("/requests/:id/report", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req) => {
-    const id = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const id = idParam(req.params);
     const { reason } = z.object({ reason: z.string().trim().min(3).max(300) }).parse(req.body);
     const exists = await pool.query("SELECT 1 FROM requests WHERE id = $1", [id]);
     if (!exists.rowCount) throw new HttpError(404, "bulunamadi", "Talep bulunamadı.");

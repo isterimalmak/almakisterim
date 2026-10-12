@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser, type Deps } from "../context.js";
-import { HttpError } from "../lib/util.js";
+import { HttpError, idParam } from "../lib/util.js";
 import { CITIES } from "../services/ai.js";
 import { VISIBLE_CATEGORY_SQL } from "./categories.js";
 
@@ -83,7 +83,7 @@ export function meRoutes(app: FastifyInstance, { pool }: Deps) {
 
   app.delete("/me/alarms/:id", async (req) => {
     const user = requireUser(req);
-    const id = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const id = idParam(req.params);
     await pool.query("DELETE FROM alarms WHERE id = $1 AND user_id = $2", [id, user.id]);
     return { ok: true };
   });
@@ -98,14 +98,14 @@ export function meRoutes(app: FastifyInstance, { pool }: Deps) {
 
   app.put("/me/favorites/:id", async (req) => {
     const user = requireUser(req);
-    const id = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const id = idParam(req.params);
     await pool.query("INSERT INTO favorites (user_id, request_id) SELECT $1, id FROM requests WHERE id = $2 ON CONFLICT DO NOTHING", [user.id, id]);
     return { ok: true };
   });
 
   app.delete("/me/favorites/:id", async (req) => {
     const user = requireUser(req);
-    const id = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const id = idParam(req.params);
     await pool.query("DELETE FROM favorites WHERE user_id = $1 AND request_id = $2", [user.id, id]);
     return { ok: true };
   });

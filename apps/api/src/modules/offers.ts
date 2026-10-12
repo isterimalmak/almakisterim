@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser, type Deps } from "../context.js";
 import { tx } from "../db.js";
-import { HttpError, maskContacts } from "../lib/util.js";
+import { HttpError, maskContacts, idParam } from "../lib/util.js";
 import { notifyUser } from "./notifications.js";
 
 const OfferBody = z.object({
@@ -22,7 +22,7 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/requests/:id/offers", { config: { rateLimit: { max: 30, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
-    const requestId = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const requestId = idParam(req.params);
     const b = OfferBody.parse(req.body);
     const note = maskContacts(b.note).text;
     const mod = note ? await ai.moderate(note) : { verdict: "ok" as const, reason: "" };
@@ -63,7 +63,7 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/offers/:id/accept", async (req) => {
     const user = requireUser(req);
-    const offerId = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const offerId = idParam(req.params);
     const out = await tx(pool, async (c) => {
       const o = await c.query<{ request_id: number; seller_id: string; buyer_id: string; status: string; req_status: string; title: string }>(
         `SELECT o.request_id, o.seller_id, r.buyer_id, o.status, r.status AS req_status, r.title
@@ -83,7 +83,7 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/offers/:id/withdraw", async (req) => {
     const user = requireUser(req);
-    const offerId = z.coerce.number().int().parse((req.params as { id: string }).id);
+    const offerId = idParam(req.params);
     const r = await pool.query("UPDATE offers SET status = 'withdrawn' WHERE id = $1 AND seller_id = $2 AND status = 'active' RETURNING id", [offerId, user.id]);
     if (!r.rowCount) throw new HttpError(404, "bulunamadi", "Geri çekilebilecek teklif bulunamadı.");
     return { ok: true };
