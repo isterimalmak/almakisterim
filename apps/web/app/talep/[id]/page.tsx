@@ -7,17 +7,17 @@ import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker, Thumbs } from "@/components/Media";
 import { CatIcon, Labels } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
-import { api, type Media, type Offer, type RequestDetail } from "@/lib/api";
+import { api, type Contact, type Media, type Offer, type RequestDetail } from "@/lib/api";
 import { ATTRS, DELIVERY } from "@/lib/catalog";
 import { ago, budgetTxt, dateTr, fmt, initials, leftParts } from "@/lib/format";
 
 export default function RequestPage() {
   const { id } = useParams<{ id: string }>();
   const { user, toast, refresh } = useSession();
-  const [data, setData] = useState<{ request: RequestDetail; offers: Offer[] } | null>(null);
+  const [data, setData] = useState<{ request: RequestDetail; offers: Offer[]; contact: Contact } | null>(null);
   const [error, setError] = useState("");
 
-  const load = useCallback(() => api<{ request: RequestDetail; offers: Offer[] }>(`/requests/${id}`).then(setData).catch((e) => setError(e.message)), [id]);
+  const load = useCallback(() => api<{ request: RequestDetail; offers: Offer[]; contact: Contact }>(`/requests/${id}`).then(setData).catch((e) => setError(e.message)), [id]);
   useEffect(() => { void load(); }, [load, user?.id]);
 
   if (error) return <div className="wrap"><div className="crumb"><Link href="/">Ana Sayfa</Link></div><div className="box"><div className="empty">{error}</div></div></div>;
@@ -27,6 +27,7 @@ export default function RequestPage() {
   const lp = leftParts(r.expires_at);
   const open = r.status === "active" && new Date(r.expires_at) > new Date();
   const myOffer = data.offers.find((o) => o.mine);
+  const c = data.contact;
 
   const fav = async () => {
     if (!user) return toast("Favorilere eklemek için giriş yapın.");
@@ -79,19 +80,24 @@ export default function RequestPage() {
             {r.is_owner ? <OwnerOffers r={r} offers={data.offers} onChange={load} />
               : myOffer ? <div className="box-b"><div className="note n-ok"><Icon name="check" size={15} sw={3} /><span>Teklifiniz: <b>{fmt(myOffer.price)} TL</b> · Durum: {myOffer.status === "accepted" ? "Kabul edildi 🎉" : myOffer.status === "rejected" ? "Alıcı başka bir teklifi seçti" : "Alıcı inceliyor"}</span></div><Thumbs media={myOffer.media} /></div>
               : !open ? <div className="box-b"><div className="note n-info">Bu talep artık teklif kabul etmiyor.</div></div>
+              : user && !c.unlocked ? <UnlockBox r={r} c={c} onDone={() => { void load(); void refresh(); }} />
               : user ? <OfferForm r={r} onDone={() => { void load(); void refresh(); }} />
-              : <div className="empty">Teklif vermek için <Link className="link" href={`/giris?sonra=/talep/${r.id}`}>giriş yapın</Link>. Teklif fiyatlarını yalnızca talep sahibi görür.</div>}
+              : <div className="empty">Alıcının numarasını görmek ve teklif vermek için <Link className="link" href={`/giris?sonra=/talep/${r.id}`}>giriş yapın</Link>. Teklif fiyatlarını yalnızca talep sahibi görür.</div>}
           </section>
         </div>
 
         <aside>
           <div className="box"><div className="box-b">
             <div className="who"><span className="av" style={{ width: 42, height: 42, fontSize: 14, background: r.is_corporate ? "var(--navy)" : "#5B6B8C" }}>{initials(r.buyer_name)}</span><div><b>{r.buyer_name}</b><div className="muted" style={{ fontSize: 12 }}>{r.is_corporate ? "Kurumsal alıcı" : "Bireysel alıcı"}</div></div></div>
-            <div className="phone-hidden"><Icon name="lock" size={15} /><span>Alıcının telefon numarası gizlidir. Teklifiniz kabul edilirse size bildirim gönderilir.</span></div>
+            {r.is_owner
+              ? <div className="phone-hidden"><Icon name="lock" size={15} /><span>Numaranızı şu ana kadar <b>{c.used}</b>{c.limit > 0 && <> / {c.limit}</>} satıcı gördü.{c.viewers && c.viewers.length > 0 && <> ({c.viewers.map((v) => v.seller_name).join(", ")})</>}</span></div>
+              : c.phone
+                ? <a className="phone-open" href={`tel:+${c.phone}`}><Icon name="phone" size={16} /><span>{phoneTxt(c.phone)}</span></a>
+                : <div className="phone-hidden"><Icon name="lock" size={15} /><span>Alıcının numarası gizli. {open ? <>Numarayı görmek {c.price ? <><b>{c.price} kredi</b></> : "ücretsiz"}{c.slots_left !== null && <> · {c.slots_left} satıcı hakkı kaldı</>}.</> : "Talep kapandı."}</span></div>}
             <div className="muted" style={{ fontSize: 12 }}>Teklif toplama süresinin bitmesine</div>
             <div className="time-left"><div><b>{lp.d}</b><small>gün</small></div><div><b>{lp.h}</b><small>saat</small></div><div><b>{lp.m}</b><small>dakika</small></div></div>
             <div className="act-list">
-              {open && !r.is_owner && !myOffer && <a className="btn btn-or btn-lg btn-block" href="#teklifler">Teklif Ver</a>}
+              {open && !r.is_owner && !myOffer && <a className="btn btn-or btn-lg btn-block" href="#teklifler">{c.unlocked ? "Teklif Ver" : "Numarayı Gör ve Teklif Ver"}</a>}
               {!r.is_owner && <button className="btn btn-wh btn-block" onClick={fav}><Icon name="heart" size={15} /> {r.is_favorite ? "Favorilerden çıkar" : "Favorilere ekle"}</button>}
               <button className="btn btn-wh btn-block" onClick={alarm}><Icon name="bell" size={15} /> Benzer talepler için alarm kur</button>
               {r.is_owner && open && <button className="btn btn-wh btn-block" onClick={async () => { if (!confirm("Talebi kapatmak istiyor musunuz?")) return; await api(`/requests/${r.id}/close`, { body: {} }); toast("Talep kapatıldı."); void load(); }}>Talebi kapat</button>}
@@ -153,6 +159,41 @@ function OwnerOffers({ r, offers, onChange }: { r: RequestDetail; offers: Offer[
   );
 }
 
+function phoneTxt(p: string) {
+  // 905321112233 → 0532 111 22 33
+  const d = p.replace(/^90/, "0");
+  return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7, 9)} ${d.slice(9)}`;
+}
+
+function UnlockBox({ r, c, onDone }: { r: RequestDetail; c: Contact; onDone: () => void }) {
+  const { user, toast } = useSession();
+  const [busy, setBusy] = useState(false);
+  const full = c.slots_left === 0;
+  const free = (user?.free_unlocks_left ?? 0) > 0 || c.price === 0;
+  const go = async () => {
+    setBusy(true);
+    try {
+      const res = await api<{ charged_credits: number; free: boolean }>(`/requests/${r.id}/unlock`, { body: {} });
+      toast(res.charged_credits ? `Numara açıldı, ${res.charged_credits} kredi kullanıldı.` : "Numara açıldı (ücretsiz hakkınızdan).");
+      onDone();
+    } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="box-b unlock">
+      <div className="unlock-h"><Icon name="lock" size={18} /><b>Alıcının numarasını görün, teklifinizi gönderin</b></div>
+      <ul className="unlock-l">
+        <li>Numarayı açınca alıcıyı hemen arayabilir ve bu talebe teklif verebilirsiniz.</li>
+        <li>Bu talepte numarayı en fazla <b>{c.limit || "sınırsız"}</b> satıcı görebilir{c.slots_left !== null && <>; <b>{c.slots_left}</b> hak kaldı</>}.</li>
+        <li>Ücret: <b>{c.price ? `${c.price} kredi` : "ücretsiz"}</b>{c.price > 0 && <> · Bu ay kalan ücretsiz hakkınız: <b>{user?.free_unlocks_left ?? 0}</b> · Krediniz: <b>{user?.credits ?? 0}</b></>}</li>
+      </ul>
+      {full
+        ? <div className="note n-info">Bu talepte numara görme hakları doldu.</div>
+        : <button className="btn btn-or btn-lg" disabled={busy} onClick={go}>{busy ? "Açılıyor…" : free ? "Numarayı Gör (ücretsiz hak)" : `Numarayı Gör (${c.price} kredi)`}</button>}
+      {!full && !free && (user?.credits ?? 0) < c.price && <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Krediniz yetersiz. <Link className="link" href="/bana-ozel?s=kredi">Kredi yükleyin</Link>.</p>}
+    </div>
+  );
+}
+
 function OfferForm({ r, onDone }: { r: RequestDetail; onDone: () => void }) {
   const { user, toast } = useSession();
   const conds = r.condition === "Hizmet" ? ["Malzeme + işçilik", "Sadece işçilik", "Paket fiyat"] : ["Sıfır, kapalı kutu", "İkinci el, çok iyi", "İkinci el, iyi", "Yenilenmiş"];
@@ -168,14 +209,14 @@ function OfferForm({ r, onDone }: { r: RequestDetail; onDone: () => void }) {
     if (!(Number(price) > 0)) return toast("Geçerli bir teklif fiyatı yazın.");
     setBusy(true);
     try {
-      const res = await api<{ charged_credit: boolean }>(`/requests/${r.id}/offers`, { body: { price: Math.round(Number(price)), condition: cond, delivery: del, warranty: war, note, media_ids: media.map((m) => m.id) } });
-      toast(res.charged_credit ? "Teklifiniz gönderildi. 1 kredi kullanıldı." : "Teklifiniz gönderildi.");
+      await api(`/requests/${r.id}/offers`, { body: { price: Math.round(Number(price)), condition: cond, delivery: del, warranty: war, note, media_ids: media.map((m) => m.id) } });
+      toast("Teklifiniz gönderildi.");
       onDone();
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
   return (
     <div className="box-b">
-      <div className="note n-info" style={{ marginBottom: 12 }}><span>Diğer satıcıların fiyatlarını göremezsiniz, en iyi fiyatınızı verin. Bu ay kalan ücretsiz teklif hakkınız: <b>{user?.free_offers_left ?? 0}</b>, krediniz: <b>{user?.credits ?? 0}</b>.</span></div>
+      <div className="note n-info" style={{ marginBottom: 12 }}><span>Alıcının numarası açıldı. Diğer satıcıların fiyatlarını göremezsiniz, en iyi fiyatınızı verin. Teklif vermek ücretsizdir.</span></div>
       <div className="form-grid">
         <div className="fg"><label htmlFor="o-price">Teklif fiyatınız (TL)</label><input className="inp" id="o-price" type="number" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={`Örn. ${fmt(Math.round(r.budget_max * 0.93))}`} /><span className="hint">Alıcının bütçesi: {budgetTxt(r.budget_min, r.budget_max)}</span></div>
         <div className="fg"><label htmlFor="o-cond">Ürün durumu</label><select className="sel" id="o-cond" value={cond} onChange={(e) => setCond(e.target.value)}>{conds.map((x) => <option key={x}>{x}</option>)}</select></div>

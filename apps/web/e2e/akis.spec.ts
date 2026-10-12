@@ -50,12 +50,15 @@ test("alıcı talep verir, satıcı teklif verir, alıcı kabul eder", async ({ 
   const seller = await sellerCtx.newPage();
   await loginSms(seller, `0533${rnd().slice(0, 7)}`, "Ahmet Kaya");
   await seller.goto(url);
+  await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
+  await expect(seller.locator(".phone-open")).toBeVisible();
   await seller.getByLabel("Teklif fiyatınız (TL)").fill("14250");
   await seller.getByLabel("Alıcıya mesajınız").fill("Kutulu, 2 kol. Beni 0544 111 22 33'ten arayın.");
   await seller.getByRole("button", { name: "Teklifi Gönder" }).click();
   await expect(seller.getByText("Teklifiniz:")).toBeVisible();
 
   await buyer.reload();
+  await expect(buyer.locator(".phone-hidden")).toContainText("1 / 10 satıcı gördü");
   await expect(buyer.getByText("14.250 TL").first()).toBeVisible();
   await expect(buyer.getByText("[numara gizlendi]")).toBeVisible();
   buyer.once("dialog", (d) => d.accept());
@@ -119,6 +122,8 @@ test("alıcı ve satıcı fotoğraf ekler, alıcı teklifteki fotoğrafı görü
   const seller = await sellerCtx.newPage();
   await loginSms(seller, `0535${rnd().slice(0, 7)}`, "Can Yıldız");
   await seller.goto(url);
+  await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
+  await expect(seller.locator(".phone-open")).toBeVisible();
   await seller.getByLabel("Teklif fiyatınız (TL)").fill("7500");
   await seller.getByLabel("Fotoğraf / video ekle").setInputFiles([
     { name: "urun.png", mimeType: "image/png", buffer: PNG },

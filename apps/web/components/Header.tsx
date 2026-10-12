@@ -31,7 +31,7 @@ export function Header() {
             {user ? (
               <>
                 <Link className="t" href="/bana-ozel">Bana Özel</Link>
-                <span className="credit">{user.free_offers_left} ücretsiz · {user.credits} kredi</span>
+                <span className="credit">{user.free_unlocks_left} ücretsiz numara · {user.credits} kredi</span>
                 <Link href="/bana-ozel" title="Bana Özel"><span className="av">{initials(user.name || "Üye")}</span></Link>
               </>
             ) : (

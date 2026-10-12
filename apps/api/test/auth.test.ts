@@ -12,7 +12,7 @@ describe("giriş", () => {
   it("SMS koduyla giriş yapar, oturum açar ve /me kullanıcıyı döner", async () => {
     const cookie = await login(ctx, "0532 111 22 33", "Elif Sönmez");
     const me = await ctx.app.inject({ url: "/api/me", headers: { cookie } });
-    expect(me.json().user).toMatchObject({ name: "Elif Sönmez", phone: "905321112233", role: "user", free_offers_left: 5 });
+    expect(me.json().user).toMatchObject({ name: "Elif Sönmez", phone: "905321112233", role: "user", free_unlocks_left: 5 });
   });
 
   it("e-posta koduyla giriş yapar; yönetici e-postası yönetici olur", async () => {

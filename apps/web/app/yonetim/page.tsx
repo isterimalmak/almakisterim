@@ -19,7 +19,7 @@ export default function Admin() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [cats, setCats] = useState<CategoryTop[]>([]);
   const [mod, setMod] = useState<{ pending: Pending[]; reports: Report[] } | null>(null);
-  const [settings, setSettings] = useState<{ free_offers_per_month?: number; store_monthly_price_try?: number } | null>(null);
+  const [settings, setSettings] = useState<{ free_unlocks_per_month?: number; unlock_price_credits?: number; unlock_limit_per_request?: number; unlock_price_by_top?: Record<string, number>; store_monthly_price_try?: number } | null>(null);
   const [q, setQ] = useState("");
   const [users, setUsers] = useState<UserRow[]>([]);
 
@@ -117,7 +117,16 @@ export default function Admin() {
       {tab === "ayar" && settings && (
         <div className="box"><div className="box-h"><h2>Ayarlar</h2></div><div className="box-b">
           <div className="form-grid" style={{ maxWidth: 560 }}>
-            <div className="fg"><label htmlFor="s-free">Aylık ücretsiz teklif hakkı</label><input className="inp" id="s-free" type="number" value={settings.free_offers_per_month ?? 0} onChange={(e) => setSettings({ ...settings, free_offers_per_month: Number(e.target.value) })} /></div>
+            <div className="fg"><label htmlFor="s-price">Numara görme ücreti (kredi)</label><input className="inp" id="s-price" type="number" min={0} value={settings.unlock_price_credits ?? 1} onChange={(e) => setSettings({ ...settings, unlock_price_credits: Number(e.target.value) })} /><span className="hint">Kategoriye özel fiyat girilmemişse bu kullanılır.</span></div>
+            <div className="fg"><label htmlFor="s-limit">Bir talepte en fazla kaç satıcı</label><input className="inp" id="s-limit" type="number" min={0} value={settings.unlock_limit_per_request ?? 10} onChange={(e) => setSettings({ ...settings, unlock_limit_per_request: Number(e.target.value) })} /><span className="hint">0 = sınırsız.</span></div>
+            <div className="fg"><label htmlFor="s-free">Aylık ücretsiz numara hakkı</label><input className="inp" id="s-free" type="number" min={0} value={settings.free_unlocks_per_month ?? 0} onChange={(e) => setSettings({ ...settings, free_unlocks_per_month: Number(e.target.value) })} /></div>
+            <div className="fg full"><label>Kategoriye özel numara ücreti (kredi)</label>
+              <div className="form-grid">{cats.map((t) => (
+                <div className="fg" key={t.id}><label htmlFor={`s-top-${t.id}`} style={{ fontWeight: 500 }}>{t.name}</label>
+                  <input className="inp" id={`s-top-${t.id}`} type="number" min={0} placeholder={`Varsayılan (${settings.unlock_price_credits ?? 1})`} value={settings.unlock_price_by_top?.[t.id] ?? ""}
+                    onChange={(e) => { const m = { ...(settings.unlock_price_by_top ?? {}) }; if (e.target.value === "") delete m[t.id]; else m[t.id] = Number(e.target.value); setSettings({ ...settings, unlock_price_by_top: m }); }} /></div>
+              ))}</div>
+            </div>
             <div className="fg"><label htmlFor="s-store">Mağaza üyeliği (TL / ay)</label><input className="inp" id="s-store" type="number" value={settings.store_monthly_price_try ?? 0} onChange={(e) => setSettings({ ...settings, store_monthly_price_try: Number(e.target.value) })} /></div>
           </div>
           <button className="btn btn-or" style={{ marginTop: 12 }} onClick={async () => { try { await api("/admin/settings", { method: "PUT", body: settings }); toast("Ayarlar kaydedildi."); } catch (e) { toast((e as Error).message); } }}>Kaydet</button>

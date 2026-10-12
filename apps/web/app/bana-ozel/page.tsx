@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { PhoneVerify } from "@/components/PhoneVerify";
 import { useSession } from "@/components/Session";
 import { api } from "@/lib/api";
 import { CITIES } from "@/lib/catalog";
@@ -70,8 +71,8 @@ function Account() {
   if (s === "ozet") content = (
     <>
       <div className="kpis">
-        <div className="kpi"><small>Bu ay ücretsiz teklif</small><b>{user.free_offers_left}</b></div>
-        <div className="kpi"><small>Teklif krediniz</small><b>{user.credits}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=kredi">Kredi yükle</Link></div>
+        <div className="kpi"><small>Bu ay ücretsiz numara</small><b>{user.free_unlocks_left}</b></div>
+        <div className="kpi"><small>Krediniz</small><b>{user.credits}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=kredi">Kredi yükle</Link></div>
         <div className="kpi"><small>Verdiğiniz teklif</small><b>{offers?.length ?? "–"}</b></div>
         <div className="kpi"><small>Kabul edilen</small><b>{offers?.filter((o) => o.status === "accepted").length ?? "–"}</b></div>
       </div>
@@ -129,14 +130,22 @@ function Account() {
   );
   if (s === "kredi") content = (
     <>
-      <div className="note n-info" style={{ marginBottom: 12 }}><span>Her ay belirli sayıda teklif ücretsizdir; bu ay kalan hakkınız <b>{user.free_offers_left}</b>, krediniz <b>{user.credits}</b>. Her ek teklif 1 kredi kullanır.</span></div>
+      <div className="note n-info" style={{ marginBottom: 12 }}><span>Alıcının numarasını görmek kredi ile olur; numarayı açtığınız talebe ücretsiz teklif verirsiniz. Her ay birkaç numara ücretsizdir: bu ay kalan hakkınız <b>{user.free_unlocks_left}</b>, krediniz <b>{user.credits}</b>. Bir numara genelde {user.unlock_price} kredidir (bazı kategorilerde farklı olabilir).</span></div>
       <div className="box"><div className="box-b">
         <b>Kredi satın alma yakında açılıyor.</b>
         <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>Ödeme altyapısı kurulana kadar kredi veya mağaza üyeliği için bizimle iletişime geçin; kredi hesabınıza elle tanımlanır.</p>
       </div></div>
     </>
   );
-  if (s === "hesap") content = <ProfileForm />;
+  if (s === "hesap") content = (
+    <>
+      <ProfileForm />
+      <div className="box" style={{ marginTop: 14 }}><div className="box-h"><h2>Telefon numarası</h2></div><div className="box-b">
+        {user.phone ? <p>Doğrulanmış numaranız: <b>{user.phone.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4")}</b></p>
+          : <><p className="muted" style={{ marginBottom: 10, fontSize: 13 }}>Talep vermek için doğrulanmış bir telefon numarası gerekir.</p><PhoneVerify /></>}
+      </div></div>
+    </>
+  );
 
   const menu: [string, string, number?][] = [["taleplerim", "Taleplerim"], ["favori", "Favori Talepler"], ["ozet", "Satıcı Özeti"], ["eslesme", "Size Uygun Talepler"], ["tekliflerim", "Verdiğim Teklifler"], ["alarm", "Talep Alarmları"], ["kredi", "Kredi ve Mağaza"], ["hesap", "Hesap Bilgileri"]];
   return (

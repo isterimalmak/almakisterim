@@ -52,8 +52,8 @@ describe("yönetim paneli", () => {
   it("ayarlar güncellenir ve kredi tanımlanır", async () => {
     const admin = await login(ctx, "yonetici@almakisterim.com");
     await login(ctx, "05321112233");
-    await ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { free_offers_per_month: 3 } });
-    expect((await ctx.app.inject({ url: "/api/admin/settings", headers: { cookie: admin } })).json().free_offers_per_month).toBe(3);
+    await ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { free_unlocks_per_month: 3, unlock_price_by_top: { vasita: 5 } } });
+    expect((await ctx.app.inject({ url: "/api/admin/settings", headers: { cookie: admin } })).json()).toMatchObject({ free_unlocks_per_month: 3, unlock_price_by_top: { vasita: 5 } });
     const u = (await ctx.app.inject({ url: "/api/admin/users?q=905321112233", headers: { cookie: admin } })).json().items[0];
     const r = await ctx.app.inject({ method: "POST", url: `/api/admin/users/${u.id}/credits`, headers: { cookie: admin }, payload: { delta: 50 } });
     expect(r.json().credits).toBe(50);

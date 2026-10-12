@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { HeuristicAi } from "../src/services/ai.js";
 import { disabledStorage } from "../src/services/storage.js";
-import { createRequest, login, makeApp, resetData, sampleRequest, type TestCtx } from "./helpers.js";
+import { createRequest, login, makeApp, postOffer, resetData, sampleRequest, type TestCtx } from "./helpers.js";
 
 let ctx: TestCtx;
 beforeEach(async () => {
@@ -101,7 +101,7 @@ describe("fotoğraf ve video", () => {
     const id = await createRequest(ctx, buyer);
     const p = await upload(ctx, seller);
     const v = await upload(ctx, seller, "video/quicktime", Buffer.from("mov"));
-    const r = await ctx.app.inject({ method: "POST", url: `/api/requests/${id}/offers`, headers: { cookie: seller }, payload: offer([p.id, v.id]) });
+    const r = await postOffer(ctx, seller, id, offer([p.id, v.id]));
     expect(r.statusCode, r.body).toBe(201);
 
     const asBuyer = (await ctx.app.inject({ url: `/api/requests/${id}`, headers: { cookie: buyer } })).json();
@@ -139,7 +139,7 @@ describe("fotoğraf ve video", () => {
     expect(mod.pending[0].media.map((x: { id: string }) => x.id)).toEqual([m.id]);
     const clean = await createRequest(c, buyer);
     const sm = await upload(c, seller);
-    const o = await c.app.inject({ method: "POST", url: `/api/requests/${clean}/offers`, headers: { cookie: seller }, payload: offer([sm.id]) });
+    const o = await postOffer(c, seller, clean, offer([sm.id]));
     expect(o.statusCode).toBe(400);
     expect(o.json().error).toBe("uygunsuz_gorsel");
     // Teklif verilemediği için ücretsiz hak da harcanmamalı.
