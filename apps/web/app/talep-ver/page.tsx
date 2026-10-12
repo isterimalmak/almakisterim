@@ -1,0 +1,162 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { Icon } from "@/components/Icon";
+import { useSession } from "@/components/Session";
+import { api, type Draft } from "@/lib/api";
+import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
+import { budgetTxt } from "@/lib/format";
+
+type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; condition: string; attrs: Record<string, string | number>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean };
+const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false };
+const KEY = "ak_taslak";
+
+function Create() {
+  const { categories, user, toast } = useSession();
+  const router = useRouter();
+  const sp = useSearchParams();
+  const [d, setD] = useState<D>(EMPTY);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMsg, setAiMsg] = useState("");
+  const [mod, setMod] = useState<{ verdict: string; reason: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const started = useRef(false);
+  const set = (p: Partial<D>) => setD((x) => ({ ...x, ...p }));
+
+  // Giriş sonrası geri dönülünce taslak kaybolmasın.
+  useEffect(() => {
+    try { const s = sessionStorage.getItem(KEY); if (s) { setD(JSON.parse(s)); sessionStorage.removeItem(KEY); } } catch { /* tarayıcı depolaması kapalı olabilir */ }
+  }, []);
+
+  const runAi = async (text: string) => {
+    if (text.trim().length < 5) return toast("Önce ne almak istediğinizi birkaç kelimeyle yazın.");
+    setAiBusy(true); setAiMsg("");
+    try {
+      const { draft, moderation } = await api<{ draft: Draft; moderation: { verdict: string; reason: string } }>("/ai/draft", { body: { text } });
+      setMod(moderation);
+      const top = categories.find((t) => t.subs.some((s) => s.id === draft.category_id));
+      setD((x) => ({
+        ...x, raw: text, title: draft.title, description: draft.description, condition: draft.condition,
+        b1: draft.budget_max ? String(draft.budget_max) : x.b1, b0: draft.budget_min ? String(draft.budget_min) : x.b0,
+        city: draft.city ?? x.city, urgent: draft.is_urgent, attrs: draft.attrs,
+        ...(top ? { top: top.id, sub: draft.category_id!, step: 2 as const } : {}),
+      }));
+      if (top) toast("Alanlar dolduruldu, lütfen kontrol edin.");
+      else setAiMsg("Kategoriyi belirleyemedik, lütfen aşağıdan seçin. Diğer bilgiler sonraki adımda dolu gelecek.");
+    } catch (e) { setAiMsg((e as Error).message); } finally { setAiBusy(false); }
+  };
+
+  useEffect(() => {
+    const m = sp.get("metin");
+    if (m && !started.current && categories.length) { started.current = true; set({ raw: m }); void runAi(m); }
+  }, [sp, categories.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const top = categories.find((t) => t.id === d.top);
+  const sub = top?.subs.find((s) => s.id === d.sub);
+  const sch = ATTRS[d.top] ?? [];
+
+  const validate = () => {
+    if (d.title.trim().length < 3) return "Talep başlığı yazın.";
+    if (!(Number(d.b1) > 0)) return "En fazla bütçeyi yazın.";
+    if (d.b0 && Number(d.b0) > Number(d.b1)) return "En az bütçe, en fazla bütçeden büyük olamaz.";
+    if (!d.city) return "İl seçin.";
+    return null;
+  };
+
+  const publish = async () => {
+    if (!d.agree) return toast("Yayınlamak için kuralları kabul edin.");
+    if (!user) {
+      try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ }
+      router.push("/giris?sonra=/talep-ver");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api<{ id: number; status: string; moderation: { reason: string } | null }>("/requests", { body: {
+        category_id: d.sub, title: d.title, description: d.description, budget_min: d.b0 ? Number(d.b0) : null, budget_max: Number(d.b1),
+        city: d.city, district: d.district, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "")),
+        is_urgent: d.urgent, is_corporate: d.corporate, days: d.days,
+      } });
+      toast(res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi." : "Talebiniz incelemeye alındı. Onaylanınca yayınlanacak.");
+      router.push(`/talep/${res.id}`);
+    } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
+  };
+
+  const steps = ["Kategori", "Talep Detayları", "Önizleme", "Yayında"];
+  return (
+    <div className="wrap" style={{ paddingBottom: 40, maxWidth: 980 }}>
+      <div className="crumb"><Link href="/">Ana Sayfa</Link> › Ücretsiz Talep Ver</div>
+      <div className="stepper">{steps.map((s, i) => <div key={s} className={d.step === i + 1 ? "on" : d.step > i + 1 ? "done" : ""}><span className="n">{d.step > i + 1 ? "✓" : i + 1}</span><span className="t">{s}</span></div>)}</div>
+
+      {d.step === 1 && (
+        <>
+          <div className="ai-quick">
+            <h3>Ne almak istiyorsunuz?</h3>
+            <p>Bir cümleyle yazın; kategori, bütçe, il ve özellikleri yapay zekâ sizin için doldursun. İsterseniz kategoriyi aşağıdan kendiniz de seçebilirsiniz.</p>
+            <textarea className="txa" rows={2} value={d.raw} onChange={(e) => set({ raw: e.target.value })} maxLength={1500} placeholder="Örn. 2. el iPhone 13 almak istiyorum, 128 GB olsun, bütçem 20.000 TL, İstanbul" aria-label="Ne almak istiyorsunuz?" />
+            <div className="row"><button className="btn btn-bl" disabled={aiBusy} onClick={() => runAi(d.raw)}>{aiBusy ? "İnceleniyor…" : "Otomatik doldur"}</button>{aiBusy && <span className="spinner" />}<span className="muted" style={{ fontSize: 12.5 }}>{aiMsg}</span></div>
+          </div>
+          <div className="box"><div className="box-h"><h2>Kategori seçin</h2></div><div className="box-b">
+            <div className="cat-pick">
+              <div className="cat-col">{categories.map((t) => <button key={t.id} className={d.top === t.id ? "on" : ""} onClick={() => set({ top: t.id, sub: "" })}><Icon name={t.icon} size={20} />{t.name}<span className="ar">›</span></button>)}</div>
+              <div className="cat-col">{top ? top.subs.map((s) => <button key={s.id} className={d.sub === s.id ? "on" : ""} onClick={() => set({ sub: s.id })}>{s.name}</button>) : <div className="empty" style={{ padding: "30px 12px" }}>Önce soldan bir ana kategori seçin.</div>}</div>
+            </div>
+            <div className="sel-path">{sub ? <>Seçilen kategori: <b>{top!.name} › {sub.name}</b></> : <span className="muted">Henüz kategori seçilmedi.</span>}</div>
+            <button className="btn btn-or btn-lg" disabled={!sub} onClick={() => set({ step: 2 })}>Devam</button>
+          </div></div>
+        </>
+      )}
+
+      {d.step === 2 && top && sub && (
+        <>
+          {mod && mod.verdict !== "ok" && <div className="note n-warn" style={{ marginBottom: 12 }}>Bu talep yayınlanmadan önce ekibimiz tarafından incelenecek. {mod.reason}</div>}
+          <div className="box"><div className="box-h"><h2>Talep Detayları</h2><span className="muted" style={{ fontSize: 12.5 }}>{top.name} › {sub.name} · <button className="link" onClick={() => set({ step: 1 })}>Değiştir</button></span></div><div className="box-b">
+            <div className="form-grid">
+              <div className="fg full"><label htmlFor="f-t">Talep başlığı *</label><input className="inp" id="f-t" maxLength={120} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="Örn. 2. el iPhone 13 almak istiyorum" /><span className="hint">Ne aradığınızı kısa ve net yazın.</span></div>
+              <div className="fg full"><label htmlFor="f-x">Açıklama</label><textarea className="txa" id="f-x" rows={4} maxLength={4000} value={d.description} onChange={(e) => set({ description: e.target.value })} placeholder="Olmazsa olmazlarınız, tercih ettiğiniz marka/model, teslimat şekli..." /></div>
+              <div className="fg"><label htmlFor="f-b0">En az bütçe (TL)</label><input className="inp" id="f-b0" type="number" inputMode="numeric" value={d.b0} onChange={(e) => set({ b0: e.target.value })} /></div>
+              <div className="fg"><label htmlFor="f-b1">En fazla bütçe (TL) *</label><input className="inp" id="f-b1" type="number" inputMode="numeric" value={d.b1} onChange={(e) => set({ b1: e.target.value })} /></div>
+              <div className="fg"><label htmlFor="f-c">İl *</label><select className="sel" id="f-c" value={d.city} onChange={(e) => set({ city: e.target.value })}><option value="">Seçin</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
+              <div className="fg"><label htmlFor="f-d">İlçe</label><input className="inp" id="f-d" maxLength={60} value={d.district} onChange={(e) => set({ district: e.target.value })} placeholder="Örn. Kadıköy" /></div>
+              <div className="fg full"><label>Ürün durumu</label><div className="radio-row">{CONDS.map((c) => <label key={c}><input type="radio" name="k" checked={d.condition === c} onChange={() => set({ condition: c })} />{c}</label>)}</div></div>
+              {sch.map((a) => (
+                <div className="fg" key={a.k}><label htmlFor={`fa-${a.k}`}>{a.l}</label>
+                  {a.t === "sel"
+                    ? <select className="sel" id={`fa-${a.k}`} value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: { ...d.attrs, [a.k]: e.target.value } })}><option value="">Farketmez</option>{a.o!.map((o) => <option key={o}>{o}</option>)}</select>
+                    : <input className="inp" id={`fa-${a.k}`} type="number" value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: { ...d.attrs, [a.k]: e.target.value ? Number(e.target.value) : "" } })} />}
+                </div>
+              ))}
+              <div className="fg"><label htmlFor="f-days">Teklif toplama süresi</label><select className="sel" id="f-days" value={d.days} onChange={(e) => set({ days: Number(e.target.value) as D["days"] })}>{[7, 14, 30].map((n) => <option key={n} value={n}>{n} gün</option>)}</select></div>
+              <div className="fg"><label>Seçenekler</label><label className="chk"><input type="checkbox" checked={d.urgent} onChange={(e) => set({ urgent: e.target.checked })} />Acil olarak işaretle</label><label className="chk"><input type="checkbox" checked={d.corporate} onChange={(e) => set({ corporate: e.target.checked })} />Firma adına faturalı alım</label></div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}><button className="btn btn-wh btn-lg" onClick={() => set({ step: 1 })}>Geri</button><button className="btn btn-or btn-lg" onClick={() => { const err = validate(); if (err) toast(err); else { set({ step: 3 }); window.scrollTo(0, 0); } }}>Devam</button></div>
+          </div></div>
+        </>
+      )}
+
+      {d.step === 3 && top && sub && (
+        <div className="box"><div className="box-h"><h2>Talebinizin önizlemesi</h2><button className="link" onClick={() => set({ step: 2 })}>Düzenle</button></div><div className="box-b">
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>{d.title}</div>
+          <table className="info" style={{ maxWidth: 560 }}><tbody>
+            <tr><th>Bütçe</th><td><span className="price-big">{budgetTxt(Number(d.b0) || Math.round(Number(d.b1) * 0.8), Number(d.b1))}</span></td></tr>
+            <tr><th>Kategori</th><td>{top.name} › {sub.name}</td></tr>
+            <tr><th>Ürün durumu</th><td>{d.condition}</td></tr>
+            {sch.filter((a) => d.attrs[a.k] !== undefined && d.attrs[a.k] !== "").map((a) => <tr key={a.k}><th>{a.l}</th><td>{String(d.attrs[a.k])}</td></tr>)}
+            <tr><th>Konum</th><td>{d.city}{d.district && ` / ${d.district}`}</td></tr>
+            <tr><th>Teklif toplama süresi</th><td>{d.days} gün</td></tr>
+          </tbody></table>
+          {d.description && <div className="desc" style={{ marginTop: 12 }}>{d.description}</div>}
+          <div className="note n-info" style={{ marginTop: 14 }}><span>Telefon numaranız ve e-postanız satıcılara gösterilmez. Metindeki iletişim bilgileri otomatik gizlenir.</span></div>
+          <label className="chk" style={{ marginTop: 12 }}><input type="checkbox" checked={d.agree} onChange={(e) => set({ agree: e.target.checked })} /><span><Link className="link" href="/sayfa/kullanim-kosullari" target="_blank">Talep verme kurallarını</Link> okudum, kabul ediyorum.</span></label>
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}><button className="btn btn-wh btn-lg" onClick={() => set({ step: 2 })}>Geri</button><button className="btn btn-or btn-lg" disabled={busy} onClick={publish}>{busy ? "Yayınlanıyor…" : user ? "Talebi Yayınla" : "Giriş yap ve yayınla"}</button></div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+export default function Page() {
+  return <Suspense fallback={<div className="loading">Yükleniyor…</div>}><Create /></Suspense>;
+}

@@ -1,0 +1,13 @@
+# Cloudflare Worker ayarları. API_ORIGIN ve WEB_ORIGIN, ilk "Canlıya al" sonrasında
+# GitHub Actions özetinde görünen Cloud Run adresleriyle doldurulur.
+name = "almakisterim"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+routes = [
+  { pattern = "almakisterim.com/*", zone_name = "almakisterim.com" },
+  { pattern = "www.almakisterim.com/*", zone_name = "almakisterim.com" },
+]
+
+[vars]
+API_ORIGIN = "https://almakisterim-api-XXXX.europe-west3.run.app"
+WEB_ORIGIN = "https://almakisterim-web-XXXX.europe-west3.run.app"
