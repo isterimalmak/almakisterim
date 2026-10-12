@@ -1,9 +1,16 @@
 name: Canlıya al
 
-# Yalnızca elle başlatılır (Actions → "Canlıya al" → Run workflow).
-# Önce bütün testler çalışır; geçerse "production" ortamı onayınızı bekler.
+# Yalnızca elle başlatılır (Actions → "Canlıya al" → Run workflow) ve onay kutusuna
+# "CANLIYA AL" yazılması gerekir. Yalnızca depo sahibi (isterimalmak) başlatabilir;
+# Google Cloud tarafı da (Workload Identity koşulu) yalnızca sahibin elle başlattığı,
+# main dalından çalışan yayına izin verir. Önce bütün testler çalışır.
 on:
   workflow_dispatch:
+    inputs:
+      onay:
+        description: 'Yayınlamak için büyük harflerle CANLIYA AL yazın'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,13 +21,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  izin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Onay ve yetki kontrolü
+        env:
+          ONAY: ${{ inputs.onay }}
+          KIM: ${{ github.triggering_actor }}
+          DAL: ${{ github.ref }}
+        run: |
+          [[ "$KIM" == "isterimalmak" ]] || { echo "::error::Yalnızca isterimalmak yayın başlatabilir."; exit 1; }
+          [[ "$DAL" == "refs/heads/main" ]] || { echo "::error::Yayın yalnızca main dalından yapılır."; exit 1; }
+          [[ "$ONAY" == "CANLIYA AL" ]] || { echo "::error::Onay kutusuna CANLIYA AL yazılmadı."; exit 1; }
+
   test:
+    needs: izin
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    needs: test
+    needs: [izin, test]
     runs-on: ubuntu-latest
-    environment: production
     timeout-minutes: 30
     env:
       PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}

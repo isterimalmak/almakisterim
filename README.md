@@ -37,4 +37,4 @@ cd apps/web && npx playwright test   # uçtan uca (API NODE_ENV=test ile 8080'de
 
 - API anahtarları ve şifreler koda, depoya ve loglara yazılmaz; yalnızca Google Secret Manager'da durur.
 - Tarayıcıya hiçbir anahtar gönderilmez; Claude, Netgsm, Resend çağrıları yalnızca sunucudan yapılır.
-- Canlıya alma yalnızca GitHub'da "Canlıya al" iş akışı elle başlatılıp `production` ortamı onaylanınca olur.
+- Canlıya alma yalnızca depo sahibi GitHub'da "Canlıya al" iş akışını `main` dalından elle başlatıp `CANLIYA AL` yazınca olur.

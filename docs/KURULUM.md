@@ -7,9 +7,9 @@ Bütün hesaplar **isterimalmak@gmail.com** ile açılır. Hiçbir anahtar sohbe
 | # | Adım | Durum |
 |---|---|---|
 | 1 | GitHub deposu `isterimalmak/almakisterim` | ✅ |
-| 2 | Google Cloud projesi `almakisterim` + faturalandırma | ⏳ |
-| 3 | Google Cloud kurulum betiği (`infra/gcp-kurulum.sh`) | ⏳ |
-| 4 | GitHub değişkenleri + `production` onay ortamı | ⏳ |
+| 2 | Google Cloud projesi `almakisterim` + faturalandırma | ✅ |
+| 3 | Google Cloud kurulum betiği (`infra/gcp-kurulum.sh`) | ✅ |
+| 4 | GitHub değişkenleri | ✅ |
 | 5 | Neon veritabanı (Frankfurt) → `DATABASE_URL` | ⏳ |
 | 6 | İlk "Canlıya al" (site run.app adresinde açılır) | ⏳ |
 | 7 | Anthropic (yapay zekâ) → `ANTHROPIC_API_KEY` | ⏳ |
@@ -48,10 +48,14 @@ GitHub → depo → **Settings → Secrets and variables → Actions → Variabl
 
 ## Onaylı yayın
 
-GitHub → **Settings → Environments → New environment → `production`** → **Required reviewers**: kendinizi ekleyin.
-Böylece "Canlıya al" önce testleri çalıştırır, sonra sizin onayınızı bekler.
+Özel depolarda GitHub'ın ücretsiz planı "Environments / Required reviewers" özelliğini sunmaz. Onun yerine:
+
+- "Canlıya al" yalnızca elle başlatılır ve onay kutusuna `CANLIYA AL` yazılması gerekir.
+- Yalnızca `isterimalmak` hesabı başlatabilir ve yalnızca `main` dalından çalışır.
+- Google Cloud tarafında da aynı koşul var (Workload Identity koşulu): başka biri, başka bir dal veya
+  otomatik tetiklenen bir iş akışı Google Cloud'a hiç giremez.
 
 ## Canlıya alma
 
-GitHub → **Actions → Canlıya al → Run workflow**. Testler geçince sarı "Review deployments" düğmesiyle onaylayın.
+GitHub → **Actions → Canlıya al → Run workflow** → dal `main` → kutuya `CANLIYA AL` yazın → **Run workflow**.
 Bitince özet sayfasında site ve API adresleri yazar.

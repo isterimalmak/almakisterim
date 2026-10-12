@@ -9,6 +9,9 @@ set -euo pipefail
 PROJECT_ID="$(gcloud config get-value project 2>/dev/null)"
 REGION="europe-west3"   # Frankfurt
 GITHUB_REPO="isterimalmak/almakisterim"
+GITHUB_OWNER="isterimalmak"
+# Google Cloud'a yalnızca sahibin elle başlattığı, main dalındaki "Canlıya al" iş akışı girebilir.
+WIF_CONDITION="assertion.repository=='$GITHUB_REPO' && assertion.event_name=='workflow_dispatch' && assertion.ref=='refs/heads/main' && assertion.actor=='$GITHUB_OWNER'"
 
 if [[ -z "$PROJECT_ID" || "$PROJECT_ID" == "(unset)" ]]; then
   echo "Önce projeyi seçin: gcloud config set project PROJE_KIMLIGI"; exit 1
@@ -42,7 +45,10 @@ gcloud iam workload-identity-pools providers describe almakisterim --location=gl
   gcloud iam workload-identity-pools providers create-oidc almakisterim --location=global --workload-identity-pool=github \
     --issuer-uri="https://token.actions.githubusercontent.com" \
     --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref" \
-    --attribute-condition="assertion.repository=='$GITHUB_REPO'" --quiet
+    --attribute-condition="$WIF_CONDITION" --quiet
+# Var olan sağlayıcıda da koşulu güncel tut.
+gcloud iam workload-identity-pools providers update-oidc almakisterim --location=global --workload-identity-pool=github \
+  --attribute-condition="$WIF_CONDITION" --quiet >/dev/null
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER" --role=roles/iam.workloadIdentityUser \
   --member="principalSet://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/$GITHUB_REPO" --quiet >/dev/null
 
