@@ -414,3 +414,29 @@ footer{background:#fff;border-top:1px solid var(--line);padding:24px 0;font-size
 .page-min{min-height:60vh}
 button.link{padding:0;font-size:inherit}
 .hdr-right .t{background:none;border:0;cursor:pointer;font-size:13.5px}
+
+/* ---------- Fotoğraf ve video ---------- */
+.mp-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.mp-item,.mp-add{width:96px;height:96px;border:1px solid var(--line-2);border-radius:4px;position:relative;overflow:hidden;background:#F6F7F9;flex:none}
+.mp-item img,.mp-item video{width:100%;height:100%;object-fit:cover;display:block}
+.mp-up{display:grid;place-items:center;align-content:center;gap:6px;font-size:12px;color:var(--muted)}
+.mp-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;border-style:dashed;color:var(--navy);font-size:11.5px;font-weight:600;text-align:center;padding:6px}
+.mp-add:hover{border-color:var(--navy);background:#fff}
+.mp-add:disabled{opacity:.45;cursor:not-allowed}
+.mp-x{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font-size:15px;line-height:22px;cursor:pointer;padding:0}
+.mp-badge{position:absolute;left:3px;bottom:3px;background:rgba(0,0,0,.65);color:#fff;font-size:10.5px;padding:1px 5px;border-radius:3px}
+.mp-badge.mp-cover{background:var(--orange)}
+.gal{display:flex;flex-direction:column;gap:6px;min-width:0}
+.gal-main{border:1px solid var(--line-2);border-radius:4px;aspect-ratio:4/3;background:#111;display:grid;place-items:center;overflow:hidden}
+.gal-main a{display:block;width:100%;height:100%}
+.gal-main img,.gal-main video{width:100%;height:100%;object-fit:contain;display:block}
+.gal-thumbs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.gal-thumbs button{width:58px;height:58px;flex:none;padding:0;border:2px solid transparent;border-radius:4px;overflow:hidden;cursor:pointer;background:#F6F7F9}
+.gal-thumbs button.on{border-color:var(--orange)}
+.gal-thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.gal-vid{width:100%;height:100%;display:grid;place-items:center;background:#222;color:#fff}
+.o-media{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
+.o-media a{width:48px;height:48px;border-radius:3px;overflow:hidden;border:1px solid var(--line-2);display:block}
+.o-media img{width:100%;height:100%;object-fit:cover;display:block}
+.ti-img{object-fit:cover;padding:0}
+.vc-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}

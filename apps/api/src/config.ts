@@ -24,6 +24,13 @@ const schema = z.object({
 
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),
+
+  // Cloudflare R2 (fotoğraf ve video). Anahtarlar Secret Manager'da; hesap kimliği, depo adı ve genel adres gizli değil.
+  R2_ACCOUNT_ID: z.string().default(""),
+  R2_ACCESS_KEY_ID: z.string().default(""),
+  R2_SECRET_ACCESS_KEY: z.string().default(""),
+  R2_BUCKET: z.string().default("almakisterim-media"),
+  R2_PUBLIC_URL: z.string().default(""),
 });
 
 export type Config = z.infer<typeof schema> & {

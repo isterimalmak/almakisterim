@@ -17,6 +17,9 @@ const P: Record<string, React.ReactNode> = {
   heart: <path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z" />,
   flag: <path d="M5 21V4h11l-1.5 4L16 12H5" />,
   search: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
+  play: <path d="M8 5v14l11-7z" />,
+  camera: <><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></>,
 };
 
 export function Icon({ name, size, sw = 1.8, style }: { name: string; size?: number; sw?: number; style?: React.CSSProperties }) {

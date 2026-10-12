@@ -5,10 +5,11 @@ import { createPool, type Pool } from "../src/db.js";
 import { HeuristicAi, type AiService } from "../src/services/ai.js";
 import { disabledGoogle, type GoogleAuth } from "../src/services/google.js";
 import { MemoryOutbox } from "../src/services/notify.js";
+import { MemoryStorage, type MediaStorage } from "../src/services/storage.js";
 
-export type TestCtx = { app: FastifyInstance; pool: Pool; outbox: MemoryOutbox };
+export type TestCtx = { app: FastifyInstance; pool: Pool; outbox: MemoryOutbox; storage: MediaStorage };
 
-export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; env?: Record<string, string> } = {}): Promise<TestCtx> {
+export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; storage?: MediaStorage; env?: Record<string, string> } = {}): Promise<TestCtx> {
   const config = loadConfig({
     NODE_ENV: "test",
     DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgres://postgres@localhost:5432/almakisterim_test",
@@ -19,12 +20,13 @@ export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; env?:
   });
   const pool = createPool(config.DATABASE_URL);
   const outbox = new MemoryOutbox();
-  const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle });
-  return { app, pool, outbox };
+  const storage = over.storage ?? new MemoryStorage();
+  const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle, storage });
+  return { app, pool, outbox, storage };
 }
 
 export async function resetData(pool: Pool) {
-  await pool.query(`TRUNCATE favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
+  await pool.query(`TRUNCATE media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
   await pool.query(`ALTER TABLE requests ALTER COLUMN id RESTART WITH 1048200`);
   await pool.query(`UPDATE categories SET is_visible = true`);
   await pool.query(`UPDATE settings SET value = '5' WHERE key = 'free_offers_per_month'`);

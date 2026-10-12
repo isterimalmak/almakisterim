@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { Gallery, MediaPicker } from "@/components/Media";
 import { useSession } from "@/components/Session";
-import { api, type Draft } from "@/lib/api";
+import { api, type Draft, type Media } from "@/lib/api";
 import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
 import { budgetTxt } from "@/lib/format";
 
-type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; condition: string; attrs: Record<string, string | number>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean };
-const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false };
+type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; condition: string; attrs: Record<string, string | number>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[] };
+const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [] };
 const KEY = "ak_taslak";
 
 function Create() {
@@ -27,7 +28,7 @@ function Create() {
 
   // Giriş sonrası geri dönülünce taslak kaybolmasın.
   useEffect(() => {
-    try { const s = sessionStorage.getItem(KEY); if (s) { setD(JSON.parse(s)); sessionStorage.removeItem(KEY); } } catch { /* tarayıcı depolaması kapalı olabilir */ }
+    try { const s = sessionStorage.getItem(KEY); if (s) { setD({ ...EMPTY, ...JSON.parse(s) }); sessionStorage.removeItem(KEY); } } catch { /* tarayıcı depolaması kapalı olabilir */ }
   }, []);
 
   const runAi = async (text: string) => {
@@ -77,7 +78,7 @@ function Create() {
       const res = await api<{ id: number; status: string; moderation: { reason: string } | null }>("/requests", { body: {
         category_id: d.sub, title: d.title, description: d.description, budget_min: d.b0 ? Number(d.b0) : null, budget_max: Number(d.b1),
         city: d.city, district: d.district, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "")),
-        is_urgent: d.urgent, is_corporate: d.corporate, days: d.days,
+        is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, media_ids: d.media.map((m) => m.id),
       } });
       toast(res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi." : "Talebiniz incelemeye alındı. Onaylanınca yayınlanacak.");
       router.push(`/talep/${res.id}`);
@@ -128,6 +129,11 @@ function Create() {
                     : <input className="inp" id={`fa-${a.k}`} type="number" value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: { ...d.attrs, [a.k]: e.target.value ? Number(e.target.value) : "" } })} />}
                 </div>
               ))}
+              <div className="fg full"><label>Fotoğraf / video <span className="muted">(isteğe bağlı)</span></label>
+                {user
+                  ? <MediaPicker value={d.media} onChange={(media) => setD((x) => ({ ...x, media }))} onError={toast} />
+                  : <span className="hint">Örnek fotoğraf eklemek için <Link className="link" href="/giris?sonra=/talep-ver" onClick={() => { try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ } }}>giriş yapın</Link>. Fotoğrafsız da talep verebilirsiniz.</span>}
+              </div>
               <div className="fg"><label htmlFor="f-days">Teklif toplama süresi</label><select className="sel" id="f-days" value={d.days} onChange={(e) => set({ days: Number(e.target.value) as D["days"] })}>{[7, 14, 30].map((n) => <option key={n} value={n}>{n} gün</option>)}</select></div>
               <div className="fg"><label>Seçenekler</label><label className="chk"><input type="checkbox" checked={d.urgent} onChange={(e) => set({ urgent: e.target.checked })} />Acil olarak işaretle</label><label className="chk"><input type="checkbox" checked={d.corporate} onChange={(e) => set({ corporate: e.target.checked })} />Firma adına faturalı alım</label></div>
             </div>
@@ -139,6 +145,7 @@ function Create() {
       {d.step === 3 && top && sub && (
         <div className="box"><div className="box-h"><h2>Talebinizin önizlemesi</h2><button className="link" onClick={() => set({ step: 2 })}>Düzenle</button></div><div className="box-b">
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>{d.title}</div>
+          {d.media.length > 0 && <div style={{ maxWidth: 420, marginBottom: 12 }}><Gallery media={d.media} fallback={null} /></div>}
           <table className="info" style={{ maxWidth: 560 }}><tbody>
             <tr><th>Bütçe</th><td><span className="price-big">{budgetTxt(Number(d.b0) || Math.round(Number(d.b1) * 0.8), Number(d.b1))}</span></td></tr>
             <tr><th>Kategori</th><td>{top.name} › {sub.name}</td></tr>
