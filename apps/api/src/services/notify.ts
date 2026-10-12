@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { Config } from "../config.js";
+import { HttpError } from "../lib/util.js";
 
 export interface Mailer {
   send(to: string, subject: string, text: string): Promise<void>;
@@ -52,12 +53,22 @@ export class MemoryOutbox implements Mailer, Sms {
   }
 }
 
+// Üretimde anahtarı henüz eklenmemiş kanal: kullanıcıya anlaşılır bir mesaj döner.
+export class UnavailableSender implements Mailer, Sms {
+  constructor(private what: string) {}
+  async send(): Promise<void> {
+    throw new HttpError(503, "kanal_kapali", `${this.what} şu anda kullanılamıyor. Lütfen başka bir giriş yöntemi deneyin.`);
+  }
+}
+
 export function createNotifiers(config: Config, log?: FastifyBaseLogger): { mailer: Mailer; sms: Sms } {
   const outbox = new MemoryOutbox(log);
+  const mailFallback = config.isProd ? new UnavailableSender("E-posta ile giriş") : outbox;
+  const smsFallback = config.isProd ? new UnavailableSender("SMS ile giriş") : outbox;
   return {
-    mailer: config.RESEND_API_KEY ? new ResendMailer(config.RESEND_API_KEY, config.MAIL_FROM) : outbox,
+    mailer: config.RESEND_API_KEY ? new ResendMailer(config.RESEND_API_KEY, config.MAIL_FROM) : mailFallback,
     sms: config.NETGSM_USERCODE && config.NETGSM_PASSWORD && config.NETGSM_HEADER
       ? new NetgsmSms(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER)
-      : outbox,
+      : smsFallback,
   };
 }

@@ -1,0 +1,96 @@
+name: Canlıya al
+
+# Yalnızca elle başlatılır (Actions → "Canlıya al" → Run workflow).
+# Önce bütün testler çalışır; geçerse "production" ortamı onayınızı bekler.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION || 'europe-west3' }}
+      RUNTIME_SA: almakisterim-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+      REGISTRY: ${{ vars.GCP_REGION || 'europe-west3' }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/almakisterim
+      SECRETS: DATABASE_URL=DATABASE_URL:latest,CODE_PEPPER=CODE_PEPPER:latest,JOB_TOKEN=JOB_TOKEN:latest,RESEND_API_KEY=RESEND_API_KEY:latest,NETGSM_USERCODE=NETGSM_USERCODE:latest,NETGSM_PASSWORD=NETGSM_PASSWORD:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Anahtarsız giriş: GitHub, Google Cloud'a kısa ömürlü bir kimlikle bağlanır (Workload Identity Federation).
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Docker girişini ayarla
+        run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+
+      - name: API imajını derle ve yükle
+        run: |
+          docker build -f apps/api/Dockerfile -t "$REGISTRY/api:$GITHUB_SHA" .
+          docker push "$REGISTRY/api:$GITHUB_SHA"
+
+      - name: Veritabanı değişikliklerini uygula
+        run: |
+          gcloud run jobs deploy almakisterim-migrate --region "$REGION" --image "$REGISTRY/api:$GITHUB_SHA" \
+            --service-account "$RUNTIME_SA" --command node --args apps/api/dist/migrate.js \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest" --max-retries 0 --task-timeout 300s --quiet
+          gcloud run jobs execute almakisterim-migrate --region "$REGION" --wait
+
+      - name: API'yi yayınla
+        run: |
+          gcloud run deploy almakisterim-api --region "$REGION" --image "$REGISTRY/api:$GITHUB_SHA" \
+            --service-account "$RUNTIME_SA" --allow-unauthenticated --port 8080 \
+            --cpu 1 --memory 512Mi --min-instances 0 --max-instances 10 \
+            --set-env-vars "^|^NODE_ENV=production|APP_URL=${{ vars.APP_URL }}|ADMIN_EMAILS=${{ vars.ADMIN_EMAILS }}|GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}|NETGSM_HEADER=${{ vars.NETGSM_HEADER }}|MAIL_FROM=${{ vars.MAIL_FROM || 'almakisterim <bildirim@almakisterim.com>' }}" \
+            --set-secrets "$SECRETS" --quiet
+          echo "API_URL=$(gcloud run services describe almakisterim-api --region "$REGION" --format='value(status.url)')" >> "$GITHUB_ENV"
+
+      - name: Siteyi derle ve yükle
+        run: |
+          docker build -f apps/web/Dockerfile --build-arg "API_ORIGIN=$API_URL" -t "$REGISTRY/web:$GITHUB_SHA" .
+          docker push "$REGISTRY/web:$GITHUB_SHA"
+
+      - name: Siteyi yayınla
+        run: |
+          gcloud run deploy almakisterim-web --region "$REGION" --image "$REGISTRY/web:$GITHUB_SHA" \
+            --service-account "$RUNTIME_SA" --allow-unauthenticated --port 8080 \
+            --cpu 1 --memory 512Mi --min-instances 0 --max-instances 10 --quiet
+          echo "WEB_URL=$(gcloud run services describe almakisterim-web --region "$REGION" --format='value(status.url)')" >> "$GITHUB_ENV"
+
+      - name: Zamanlanmış işi kur (her saat süresi dolan talepleri kapatır)
+        run: |
+          TOKEN=$(gcloud secrets versions access latest --secret JOB_TOKEN)
+          echo "::add-mask::$TOKEN"
+          ARGS=(--location "$REGION" --schedule "7 * * * *" --time-zone "Europe/Istanbul" --uri "$API_URL/api/jobs/expire" --http-method POST --update-headers "x-job-token=$TOKEN")
+          if gcloud scheduler jobs describe almakisterim-expire --location "$REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http almakisterim-expire "${ARGS[@]}" --quiet >/dev/null
+          else
+            gcloud scheduler jobs create http almakisterim-expire "${ARGS[@]/--update-headers/--headers}" --quiet >/dev/null
+          fi
+
+      - name: Sağlık kontrolü
+        run: |
+          curl -fsS "$API_URL/api/health"
+          curl -fsS -o /dev/null "$WEB_URL/"
+          {
+            echo "### Yayın tamamlandı"
+            echo "- Site: $WEB_URL"
+            echo "- API: $API_URL"
+          } >> "$GITHUB_STEP_SUMMARY"

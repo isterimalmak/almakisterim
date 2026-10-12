@@ -32,11 +32,14 @@ export type Config = z.infer<typeof schema> & {
   isProd: boolean;
 };
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
+  // Secret Manager'da henüz doldurulmamış anahtarlar tek boşlukla tutulur; boşluk "yok" sayılır.
+  const env = Object.fromEntries(Object.entries(rawEnv).map(([k, v]) => [k, v?.trim() || undefined]));
   const parsed = schema.parse(env);
   const isProd = parsed.NODE_ENV === "production";
   if (isProd) {
-    const required = ["CODE_PEPPER", "JOB_TOKEN", "RESEND_API_KEY", "NETGSM_USERCODE", "NETGSM_PASSWORD", "NETGSM_HEADER", "ANTHROPIC_API_KEY"] as const;
+    // SMS, e-posta ve yapay zekâ anahtarları sonradan eklenebilir; eksikken ilgili özellik kapalı kalır.
+    const required = ["CODE_PEPPER", "JOB_TOKEN"] as const;
     const missing = required.filter((k) => !env[k]);
     if (missing.length) {
       // Yalnızca eksik değişkenlerin ADI yazılır, değerleri asla.

@@ -1,0 +1,67 @@
+name: Testler
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/almakisterim_test
+      E2E_DATABASE_URL: postgres://postgres:postgres@localhost:5432/almakisterim_e2e
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Tip kontrolü (API)
+        run: npm run typecheck -w apps/api
+
+      - name: API testleri (gerçek PostgreSQL ile)
+        run: npm test -w apps/api
+
+      - name: Site birim testleri
+        run: npm test -w apps/web
+
+      - name: Site derleme
+        run: npm run build -w apps/web
+        env:
+          API_ORIGIN: http://localhost:8080
+
+      - name: Uçtan uca testler için sunucuları başlat
+        run: |
+          psql postgres://postgres:postgres@localhost:5432/postgres -c "CREATE DATABASE almakisterim_e2e"
+          DATABASE_URL=$E2E_DATABASE_URL npm run migrate
+          (cd apps/api && NODE_ENV=test DATABASE_URL=$E2E_DATABASE_URL ADMIN_EMAILS=yonetici@almakisterim.com PORT=8080 npx tsx src/server.ts > /tmp/api.log 2>&1 &)
+          (cd apps/web && npx next start -p 3000 > /tmp/web.log 2>&1 &)
+          npx --yes wait-on@8 -t 60000 http://localhost:8080/api/health http://localhost:3000/
+
+      - name: Uçtan uca testler (masaüstü ve telefon)
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test --reporter=line
+        working-directory: apps/web
+
+      - name: Sunucu kayıtları (hata olursa)
+        if: failure()
+        run: tail -n 100 /tmp/api.log /tmp/web.log || true

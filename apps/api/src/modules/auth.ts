@@ -45,13 +45,21 @@ export function authRoutes(app: FastifyInstance, { config, pool, mailer, sms, go
     if (r.hour_count >= 5) throw new HttpError(429, "cok_fazla", "Çok fazla kod istendi. Bir saat sonra tekrar deneyin.");
 
     const code = sixDigitCode();
-    await pool.query(
-      `INSERT INTO auth_codes (channel, target, code_hash, expires_at) VALUES ($1, $2, $3, now() + make_interval(mins => $4))`,
+    const ins = await pool.query<{ id: string }>(
+      `INSERT INTO auth_codes (channel, target, code_hash, expires_at) VALUES ($1, $2, $3, now() + make_interval(mins => $4)) RETURNING id`,
       [body.channel, target, hashCode(target, code), CODE_TTL_MIN],
     );
     const text = `almakisterim giriş kodunuz: ${code}. Kod ${CODE_TTL_MIN} dakika geçerlidir, kimseyle paylaşmayın.`;
-    if (body.channel === "sms") await sms.send(target, text);
-    else await mailer.send(target, "almakisterim giriş kodunuz", text);
+    try {
+      if (body.channel === "sms") await sms.send(target, text);
+      else await mailer.send(target, "almakisterim giriş kodunuz", text);
+    } catch (e) {
+      // Gönderilemeyen kod geçersiz sayılır; kullanıcı beklemeden tekrar deneyebilir.
+      await pool.query("DELETE FROM auth_codes WHERE id = $1", [ins.rows[0]!.id]);
+      if (e instanceof HttpError) throw e;
+      req.log.error({ err: (e as Error).message, channel: body.channel }, "kod gönderilemedi");
+      throw new HttpError(502, "gonderilemedi", "Kod gönderilemedi, lütfen biraz sonra tekrar deneyin.");
+    }
     return { ok: true, sent_to: maskTarget(body.channel, target) };
   });
 
