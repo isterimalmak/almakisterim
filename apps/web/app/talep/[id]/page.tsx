@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { Gallery, MediaPicker, Thumbs } from "@/components/Media";
 import { CatIcon, Labels } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
-import { api, type Offer, type RequestDetail } from "@/lib/api";
+import { api, type Media, type Offer, type RequestDetail } from "@/lib/api";
 import { ATTRS, DELIVERY } from "@/lib/catalog";
 import { ago, budgetTxt, dateTr, fmt, initials, leftParts } from "@/lib/format";
 
@@ -54,7 +55,7 @@ export default function RequestPage() {
       <div className="det">
         <div>
           <div className="box"><div className="box-b det-top">
-            <div className="ref"><div style={{ display: "grid", placeItems: "center", gap: 8 }}><CatIcon top={r.top_id} /><span className="muted">Alıcı referans görsel eklemedi</span></div></div>
+            <Gallery media={r.media} fallback={<div className="ref"><div style={{ display: "grid", placeItems: "center", gap: 8 }}><CatIcon top={r.top_id} /><span className="muted">Alıcı referans görsel eklemedi</span></div></div>} />
             <table className="info"><tbody>
               <tr><th>Alıcının bütçesi</th><td><span className="price-big">{budgetTxt(r.budget_min, r.budget_max)}</span></td></tr>
               <tr><th>Talep No</th><td>{r.id}</td></tr>
@@ -76,7 +77,7 @@ export default function RequestPage() {
           <section className="box det-sec" id="teklifler">
             <div className="box-h"><h2>Teklifler ({r.offer_count})</h2></div>
             {r.is_owner ? <OwnerOffers r={r} offers={data.offers} onChange={load} />
-              : myOffer ? <div className="box-b"><div className="note n-ok"><Icon name="check" size={15} sw={3} /><span>Teklifiniz: <b>{fmt(myOffer.price)} TL</b> · Durum: {myOffer.status === "accepted" ? "Kabul edildi 🎉" : myOffer.status === "rejected" ? "Alıcı başka bir teklifi seçti" : "Alıcı inceliyor"}</span></div></div>
+              : myOffer ? <div className="box-b"><div className="note n-ok"><Icon name="check" size={15} sw={3} /><span>Teklifiniz: <b>{fmt(myOffer.price)} TL</b> · Durum: {myOffer.status === "accepted" ? "Kabul edildi 🎉" : myOffer.status === "rejected" ? "Alıcı başka bir teklifi seçti" : "Alıcı inceliyor"}</span></div><Thumbs media={myOffer.media} /></div>
               : !open ? <div className="box-b"><div className="note n-info">Bu talep artık teklif kabul etmiyor.</div></div>
               : user ? <OfferForm r={r} onDone={() => { void load(); void refresh(); }} />
               : <div className="empty">Teklif vermek için <Link className="link" href={`/giris?sonra=/talep/${r.id}`}>giriş yapın</Link>. Teklif fiyatlarını yalnızca talep sahibi görür.</div>}
@@ -140,7 +141,7 @@ function OwnerOffers({ r, offers, onChange }: { r: RequestDetail; offers: Offer[
           return (
             <tr key={o.id} className={o.status === "accepted" ? "acc" : best?.id === o.id ? "best" : ""}>
               <td><div className="s-cell"><span className="s-logo" style={{ background: o.seller_is_corporate ? "#2E4FB3" : "#3F7D58" }}>{initials(o.seller_name)}</span><div><div className="s-name">{o.seller_name}</div><div className="muted" style={{ fontSize: 12 }}>{o.seller_is_corporate ? "Mağaza" : "Bireysel"} · {o.seller_sales} tamamlanan satış</div></div></div></td>
-              <td data-m="Durum"><b style={{ fontSize: 12.5 }}>{o.condition || "—"}</b>{o.warranty && <> <span className="lbl l-gr">Garantili</span></>}{best?.id === o.id && <> <span className="lbl l-soft">Önerilen</span></>}{o.price === lo && <> <span className="lbl l-or">En düşük</span></>}<div className="o-note">{o.note}</div><div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{ago(o.created_at)}</div></td>
+              <td data-m="Durum"><b style={{ fontSize: 12.5 }}>{o.condition || "—"}</b>{o.warranty && <> <span className="lbl l-gr">Garantili</span></>}{best?.id === o.id && <> <span className="lbl l-soft">Önerilen</span></>}{o.price === lo && <> <span className="lbl l-or">En düşük</span></>}<div className="o-note">{o.note}</div><Thumbs media={o.media} /><div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{ago(o.created_at)}</div></td>
               <td data-m="Teslimat" className="nowrap">{o.delivery || "—"}</td>
               <td className="r"><div className="o-price">{fmt(o.price)} TL</div><div className="o-diff" style={{ color: diff >= 0 ? "var(--green)" : "var(--red)" }}>{diff >= 0 ? `bütçenin %${diff} altında` : `bütçenin %${-diff} üstünde`}</div></td>
               <td className="r act-cell">{o.status === "active" && r.status === "active" ? <button className="btn btn-bl btn-sm" onClick={() => accept(o)}>Kabul et</button> : o.status === "accepted" ? <span className="lbl l-soft">Kabul edildi</span> : <span className="muted" style={{ fontSize: 12 }}>—</span>}</td>
@@ -161,12 +162,13 @@ function OfferForm({ r, onDone }: { r: RequestDetail; onDone: () => void }) {
   const [del, setDel] = useState(dels[0]!);
   const [war, setWar] = useState(false);
   const [note, setNote] = useState("");
+  const [media, setMedia] = useState<Media[]>([]);
   const [busy, setBusy] = useState(false);
   const send = async () => {
     if (!(Number(price) > 0)) return toast("Geçerli bir teklif fiyatı yazın.");
     setBusy(true);
     try {
-      const res = await api<{ charged_credit: boolean }>(`/requests/${r.id}/offers`, { body: { price: Math.round(Number(price)), condition: cond, delivery: del, warranty: war, note } });
+      const res = await api<{ charged_credit: boolean }>(`/requests/${r.id}/offers`, { body: { price: Math.round(Number(price)), condition: cond, delivery: del, warranty: war, note, media_ids: media.map((m) => m.id) } });
       toast(res.charged_credit ? "Teklifiniz gönderildi. 1 kredi kullanıldı." : "Teklifiniz gönderildi.");
       onDone();
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
@@ -180,6 +182,7 @@ function OfferForm({ r, onDone }: { r: RequestDetail; onDone: () => void }) {
         <div className="fg"><label htmlFor="o-del">Teslimat</label><select className="sel" id="o-del" value={del} onChange={(e) => setDel(e.target.value)}>{dels.map((x) => <option key={x}>{x}</option>)}</select></div>
         <div className="fg"><label>&nbsp;</label><label className="chk" style={{ height: 34 }}><input type="checkbox" checked={war} onChange={(e) => setWar(e.target.checked)} />Garantili ürün / hizmet</label></div>
         <div className="fg full"><label htmlFor="o-note">Alıcıya mesajınız</label><textarea className="txa" id="o-note" rows={3} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ürünün özellikleri, garanti ve iade koşulları..." /><span className="hint">Telefon numarası ve e-posta yazmayın, otomatik gizlenir.</span></div>
+        <div className="fg full"><label>Ürünün fotoğrafları / videosu</label><MediaPicker value={media} onChange={setMedia} onError={toast} label="Fotoğraf / video ekle" /><span className="hint">Gerçek ürün fotoğrafı olan teklifler alıcıların ilgisini çok daha fazla çeker. Fotoğrafları yalnızca alıcı görür.</span></div>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}><button className="btn btn-or btn-lg" disabled={busy} onClick={send}>{busy ? "Gönderiliyor…" : "Teklifi Gönder"}</button></div>
     </div>

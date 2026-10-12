@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser, type Deps } from "../context.js";
 import { tx } from "../db.js";
 import { HttpError, maskContacts, idParam } from "../lib/util.js";
+import { attachMedia, imageUrls, MediaIds } from "./media.js";
 import { notifyUser } from "./notifications.js";
 
 const OfferBody = z.object({
@@ -11,6 +12,7 @@ const OfferBody = z.object({
   delivery: z.string().trim().max(60).default(""),
   warranty: z.boolean().default(false),
   note: z.string().trim().max(2000).default(""),
+  media_ids: MediaIds,
 });
 
 // Ayın başından beri (Türkiye saatiyle) verilen teklif sayısı; ücretsiz hak bununla hesaplanır.
@@ -18,7 +20,7 @@ const MONTH_OFFERS_SQL = `SELECT count(*)::int AS n FROM offers
   WHERE seller_id = $1 AND created_at >= date_trunc('month', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul'`;
 
 export function offerRoutes(app: FastifyInstance, deps: Deps) {
-  const { pool, ai, config } = deps;
+  const { pool, ai, config, storage } = deps;
 
   app.post("/requests/:id/offers", { config: { rateLimit: { max: 30, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
@@ -27,6 +29,8 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
     const note = maskContacts(b.note).text;
     const mod = note ? await ai.moderate(note) : { verdict: "ok" as const, reason: "" };
     if (mod.verdict === "reject") throw new HttpError(400, "uygunsuz_icerik", "Teklif notu kurallara uygun değil: " + mod.reason);
+    const img = await ai.moderateImages(await imageUrls(pool, storage, user.id, b.media_ids));
+    if (img.verdict === "reject") throw new HttpError(400, "uygunsuz_gorsel", "Fotoğraflardan biri kurallara uygun değil: " + img.reason);
 
     const result = await tx(pool, async (c) => {
       const r = await c.query<{ buyer_id: string; title: string; status: string; open: boolean }>(
@@ -50,6 +54,7 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
         `INSERT INTO offers (request_id, seller_id, price, condition, delivery, warranty, note) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
         [requestId, user.id, b.price, b.condition, b.delivery, b.warranty, note]);
       const offerId = ins.rows[0]!.id;
+      await attachMedia(c, user.id, b.media_ids, { offer_id: offerId });
       if (charged) await c.query("INSERT INTO credit_ledger (user_id, delta, reason, ref) VALUES ($1, -1, 'teklif', $2)", [user.id, `offer:${offerId}`]);
       const buyer = (await c.query<{ email: string | null; phone: string | null }>("SELECT email, phone FROM users WHERE id = $1", [row.buyer_id])).rows[0]!;
       return { offerId, charged, buyer, title: row.title };

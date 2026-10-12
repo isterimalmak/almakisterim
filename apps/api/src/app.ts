@@ -11,6 +11,7 @@ import { HttpError } from "./lib/util.js";
 import { adminRoutes } from "./modules/admin.js";
 import { authRoutes } from "./modules/auth.js";
 import { categoryRoutes } from "./modules/categories.js";
+import { mediaRoutes } from "./modules/media.js";
 import { meRoutes } from "./modules/me.js";
 import { offerRoutes } from "./modules/offers.js";
 import { requestRoutes } from "./modules/requests.js";
@@ -64,6 +65,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     categoryRoutes(api, deps);
     requestRoutes(api, deps);
     offerRoutes(api, deps);
+    mediaRoutes(api, deps);
     meRoutes(api, deps);
     adminRoutes(api, deps);
     // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.

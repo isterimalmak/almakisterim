@@ -37,11 +37,11 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
           <tr key={r.id} className={"row" + (r.is_urgent ? " urgent" : "")} onClick={() => router.push(`/talep/${r.id}`)}>
             <td>
               <div className="ti">
-                <CatIcon top={r.top_id} />
+                {r.cover_url ? <img className="ti-ic ti-img" src={r.cover_url} alt="" loading="lazy" /> : <CatIcon top={r.top_id} />}
                 <div>
                   <Link href={`/talep/${r.id}`} className="ti-t" onClick={(e) => e.stopPropagation()}>{r.title}</Link>
                   <div className="ti-s">{r.category_name} · {attrLine(r.top_id, r.condition, r.attrs)}</div>
-                  <div className="ti-l"><Labels r={r} /></div>
+                  <div className="ti-l"><Labels r={r} />{r.media_count > 0 && <span className="lbl l-gy" title="Fotoğraflı"><Icon name="camera" size={11} /> {r.media_count}</span>}</div>
                 </div>
               </div>
             </td>
@@ -63,7 +63,7 @@ export function VitrinCard({ r }: { r: RequestItem }) {
   const icon = categories.find((c) => c.id === r.top_id)?.icon ?? "box";
   return (
     <Link className="vc" href={`/talep/${r.id}`}>
-      <div className="vc-img" style={{ background: t.c, color: t.fc }}><Icon name={icon} sw={1.5} /><span className="vc-tag"><Labels r={r} /></span></div>
+      <div className="vc-img" style={{ background: t.c, color: t.fc }}>{r.cover_url ? <img src={r.cover_url} alt="" loading="lazy" /> : <Icon name={icon} sw={1.5} />}<span className="vc-tag"><Labels r={r} /></span></div>
       <div className="vc-b">
         <div className="vc-t">{r.title}</div>
         <div className="vc-p">{fmt(r.budget_max)} TL&apos;ye kadar</div>

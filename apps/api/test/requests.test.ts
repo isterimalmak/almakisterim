@@ -110,6 +110,7 @@ describe("talepler", () => {
     const lying: AiService = {
       draftRequest: async () => ({ category_id: "uydurma", title: "x", budget_min: null, budget_max: null, city: null, condition: "Farketmez", is_urgent: false, attrs: {} }),
       moderate: async () => ({ verdict: "ok", reason: "" }),
+      moderateImages: async () => ({ verdict: "ok", reason: "" }),
     };
     const app2 = await makeApp({ ai: lying });
     const cookie = await login(app2, "05321112233");

@@ -91,3 +91,45 @@ test("sayfalar yana taşmıyor", async ({ page }) => {
     expect(overflow, p).toBeLessThanOrEqual(0);
   }
 });
+
+// 1x1 piksel PNG: gerçek bir resim dosyası gibi yüklenir.
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+test("alıcı ve satıcı fotoğraf ekler, alıcı teklifteki fotoğrafı görür", async ({ browser }) => {
+  const buyerCtx = await browser.newContext();
+  const buyer = await buyerCtx.newPage();
+  const title = `Bisiklet almak istiyorum ${rnd()}`;
+  await loginSms(buyer, `0534${rnd().slice(0, 7)}`, "Zeynep Ak");
+  await buyer.goto("/");
+  await buyer.getByLabel("Ne almak istiyorsunuz?").fill(`${title}, bütçem 8 bin TL, İzmir`);
+  await buyer.getByRole("button", { name: "Talep Oluştur" }).click();
+  await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue(title);
+  await buyer.getByLabel("Fotoğraf / video ekle").setInputFiles({ name: "ornek.png", mimeType: "image/png", buffer: PNG });
+  await expect(buyer.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
+  await expect(buyer.getByText("Kapak", { exact: true })).toBeVisible();
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await expect(buyer.getByAltText("Talep fotoğrafı")).toBeVisible();
+  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  await expect(buyer.getByAltText("Talep fotoğrafı")).toBeVisible();
+  const url = buyer.url();
+
+  const sellerCtx = await browser.newContext();
+  const seller = await sellerCtx.newPage();
+  await loginSms(seller, `0535${rnd().slice(0, 7)}`, "Can Yıldız");
+  await seller.goto(url);
+  await seller.getByLabel("Teklif fiyatınız (TL)").fill("7500");
+  await seller.getByLabel("Fotoğraf / video ekle").setInputFiles([
+    { name: "urun.png", mimeType: "image/png", buffer: PNG },
+    { name: "belge.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF") },
+  ]);
+  await expect(seller.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
+  await expect(seller.getByText(/"belge\.pdf" desteklenmiyor/)).toBeVisible();
+  await seller.getByRole("button", { name: "Teklifi Gönder" }).click();
+  await expect(seller.getByText("Teklifiniz:")).toBeVisible();
+
+  await buyer.reload();
+  await expect(buyer.getByRole("link", { name: "Teklif fotoğrafı 1" })).toBeVisible();
+  await buyerCtx.close(); await sellerCtx.close();
+});

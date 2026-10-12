@@ -47,7 +47,7 @@ jobs:
       REGION: ${{ vars.GCP_REGION || 'europe-west3' }}
       RUNTIME_SA: almakisterim-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
       REGISTRY: ${{ vars.GCP_REGION || 'europe-west3' }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/almakisterim
-      SECRETS: DATABASE_URL=DATABASE_URL:latest,CODE_PEPPER=CODE_PEPPER:latest,JOB_TOKEN=JOB_TOKEN:latest,RESEND_API_KEY=RESEND_API_KEY:latest,NETGSM_USERCODE=NETGSM_USERCODE:latest,NETGSM_PASSWORD=NETGSM_PASSWORD:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
+      SECRETS: DATABASE_URL=DATABASE_URL:latest,CODE_PEPPER=CODE_PEPPER:latest,JOB_TOKEN=JOB_TOKEN:latest,RESEND_API_KEY=RESEND_API_KEY:latest,NETGSM_USERCODE=NETGSM_USERCODE:latest,NETGSM_PASSWORD=NETGSM_PASSWORD:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest,R2_ACCESS_KEY_ID=R2_ACCESS_KEY_ID:latest,R2_SECRET_ACCESS_KEY=R2_SECRET_ACCESS_KEY:latest
     steps:
       - uses: actions/checkout@v4
 
@@ -78,7 +78,7 @@ jobs:
           gcloud run deploy almakisterim-api --region "$REGION" --image "$REGISTRY/api:$GITHUB_SHA" \
             --service-account "$RUNTIME_SA" --allow-unauthenticated --port 8080 \
             --cpu 1 --memory 512Mi --min-instances 0 --max-instances 10 \
-            --set-env-vars "^|^NODE_ENV=production|APP_URL=${{ vars.APP_URL }}|ADMIN_EMAILS=${{ vars.ADMIN_EMAILS }}|GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}|NETGSM_HEADER=${{ vars.NETGSM_HEADER }}|MAIL_FROM=${{ vars.MAIL_FROM || 'almakisterim <bildirim@almakisterim.com>' }}" \
+            --set-env-vars "^|^NODE_ENV=production|APP_URL=${{ vars.APP_URL }}|ADMIN_EMAILS=${{ vars.ADMIN_EMAILS }}|GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}|NETGSM_HEADER=${{ vars.NETGSM_HEADER }}|MAIL_FROM=${{ vars.MAIL_FROM || 'almakisterim <bildirim@almakisterim.com>' }}|R2_ACCOUNT_ID=${{ vars.R2_ACCOUNT_ID }}|R2_BUCKET=${{ vars.R2_BUCKET || 'almakisterim-media' }}|R2_PUBLIC_URL=${{ vars.R2_PUBLIC_URL }}" \
             --set-secrets "$SECRETS" --quiet
           echo "API_URL=$(gcloud run services describe almakisterim-api --region "$REGION" --format='value(status.url)')" >> "$GITHUB_ENV"
 

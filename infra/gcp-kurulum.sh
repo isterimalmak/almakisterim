@@ -54,7 +54,7 @@ gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER" --role=roles/iam.
 
 echo "5/6 Gizli anahtar kasası (Secret Manager)..."
 has_version() { [[ -n "$(gcloud secrets versions list "$1" --filter='state=ENABLED' --limit=1 --format='value(name)' 2>/dev/null)" ]]; }
-for S in DATABASE_URL CODE_PEPPER JOB_TOKEN RESEND_API_KEY NETGSM_USERCODE NETGSM_PASSWORD ANTHROPIC_API_KEY GOOGLE_CLIENT_SECRET; do
+for S in DATABASE_URL CODE_PEPPER JOB_TOKEN RESEND_API_KEY NETGSM_USERCODE NETGSM_PASSWORD ANTHROPIC_API_KEY GOOGLE_CLIENT_SECRET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
   gcloud secrets describe "$S" >/dev/null 2>&1 || gcloud secrets create "$S" --replication-policy=user-managed --locations="$REGION" --quiet >/dev/null
   gcloud secrets add-iam-policy-binding "$S" --member="serviceAccount:$RUNTIME" --role=roles/secretmanager.secretAccessor --quiet >/dev/null
 done
@@ -64,12 +64,12 @@ for S in CODE_PEPPER JOB_TOKEN; do
   has_version "$S" || openssl rand -base64 48 | tr -d '\n' | gcloud secrets versions add "$S" --data-file=- --quiet >/dev/null
 done
 # Henüz eklenmemiş servis anahtarları boş (tek boşluk) olarak başlar; o özellik kapalı kalır.
-for S in RESEND_API_KEY NETGSM_USERCODE NETGSM_PASSWORD ANTHROPIC_API_KEY GOOGLE_CLIENT_SECRET; do
+for S in RESEND_API_KEY NETGSM_USERCODE NETGSM_PASSWORD ANTHROPIC_API_KEY GOOGLE_CLIENT_SECRET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
   has_version "$S" || printf ' ' | gcloud secrets versions add "$S" --data-file=- --quiet >/dev/null
 done
 
 echo "6/6 Durum:"
-for S in DATABASE_URL CODE_PEPPER JOB_TOKEN RESEND_API_KEY NETGSM_USERCODE NETGSM_PASSWORD ANTHROPIC_API_KEY GOOGLE_CLIENT_SECRET; do
+for S in DATABASE_URL CODE_PEPPER JOB_TOKEN RESEND_API_KEY NETGSM_USERCODE NETGSM_PASSWORD ANTHROPIC_API_KEY GOOGLE_CLIENT_SECRET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
   if has_version "$S"; then echo "  ✓ $S"; else echo "  ✗ $S  (eklenmesi gerekiyor: bash infra/anahtar-ekle.sh $S)"; fi
 done
 

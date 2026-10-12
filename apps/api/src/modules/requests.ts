@@ -4,6 +4,8 @@ import { requireUser, type Deps } from "../context.js";
 import { HttpError, maskContacts, publicName, idParam } from "../lib/util.js";
 import { CITIES, CONDITIONS, type CategoryRef } from "../services/ai.js";
 import { listCategories, VISIBLE_CATEGORY_SQL, visibleSubcategory } from "./categories.js";
+import { tx } from "../db.js";
+import { attachMedia, imageUrls, MediaIds, mediaFor } from "./media.js";
 import { notifyAlarmMatches } from "./notifications.js";
 
 const LIST_COLUMNS = `
@@ -11,7 +13,9 @@ const LIST_COLUMNS = `
   r.budget_min, r.budget_max, r.city, r.district, r.condition, r.attrs, r.is_urgent, r.is_corporate,
   r.status, r.created_at, r.expires_at, r.buyer_id,
   u.name AS buyer_name, u.is_corporate AS buyer_is_corporate,
-  (SELECT count(*)::int FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn') AS offer_count`;
+  (SELECT count(*)::int FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn') AS offer_count,
+  (SELECT m.storage_key FROM media m WHERE m.request_id = r.id AND m.kind = 'image' ORDER BY m.position LIMIT 1) AS cover_key,
+  (SELECT count(*)::int FROM media m WHERE m.request_id = r.id) AS media_count`;
 const FROM = `FROM requests r JOIN categories c ON c.id = r.category_id JOIN categories p ON p.id = c.parent_id JOIN users u ON u.id = r.buyer_id`;
 
 type Row = Record<string, unknown> & { buyer_id: string; buyer_name: string };
@@ -44,10 +48,16 @@ const CreateBody = z.object({
   is_urgent: z.boolean().default(false),
   is_corporate: z.boolean().default(false),
   days: z.union([z.literal(7), z.literal(14), z.literal(30)]).default(14),
+  media_ids: MediaIds,
 });
 
 export function requestRoutes(app: FastifyInstance, deps: Deps) {
-  const { pool, ai } = deps;
+  const { pool, ai, storage } = deps;
+  // Listede ilk fotoğraf kapak olarak gösterilir.
+  const pub = (row: Row) => {
+    const { cover_key, ...r } = publicRow(row) as Record<string, unknown>;
+    return { ...r, cover_url: cover_key ? storage.publicUrl(String(cover_key)) : null };
+  };
 
   app.get("/requests", async (req) => {
     const q = ListQuery.parse(req.query);
@@ -77,7 +87,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     params.push(q.per, (q.page - 1) * q.per);
     const { rows } = await pool.query<Row>(
       `SELECT ${LIST_COLUMNS} ${FROM} WHERE ${whereSql} ORDER BY ${SORTS[q.sort]} LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
-    return { total, page: q.page, per: q.per, items: rows.map(publicRow) };
+    return { total, page: q.page, per: q.per, items: rows.map(pub) };
   });
 
   app.get("/requests/:id", async (req) => {
@@ -102,11 +112,13 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
           WHERE o.request_id = $1 AND o.status <> 'withdrawn' ${isOwner || isAdmin ? "" : "AND o.seller_id = $2"}
           ORDER BY o.price ASC`,
         isOwner || isAdmin ? [id] : [id, viewer!.id]);
-      offers = o.map(({ seller_id, seller_name, ...x }) => ({ ...x, mine: seller_id === viewer?.id, seller_name: publicName(String(seller_name)) }));
+      const om = await mediaFor(pool, storage, "offer_id", o.map((x) => Number(x.id)));
+      offers = o.map(({ seller_id, seller_name, ...x }) => ({ ...x, mine: seller_id === viewer?.id, seller_name: publicName(String(seller_name)), media: om.get(Number(x.id)) ?? [] }));
     }
+    const media = (await mediaFor(pool, storage, "request_id", [id])).get(id) ?? [];
     const fav = viewer ? (await pool.query("SELECT 1 FROM favorites WHERE user_id = $1 AND request_id = $2", [viewer.id, id])).rowCount : 0;
     const { category_visible: _cv, moderation_note, ...rest } = r;
-    return { request: { ...publicRow(rest), is_owner: isOwner, is_favorite: !!fav, moderation_note: isOwner || isAdmin ? moderation_note : undefined }, offers };
+    return { request: { ...pub(rest as Row), media, is_owner: isOwner, is_favorite: !!fav, moderation_note: isOwner || isAdmin ? moderation_note : undefined }, offers };
   });
 
   // Yapay zekâ ile taslak: serbest metinden kategori, bütçe, il ve özellikler çıkarılır.
@@ -128,15 +140,19 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const budgetMin = b.budget_min ?? Math.round(b.budget_max * 0.8);
     if (budgetMin > b.budget_max) throw new HttpError(400, "butce_gecersiz", "En az bütçe, en fazla bütçeden büyük olamaz.");
     const title = maskContacts(b.title).text, description = maskContacts(b.description).text;
-    const mod = await ai.moderate(`${title}\n${description}`);
+    const [textMod, imgMod] = await Promise.all([ai.moderate(`${title}\n${description}`), imageUrls(pool, storage, user.id, b.media_ids).then((u) => ai.moderateImages(u))]);
+    const mod = textMod.verdict !== "ok" ? textMod : imgMod;
     const status = mod.verdict === "ok" ? "active" : "pending_review";
-    const { rows } = await pool.query<{ id: number }>(
-      `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, condition, attrs,
-                             is_urgent, is_corporate, status, moderation_note, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now() + make_interval(days => $15)) RETURNING id`,
-      [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.condition, b.attrs,
-        b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days]);
-    const id = rows[0]!.id;
+    const id = await tx(pool, async (c) => {
+      const { rows } = await c.query<{ id: number }>(
+        `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, condition, attrs,
+                               is_urgent, is_corporate, status, moderation_note, expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now() + make_interval(days => $15)) RETURNING id`,
+        [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.condition, b.attrs,
+          b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days]);
+      await attachMedia(c, user.id, b.media_ids, { request_id: rows[0]!.id });
+      return rows[0]!.id;
+    });
     if (status === "active") void notifyAlarmMatches(deps, id).catch((e) => req.log.warn({ err: (e as Error).message }, "alarm bildirimi başarısız"));
     reply.code(201);
     return { id, status, moderation: mod.verdict === "ok" ? null : { reason: mod.reason } };

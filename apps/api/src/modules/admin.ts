@@ -4,6 +4,7 @@ import { requireAdmin, type Deps } from "../context.js";
 import { tx } from "../db.js";
 import { HttpError, safeEqual } from "../lib/util.js";
 import { listCategories, toTree } from "./categories.js";
+import { cleanupOrphans, mediaFor } from "./media.js";
 import { notifyAlarmMatches } from "./notifications.js";
 
 export function adminRoutes(app: FastifyInstance, deps: Deps) {
@@ -45,7 +46,9 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     const reports = await pool.query(
       `SELECT rp.id, rp.request_id, rp.reason, rp.created_at, r.title, r.status
          FROM reports rp JOIN requests r ON r.id = rp.request_id ORDER BY rp.created_at DESC LIMIT 100`);
-    return { pending: pending.rows, reports: reports.rows };
+    // Yönetici, incelemedeki taleplerin fotoğraflarını da görür.
+    const media = await mediaFor(pool, deps.storage, "request_id", pending.rows.map((r) => Number(r.id)));
+    return { pending: pending.rows.map((r) => ({ ...r, media: media.get(Number(r.id)) ?? [] })), reports: reports.rows };
   });
 
   app.post("/admin/requests/:id/:action", async (req) => {
@@ -109,6 +112,7 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     const r = await pool.query("UPDATE requests SET status = 'expired' WHERE status = 'active' AND expires_at <= now()");
     const s = await pool.query("DELETE FROM sessions WHERE expires_at <= now()");
     const c = await pool.query("DELETE FROM auth_codes WHERE created_at < now() - interval '2 days'");
-    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount };
+    const m = await cleanupOrphans(pool, deps.storage);
+    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m };
   });
 }

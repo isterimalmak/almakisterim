@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { Thumbs } from "@/components/Media";
 import { useSession } from "@/components/Session";
-import { api, type CategoryTop } from "@/lib/api";
+import { api, type Media, type CategoryTop } from "@/lib/api";
 import { dateTr } from "@/lib/format";
 
 type Stats = { users: number; active_requests: number; pending_review: number; offers: number; deals: number; reports: number };
-type Pending = { id: number; title: string; description: string; moderation_note: string | null; created_at: string; buyer_name: string };
+type Pending = { id: number; title: string; description: string; moderation_note: string | null; created_at: string; buyer_name: string; media: Media[] };
 type Report = { id: number; request_id: number; reason: string; created_at: string; title: string; status: string };
 type UserRow = { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; created_at: string };
 
@@ -91,7 +92,7 @@ export default function Admin() {
         <>
           <div className="box" style={{ marginBottom: 14 }}><div className="box-h"><h2>İnceleme bekleyen talepler</h2></div>
             {mod.pending.length ? <table className="tbl"><thead><tr><th>Talep</th><th>Yapay zekâ notu</th><th></th></tr></thead><tbody>
-              {mod.pending.map((p) => <tr key={p.id}><td><Link className="ti-t" href={`/talep/${p.id}`}>{p.title}</Link><div className="ti-s">{p.buyer_name} · {dateTr(p.created_at)}</div></td><td data-m="Not"><span className="lbl l-am" style={{ whiteSpace: "normal" }}>{p.moderation_note || "—"}</span></td>
+              {mod.pending.map((p) => <tr key={p.id}><td><Link className="ti-t" href={`/talep/${p.id}`}>{p.title}</Link><div className="ti-s">{p.buyer_name} · {dateTr(p.created_at)}</div><Thumbs media={p.media} /></td><td data-m="Not"><span className="lbl l-am" style={{ whiteSpace: "normal" }}>{p.moderation_note || "—"}</span></td>
                 <td className="r act-cell nowrap"><button className="btn btn-wh btn-sm" onClick={() => act(p.id, "approve")}>Onayla</button> <button className="btn btn-bl btn-sm" onClick={() => act(p.id, "reject")}>Reddet</button></td></tr>)}
             </tbody></table> : <div className="empty">İnceleme bekleyen talep yok.</div>}
           </div>
