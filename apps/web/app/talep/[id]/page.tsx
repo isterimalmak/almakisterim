@@ -12,7 +12,7 @@ import { VehicleRows } from "@/components/VehicleFields";
 import { CatIcon, Labels } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type Contact, type RequestDetail } from "@/lib/api";
-import { ATTRS } from "@/lib/catalog";
+import { attrsFor } from "@/lib/catalog";
 import { ago, budgetTxt, dateTr, fmt, initials, leftParts } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
@@ -28,7 +28,7 @@ export default function RequestPage() {
   if (error) return <div className="wrap"><div className="crumb"><Link href="/">Ana Sayfa</Link></div><div className="box"><div className="empty">{error}</div></div></div>;
   if (!data) return <div className="loading">Yükleniyor…</div>;
   const r = data.request;
-  const sch = ATTRS[r.top_id] ?? [];
+  const sch = attrsFor(r.top_id, r.category_id);
   const lp = leftParts(r.expires_at);
   const open = r.status === "active" && new Date(r.expires_at) > new Date();
   const c = data.contact;

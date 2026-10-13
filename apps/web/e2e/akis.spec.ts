@@ -432,3 +432,23 @@ test("acil talepler solda kategorilerin üstünde bağlantı olarak durur; ortad
   await page.waitForURL(/acil=1/);
   await expect(page.locator(".tbl-wrap").getByRole("link", { name: new RegExp(title) })).toBeVisible();
 });
+
+test("talep formunda alt kategoriye göre seçenekler çıkar: arsada imar ve tapu, oda sayısı yok; yatta tekne tipi", async ({ page }) => {
+  await loginSms(page, `0538${rnd().slice(0, 7)}`, "Arsa Arayan");
+  await page.goto("/talep-ver");
+  await page.locator(".cat-col").getByRole("button", { name: "Emlak" }).click();
+  await page.locator(".cat-col").getByRole("button", { name: "Arsa" }).click();
+  await page.getByRole("button", { name: "Devam" }).click();
+  await expect(page.getByLabel("İmar durumu")).toBeVisible();
+  await expect(page.getByLabel("Tapu durumu")).toBeVisible();
+  await expect(page.getByLabel("m² (en az)")).toBeVisible();
+  await expect(page.getByLabel("Oda sayısı")).toHaveCount(0);
+  await expect(page.getByLabel("Eşya durumu")).toHaveCount(0);
+  await page.getByRole("button", { name: "Değiştir" }).click();
+  await page.locator(".cat-col").getByRole("button", { name: "Vasıta" }).click();
+  await page.locator(".cat-col").getByRole("button", { name: "Deniz Araçları" }).click();
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.getByLabel("Tip").selectOption("Yat");
+  await expect(page.getByLabel("Boy (en az, metre)")).toBeVisible();
+  await expect(page.getByLabel("İmar durumu")).toHaveCount(0);
+});

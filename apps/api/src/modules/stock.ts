@@ -28,7 +28,7 @@ export function stockRoutes(app: FastifyInstance, deps: Deps) {
 
   // ?category=otomobil&araclar=BMW:3 Serisi,Audi: → önce tam model, sonra marka, sonra kategorinin diğer görselleri.
   app.get("/stock-images", async (req) => {
-    const q = z.object({ category: z.string().max(40), araclar: z.string().max(400).optional() }).parse(req.query);
+    const q = z.object({ category: z.string().max(40), araclar: z.string().max(400).optional(), tip: z.string().max(60).optional() }).parse(req.query);
     const wanted = (q.araclar ?? "").split(",").map((x) => x.split(":")).filter(([m]) => m).map(([marka, model]) => ({ marka: marka!.trim(), model: (model ?? "").trim() }));
     const { rows } = await pool.query<Row>(
       `${SELECT} JOIN categories c ON c.id = $1
@@ -41,8 +41,8 @@ export function stockRoutes(app: FastifyInstance, deps: Deps) {
     // Kendi galerimizde talebe uyan görsel azsa ücretsiz fotoğraf kaynağında da aranır (anahtar varsa).
     let photos: StockPhoto[] = [];
     if (photoSrc.enabled && items.filter((x) => x.match !== "kategori").length < 6) {
-      const qs = queriesFor(q.category, wanted);
-      const found = await Promise.all(qs.map((x) => photoSrc.search(x, Math.ceil(MAX_PHOTOS / qs.length)).catch((e) => { req.log.warn({ err: (e as Error).message }, "stok fotoğraf arama"); return []; })));
+      const qs = queriesFor(q.category, wanted, q.tip);
+      const found = await Promise.all(qs.map((x) => photoSrc.search(x, Math.ceil(MAX_PHOTOS / qs.length), q.category).catch((e) => { req.log.warn({ err: (e as Error).message }, "stok fotoğraf arama"); return []; })));
       const seen = new Set<number>();
       photos = found.flat().filter((p) => !seen.has(p.id) && seen.add(p.id)).slice(0, MAX_PHOTOS);
     }

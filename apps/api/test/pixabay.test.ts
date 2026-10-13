@@ -37,6 +37,11 @@ describe("Pixabay stok fotoğrafları", () => {
     // Anahtar sunucuda kalır, tarayıcıya giden cevapta yoktur.
     expect(JSON.stringify(r)).not.toContain("test-key");
     expect(calls.some((c) => c.includes("q=BMW+3+Series"))).toBe(true);
+    // Araba aramasında Pixabay'in "ulaşım" kategorisi kullanılır (tarla, vinç gibi alakasız sonuçlar gelmesin).
+    expect(calls.find((c) => c.includes("q=BMW+3+Series"))).toContain("category=transportation");
+    calls.length = 0;
+    await ctx.app.inject({ url: "/api/stock-images?category=deniz&tip=Yat" });
+    expect(calls.some((c) => c.includes("q=luxury+yacht") && c.includes("category=transportation"))).toBe(true);
 
     const buyer = await login(ctx, "05321112244");
     const used = await ctx.app.inject({ method: "POST", url: "/api/stock-images/photos/31/use", headers: { cookie: buyer } });

@@ -11,7 +11,7 @@ import { placeTxt, useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useSession } from "@/components/Session";
 import { VehicleFields, VehicleRows } from "@/components/VehicleFields";
 import { api, type Draft, type Media } from "@/lib/api";
-import { ATTRS, CITIES, condsFor } from "@/lib/catalog";
+import { attrsFor, CITIES, condsFor } from "@/lib/catalog";
 import { budgetTxt } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
@@ -78,7 +78,7 @@ function Create() {
   const top = categories.find((t) => t.id === d.top);
   const sub = top?.subs.find((s) => s.id === d.sub);
   const vehicle = isVehicleSub(d.sub);
-  const sch = vehicle ? [] : ATTRS[d.top] ?? [];
+  const sch = vehicle ? [] : attrsFor(d.top, d.sub);
 
   const validate = () => {
     if (d.title.trim().length < 3) return "Talep başlığı yazın.";
@@ -125,8 +125,8 @@ function Create() {
           </div>
           <div className="box"><div className="box-h"><h2>Kategori seçin</h2></div><div className="box-b">
             <div className="cat-pick">
-              <div className="cat-col">{categories.map((t) => <button key={t.id} className={d.top === t.id ? "on" : ""} onClick={() => set({ top: t.id, sub: "" })}><CatIcon top={t.id} cls="ct-ic" />{t.name}<span className="ar">›</span></button>)}</div>
-              <div className="cat-col">{top ? top.subs.map((s) => <button key={s.id} className={d.sub === s.id ? "on" : ""} onClick={() => set({ sub: s.id })}>{s.name}</button>) : <div className="empty" style={{ padding: "30px 12px" }}>Önce soldan bir ana kategori seçin.</div>}</div>
+              <div className="cat-col">{categories.map((t) => <button key={t.id} className={d.top === t.id ? "on" : ""} onClick={() => set(d.top === t.id ? {} : { top: t.id, sub: "", attrs: {} })}><CatIcon top={t.id} cls="ct-ic" />{t.name}<span className="ar">›</span></button>)}</div>
+              <div className="cat-col">{top ? top.subs.map((s) => <button key={s.id} className={d.sub === s.id ? "on" : ""} onClick={() => set(d.sub === s.id ? {} : { sub: s.id, attrs: {} })}>{s.name}</button>) : <div className="empty" style={{ padding: "30px 12px" }}>Önce soldan bir ana kategori seçin.</div>}</div>
             </div>
             <div className="sel-path">{sub ? <>Seçilen kategori: <b>{top!.name} › {sub.name}</b></> : <span className="muted">Henüz kategori seçilmedi.</span>}</div>
             <button className="btn btn-or btn-lg" disabled={!sub} onClick={() => set({ step: 2 })}>Devam</button>

@@ -8,7 +8,7 @@ import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 import { fmt } from "@/lib/format";
-import { ATTRS, CITIES, condsFor } from "@/lib/catalog";
+import { attrsFor, CITIES, condsFor } from "@/lib/catalog";
 import { useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useVehicleCatalog } from "@/lib/vehicles";
 
@@ -80,7 +80,7 @@ function Listing() {
   const toggle = (arr: string[], v: string) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const title = s ? `${s.name} Alım Talepleri` : t ? `${t.name} Alım Talepleri` : f.q ? `"${f.q}" için talepler` : "Tüm Alım Talepleri";
   const pages = data ? Math.max(1, Math.ceil(data.total / PER)) : 1;
-  const selAttrs = (t && ATTRS[t.id]?.filter((a) => a.t === "sel")) ?? [];
+  const selAttrs = t ? attrsFor(t.id, s?.id).filter((a) => a.t === "sel") : [];
   const cat = useVehicleCatalog();
   const vehBrands = cat ? (sub === "motosiklet" ? cat.moto : cat.cars) : {};
   const setVeh = (p: Partial<Veh>) => set({ veh: { ...f.veh, ...p } });

@@ -40,7 +40,7 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
                 {r.cover_url ? <img className="ti-ic ti-img" src={r.cover_url} alt="" loading="lazy" /> : <CatIcon top={r.top_id} />}
                 <div>
                   <Link href={`/talep/${r.id}`} className="ti-t" onClick={(e) => e.stopPropagation()}>{r.title}</Link>
-                  <div className="ti-s">{r.category_name} · {attrLine(r.top_id, r.condition, r.attrs)}</div>
+                  <div className="ti-s">{r.category_name} · {attrLine(r.top_id, r.condition, r.attrs, r.category_id)}</div>
                   <div className="ti-l"><Labels r={r} />{r.media_count > 0 && <span className="lbl l-gy" title="Fotoğraflı"><Icon name="camera" size={11} /> {r.media_count}</span>}</div>
                 </div>
               </div>
