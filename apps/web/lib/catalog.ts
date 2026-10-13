@@ -49,6 +49,22 @@ export const SUB_ATTRS: Record<string, Attr[]> = {
   tarim: [{ k: "tip", l: "Makine", t: "sel", o: ["Traktör", "Biçerdöver", "Römork", "Pulluk", "İlaçlama makinesi", F] }, { k: "yil", l: "Model yılı (en eski)", t: "num" }],
   deniz: [{ k: "tip", l: "Tip", t: "sel", o: ["Yat", "Tekne", "Sürat teknesi", "Yelkenli", "Jet Ski", "Şişme bot", F] }, { k: "boy", l: "Boy (en az, metre)", t: "num" }, { k: "yil", l: "Model yılı (en eski)", t: "num" }],
 };
+// Satıcı tarafı (alarm ve talep listesindeki "elimdeki ürün" süzgeci): sayı alanına satıcı kendi ürününün değerini yazar,
+// sunucu alıcının istediğiyle karşılaştırır (api/modules/requests.ts → NUM_MATCH ile aynı anahtarlar).
+export const NUM_SHORT: Record<string, string> = { m2: "m²", bina_yasi: "Bina yaşı", kisi: "Kişi", boy: "Boy (m)", yil: "Model yılı", numara: "Numara" };
+export function sellerNum(k: string, sub?: string): { l: string; h: string } | null {
+  switch (k) {
+    case "m2": return { l: sub === "arsa" ? "Arsanızın m²'si" : sub === "isyeri" ? "İşyerinizin m²'si" : sub === "satilik" || sub === "kiralik" ? "Evinizin m²'si" : "Gayrimenkulünüzün m²'si",
+      h: "Örn. 600 yazarsanız \"en az 500 m²\" isteyen alıcılar gelir, \"en az 1000 m²\" isteyenler gelmez." };
+    case "bina_yasi": return { l: "Binanızın yaşı", h: "Örn. 8 yazarsanız \"en fazla 10 yaşında\" isteyenler gelir, \"en fazla 5 yaşında\" isteyenler gelmez." };
+    case "kisi": return { l: "Kaç kişilik", h: "Örn. 6 yazarsanız 6 kişiye kadar konaklama arayanlar gelir." };
+    case "boy": return { l: "Teknenizin boyu (metre)", h: "Örn. 12 yazarsanız \"en az 10 metre\" isteyenler gelir, \"en az 15 metre\" isteyenler gelmez." };
+    case "yil": return { l: sub === "deniz" ? "Teknenizin model yılı" : "Makinenizin model yılı", h: "Örn. 2019 yazarsanız \"2015 ve sonrası\" isteyenler gelir, \"2021 ve sonrası\" isteyenler gelmez." };
+    case "numara": return { l: "Ayakkabı numarası", h: "Yalnızca bu numarayı isteyen alıcılar gelir." };
+    default: return null;
+  }
+}
+
 export const attrsFor = (top: string | undefined, sub: string | undefined): Attr[] => (sub && SUB_ATTRS[sub]) || (top && ATTRS[top]) || [];
 
 export const CONDS = ["Sıfır", "İkinci El", "Farketmez", "Hizmet"];

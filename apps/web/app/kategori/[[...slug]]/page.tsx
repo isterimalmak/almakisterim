@@ -8,13 +8,13 @@ import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 import { fmt } from "@/lib/format";
-import { attrsFor, CITIES, condsFor } from "@/lib/catalog";
+import { attrsFor, CITIES, condsFor, NUM_SHORT, sellerNum } from "@/lib/catalog";
 import { useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useVehicleCatalog } from "@/lib/vehicles";
 
 type Veh = { marka: string; model: string; yil: string; km: string; yakit: string; vites: string };
 const NO_VEH: Veh = { marka: "", model: "", yil: "", km: "", yakit: "", vites: "" };
-type F = { veh: Veh; q: string; city: string; district: string; hood: string; bmin: string; bmax: string; cond: string[]; attrs: Record<string, string[]>; urgent: boolean; noOffers: boolean; buyer: "" | "bireysel" | "kurumsal"; sort: string; page: number };
+type F = { veh: Veh; q: string; city: string; district: string; hood: string; bmin: string; bmax: string; cond: string[]; attrs: Record<string, string[]>; nums: Record<string, string>; urgent: boolean; noOffers: boolean; buyer: "" | "bireysel" | "kurumsal"; sort: string; page: number };
 const PER = 20;
 
 // Sayfa numaraları kısaltılır: 1 … 4 5 6 … 12 (0 = üç nokta). Telefonda sığsın diye en fazla 7 öğe.
@@ -31,7 +31,7 @@ function Listing() {
   const [top, sub] = slug;
   const t = categories.find((c) => c.id === top);
   const s = t?.subs.find((x) => x.id === sub);
-  const initial = (): F => ({ veh: NO_VEH, q: sp.get("q") ?? "", city: "", district: "", hood: "", bmin: "", bmax: "", cond: [], attrs: {}, urgent: sp.get("acil") === "1", noOffers: sp.get("teklifsiz") === "1", buyer: (sp.get("buyer") as F["buyer"]) ?? "", sort: "new", page: 1 });
+  const initial = (): F => ({ veh: NO_VEH, q: sp.get("q") ?? "", city: "", district: "", hood: "", bmin: "", bmax: "", cond: [], attrs: {}, nums: {}, urgent: sp.get("acil") === "1", noOffers: sp.get("teklifsiz") === "1", buyer: (sp.get("buyer") as F["buyer"]) ?? "", sort: "new", page: 1 });
   const [f, setF] = useState<F>(initial);
   const districts = useDistricts(f.city);
   const hoods = useNeighbourhoods(f.city, f.district);
@@ -56,6 +56,7 @@ function Listing() {
     if (f.bmax) p.set("bmax", f.bmax);
     if (f.cond.length) p.set("cond", f.cond.join(","));
     for (const [k, v] of Object.entries(f.attrs)) if (v.length) p.set(`a_${k}`, v.join(","));
+    for (const [k, v] of Object.entries(f.nums)) if (v && Number(v) >= 0) p.set(`n_${k}`, v);
     if (f.urgent) p.set("urgent", "1");
     if (f.noOffers) p.set("no_offers", "1");
     if (f.buyer) p.set("buyer", f.buyer);
@@ -89,6 +90,8 @@ function Listing() {
   const pages = data ? Math.max(1, Math.ceil(data.total / PER)) : 1;
   const go = (n: number) => { setF((x) => ({ ...x, page: n })); window.scrollTo(0, 0); };
   const selAttrs = t ? attrsFor(t.id, s?.id).filter((a) => a.t === "sel") : [];
+  // Sayı alanları satıcıya kendi ürünü üzerinden sorulur ("Arsanızın m²'si": en az bu kadar isteyen alıcılar listelenir).
+  const numAttrs = t && top !== "vasita" ? attrsFor(t.id, s?.id).filter((a) => a.t === "num" && sellerNum(a.k, s?.id)) : [];
   const cat = useVehicleCatalog();
   const vehBrands = cat ? (sub === "motosiklet" ? cat.moto : cat.cars) : {};
   const setVeh = (p: Partial<Veh>) => set({ veh: { ...f.veh, ...p } });
@@ -102,6 +105,7 @@ function Listing() {
   if (f.city) chips.push({ k: "city", l: [f.city, f.district, f.hood].filter(Boolean).join(" / "), clear: () => set({ city: "", district: "", hood: "" }) });
   if (f.bmin || f.bmax) chips.push({ k: "b", l: `${f.bmin ? fmt(Number(f.bmin)) : "0"} – ${f.bmax ? fmt(Number(f.bmax)) : "∞"} TL`, clear: () => set({ bmin: "", bmax: "" }) });
   for (const c of f.cond) chips.push({ k: `c-${c}`, l: c, clear: () => set({ cond: f.cond.filter((x) => x !== c) }) });
+  for (const [k, v] of Object.entries(f.nums)) if (v) chips.push({ k: `n-${k}`, l: `${NUM_SHORT[k] ?? k}: ${v}`, clear: () => set({ nums: { ...f.nums, [k]: "" } }) });
   for (const [k, vs] of Object.entries(f.attrs)) for (const v of vs) chips.push({ k: `a-${k}-${v}`, l: v, clear: () => set({ attrs: { ...f.attrs, [k]: (f.attrs[k] ?? []).filter((x) => x !== v) } }) });
   if (f.veh.marka) chips.push({ k: "veh", l: [f.veh.marka, f.veh.model, f.veh.yil].filter(Boolean).join(" "), clear: () => set({ veh: NO_VEH }) });
   if (f.urgent) chips.push({ k: "u", l: "Acil", clear: () => set({ urgent: false }) });
@@ -142,6 +146,15 @@ function Listing() {
           </div>
           <div className="flt-sec"><h4>Alıcının bütçesi (TL)</h4><div className="mm"><input className="inp" type="number" placeholder="en az" value={f.bmin} onChange={(e) => set({ bmin: e.target.value })} aria-label="Bütçe en az" /><input className="inp" type="number" placeholder="en çok" value={f.bmax} onChange={(e) => set({ bmax: e.target.value })} aria-label="Bütçe en çok" /></div></div>
           {condsFor(top).length > 1 && <div className="flt-sec"><h4>Ürün durumu</h4>{condsFor(top).map((c) => <label className="chk" key={c}><input type="checkbox" checked={f.cond.includes(c)} onChange={() => set({ cond: toggle(f.cond, c) })} />{c}</label>)}</div>}
+          {numAttrs.length > 0 && (
+            <div className="flt-sec veh-flt">
+              <h4>Elimdeki ürün</h4>
+              <p className="hint" style={{ marginTop: 0 }}>Satacağınızın bilgisini girin, ona uyan alıcı taleplerini görün.</p>
+              {numAttrs.map((a) => { const sn = sellerNum(a.k, s?.id)!; return (
+                <label key={a.k} className="flt-num">{sn.l}<input className="inp" type="number" inputMode="decimal" min={0} value={f.nums[a.k] ?? ""} onChange={(e) => set({ nums: { ...f.nums, [a.k]: e.target.value } })} /><span className="hint">{sn.h}</span></label>
+              ); })}
+            </div>
+          )}
           {selAttrs.map((a) => (
             <div className="flt-sec" key={a.k}><h4>{a.l}</h4>
               {a.o!.map((o) => <label className="chk" key={o}><input type="checkbox" checked={(f.attrs[a.k] ?? []).includes(o)} onChange={() => set({ attrs: { ...f.attrs, [a.k]: toggle(f.attrs[a.k] ?? [], o) } })} />{o}</label>)}

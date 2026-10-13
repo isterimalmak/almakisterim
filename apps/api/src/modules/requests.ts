@@ -60,6 +60,10 @@ const CreateBody = z.object({
   contact_consent: z.literal(true, { error: "Talep vermek için numaranızın satıcılarla paylaşılmasını onaylamalısınız." }),
 });
 
+// Sayı özelliklerinde alıcının değeri satıcınınkiyle nasıl karşılaştırılır (web/lib/catalog.ts'deki alanlarla aynı anahtarlar):
+// m2, boy, kisi, yil: alıcının istediği en az değer ≤ satıcınınki; bina_yasi: alıcının en fazla sınırı ≥ satıcınınki; numara: eşit.
+export const NUM_MATCH: Record<string, "<=" | ">=" | "="> = { m2: "<=", boy: "<=", kisi: "<=", yil: "<=", bina_yasi: ">=", numara: "=" };
+
 // Talep listesinin süzgeçleri (kategori, il/ilçe/mahalle, bütçe, durum, özellikler, araç…). Talep alarmları da aynı
 // süzgeçleri kullanır: alarm, kaydedilmiş bir aramadır.
 export function listFilters(raw: Record<string, unknown>) {
@@ -94,6 +98,17 @@ export function listFilters(raw: Record<string, unknown>) {
       const open = q.top || q.sub ? `coalesce(r.attrs->>'${key}', '') IN ('', 'Farketmez')` : `r.attrs->>'${key}' = 'Farketmez'`;
       add(`(${open} OR r.attrs->>'${key}' = ANY($?))`, v.split(",").slice(0, 20));
     }
+  }
+  // Sayı özellikleri: satıcı elindekinin değerini girer (?n_m2=600), alıcının istediğiyle karşılaştırılır.
+  // Alıcı o alanı boş bıraktıysa her zaman uyar.
+  for (const [k, v] of Object.entries(raw)) {
+    const m = /^n_([a-z0-9_]{1,20})$/.exec(k);
+    const op = m ? NUM_MATCH[m[1]!] : undefined;
+    if (!m || !op) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > 1e9) throw new HttpError(400, "sayi_gecersiz", "Sayı alanına geçerli bir değer yazın.");
+    const key = m[1]!, val = `(r.attrs->>'${key}')`;
+    add(`(coalesce(${val}, '') !~ '^[0-9]+(\\.[0-9]+)?$' OR ${val}::numeric ${op} $?)`, n);
   }
   vehicleFilters(vq, params, where);
   return { where, params };

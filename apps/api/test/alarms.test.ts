@@ -55,4 +55,39 @@ describe("ayrıntılı talep alarmı", () => {
     await expect.poll(() => notified("5331110003")).toEqual(['Alarmınıza uyan yeni talep: "BMW 1 serisi arıyorum"']);
     await expect.poll(() => notified("5331110002")).toEqual(['Alarmınıza uyan yeni talep: "BMW 3 serisi arıyorum"', 'Alarmınıza uyan yeni talep: "iPhone arıyorum"']);
   });
+
+  it("sayı alanları: satıcının m²'si, bina yaşı, kişi sayısı, boy, yıl ve numara alıcının istediğiyle karşılaştırılır", async () => {
+    const seller = await login(ctx, "05331110004");
+    const buyer = await login(ctx, "05321110004");
+    // Bu testte çok talep açılır; kişi başı açık talep sınırı kaldırılır.
+    await ctx.pool.query("UPDATE settings SET value = '0' WHERE key = 'max_active_requests_per_user'");
+    const base = { condition: "Farketmez", city: "İzmir", district: "", budget_min: 1000000, budget_max: 2000000 };
+    const ids: Record<string, number> = {};
+    ids.arsa500 = await createRequest(ctx, buyer, { ...base, category_id: "arsa", title: "En az 500 m2 arsa", attrs: { m2: 500 } });
+    ids.arsa1000 = await createRequest(ctx, buyer, { ...base, category_id: "arsa", title: "En az 1000 m2 arsa", attrs: { m2: 1000 } });
+    ids.arsaAny = await createRequest(ctx, buyer, { ...base, category_id: "arsa", title: "m2 farketmez arsa", attrs: {} });
+    ids.ev5 = await createRequest(ctx, buyer, { ...base, category_id: "satilik", title: "En fazla 5 yaşında ev", attrs: { bina_yasi: 5 } });
+    ids.ev20 = await createRequest(ctx, buyer, { ...base, category_id: "satilik", title: "En fazla 20 yaşında ev", attrs: { bina_yasi: 20 } });
+    ids.gunluk8 = await createRequest(ctx, buyer, { ...base, category_id: "gunluk", title: "8 kişilik yazlık", attrs: { kisi: 8 } });
+    ids.tekne = await createRequest(ctx, buyer, { ...base, category_id: "deniz", condition: "İkinci El", title: "En az 10 metre tekne", attrs: { tip: "Tekne", boy: 10, yil: 2015 } });
+    ids.ayk42 = await createRequest(ctx, buyer, { ...base, category_id: "ayakkabi", condition: "Sıfır", budget_min: 1000, budget_max: 3000, title: "42 numara ayakkabı", attrs: { numara: 42 } });
+    const list = async (qs: string) => (await ctx.app.inject({ url: `/api/requests?${qs}` })).json().items.map((x: { id: number }) => x.id).sort();
+    expect(await list("sub=arsa&n_m2=600")).toEqual([ids.arsa500, ids.arsaAny].sort());
+    expect(await list("sub=satilik&n_bina_yasi=10")).toEqual([ids.ev20]);
+    expect(await list("sub=gunluk&n_kisi=6")).toEqual([]);
+    expect(await list("sub=gunluk&n_kisi=10")).toEqual([ids.gunluk8]);
+    expect(await list("sub=deniz&n_boy=12&n_yil=2018")).toEqual([ids.tekne]);
+    expect(await list("sub=deniz&n_boy=8")).toEqual([]);
+    expect(await list("sub=ayakkabi&n_numara=42")).toEqual([ids.ayk42]);
+    expect(await list("sub=ayakkabi&n_numara=41")).toEqual([]);
+    expect((await ctx.app.inject({ url: "/api/requests?sub=arsa&n_m2=abc" })).statusCode).toBe(400);
+
+    // Alarmda da aynı kural: 600 m² arsası olan satıcıya yalnızca uyan yeni talep haber verilir.
+    expect((await alarm(seller, { category_id: "arsa", filters: { n_m2: "600", n_bilinmeyen: "5" } })).statusCode).toBe(201);
+    expect((await ctx.app.inject({ url: "/api/me/alarms", headers: { cookie: seller } })).json().items[0].filters).toEqual({ n_m2: "600" });
+    expect((await alarm(seller, { category_id: "arsa", filters: { n_m2: "çok" } })).statusCode).toBe(400);
+    await createRequest(ctx, buyer, { ...base, category_id: "arsa", title: "Yeni: en az 400 m2", attrs: { m2: 400 } });
+    await createRequest(ctx, buyer, { ...base, category_id: "arsa", title: "Yeni: en az 2000 m2", attrs: { m2: 2000 } });
+    await expect.poll(() => notified("5331110004")).toEqual(['Alarmınıza uyan yeni talep: "Yeni: en az 400 m2"']);
+  });
 });

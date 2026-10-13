@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { attrsFor, CITIES, condsFor } from "@/lib/catalog";
+import { attrsFor, CITIES, condsFor, NUM_SHORT, sellerNum } from "@/lib/catalog";
 import { useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { brandsOf, isVehicleSub, useVehicleCatalog } from "@/lib/vehicles";
 import { fmt } from "@/lib/format";
@@ -24,6 +24,7 @@ export function alarmSummary(a: Pick<Alarm, "category_id" | "filters">, top?: st
   if (f.arac_yil) out.push(`${f.arac_yil} model`);
   if (f.arac_km) out.push(`${fmt(Number(f.arac_km))} km`);
   for (const at of attrsFor(top, a.category_id)) if (f[`a_${at.k}`]) out.push(`${at.l}: ${f[`a_${at.k}`]!.split(",").join(", ")}`);
+  for (const [k, v] of Object.entries(f)) if (k.startsWith("n_") && NUM_SHORT[k.slice(2)]) out.push(`${NUM_SHORT[k.slice(2)]}: ${k === "n_m2" ? fmt(Number(v)) : v}`);
   for (const k of ["cond", "arac_yakit", "arac_vites", "arac_kasa"]) if (f[k]) out.push(`${LABELS[k]}: ${f[k]}`);
   if (f.q) out.push(`"${f.q}" geçen`);
   if (f.urgent) out.push("Yalnızca acil");
@@ -45,6 +46,8 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
   // Vasıtada alt kategori seçilmese de marka/model sorulur (otomobil, SUV, ticari… hepsinde aranır).
   const vehicle = top?.id === "vasita" ? !sub || isVehicleSub(sub.id) : isVehicleSub(sub?.id);
   const attrs = vehicle ? [] : attrsFor(top?.id, sub?.id).filter((a) => a.t === "sel");
+  // Sayı alanları satıcıya kendi ürünü üzerinden sorulur ("Arsanızın m²'si" gibi).
+  const nums = vehicle ? [] : attrsFor(top?.id, sub?.id).filter((a) => a.t === "num" && sellerNum(a.k, sub?.id));
   const conds = condsFor(top?.id).filter((c) => c !== "Farketmez");
   const brands = cat && vehicle ? (sub ? brandsOf(cat, sub.id) : cat.cars) : {};
   const set = (p: AlarmFilters) => setF((x) => { const n = { ...x, ...p }; for (const k of Object.keys(n)) if (!n[k]) delete n[k]; return n; });
@@ -88,12 +91,17 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
           <>
             <div className="fg"><label htmlFor="al-mk">Elinizdeki aracın markası</label><select className="sel" id="al-mk" value={f.arac_marka ?? ""} onChange={(e) => set({ arac_marka: e.target.value, arac_model: "" })}><option value="">Tüm markalar</option>{Object.keys(brands).map((b) => <option key={b}>{b}</option>)}</select></div>
             <div className="fg"><label htmlFor="al-md">Modeli</label><select className="sel" id="al-md" value={f.arac_model ?? ""} disabled={!f.arac_marka} onChange={(e) => set({ arac_model: e.target.value })}><option value="">Tüm modeller</option>{(brands[f.arac_marka ?? ""] ?? []).map((m) => <option key={m}>{m}</option>)}</select></div>
-            <div className="fg"><label htmlFor="al-y">Elinizdeki aracın yılı</label><input className="inp" id="al-y" type="number" inputMode="numeric" value={f.arac_yil ?? ""} onChange={(e) => set({ arac_yil: e.target.value })} placeholder="Örn. 2019" /></div>
-            <div className="fg"><label htmlFor="al-km">Kilometresi</label><input className="inp" id="al-km" type="number" inputMode="numeric" value={f.arac_km ?? ""} onChange={(e) => set({ arac_km: e.target.value })} /></div>
+            <div className="fg"><label htmlFor="al-y">Satacağınız aracın model yılı</label><input className="inp" id="al-y" type="number" inputMode="numeric" value={f.arac_yil ?? ""} onChange={(e) => set({ arac_yil: e.target.value })} placeholder="Örn. 2019" /><span className="hint">2019 yazarsanız "2018 ve sonrası" isteyenler gelir, "2021 ve sonrası" isteyenler gelmez.</span></div>
+            <div className="fg"><label htmlFor="al-km">Satacağınız aracın kilometresi</label><input className="inp" id="al-km" type="number" inputMode="numeric" value={f.arac_km ?? ""} onChange={(e) => set({ arac_km: e.target.value })} placeholder="Örn. 85000" /><span className="hint">85.000 yazarsanız "en fazla 100.000 km" isteyenler gelir, "en fazla 50.000 km" isteyenler gelmez.</span></div>
             <div className="fg"><label htmlFor="al-yk">Yakıt</label><select className="sel" id="al-yk" value={f.arac_yakit ?? ""} onChange={(e) => set({ arac_yakit: e.target.value })}><option value="">Farketmez</option>{cat.fuels.map((x) => <option key={x}>{x}</option>)}</select></div>
             <div className="fg"><label htmlFor="al-vt">Vites</label><select className="sel" id="al-vt" value={f.arac_vites ?? ""} onChange={(e) => set({ arac_vites: e.target.value })}><option value="">Farketmez</option>{cat.gears.map((x) => <option key={x}>{x}</option>)}</select></div>
           </>
         )}
+        {nums.map((a) => { const sn = sellerNum(a.k, sub?.id)!; return (
+          <div className="fg" key={a.k}><label htmlFor={`al-n-${a.k}`}>{sn.l}</label>
+            <input className="inp" id={`al-n-${a.k}`} type="number" inputMode="decimal" min={0} value={f[`n_${a.k}`] ?? ""} onChange={(e) => set({ [`n_${a.k}`]: e.target.value })} />
+            <span className="hint">{sn.h}</span></div>
+        ); })}
         {attrs.map((a) => (
           <div className="fg full" key={a.k}><label>{a.l} <span className="muted">(birden fazla seçilebilir)</span></label>
             <div className="chips">{a.o!.filter((o) => o !== "Farketmez").map((o) => (
