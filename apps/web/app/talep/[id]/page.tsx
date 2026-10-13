@@ -105,6 +105,10 @@ export default function RequestPage() {
               {!r.is_owner && <button className="btn btn-wh btn-block" onClick={fav}><Icon name="heart" size={15} /> {r.is_favorite ? "Favorilerden çıkar" : "Favorilere ekle"}</button>}
               <button className="btn btn-wh btn-block" onClick={alarm}><Icon name="bell" size={15} /> Benzer talepler için alarm kur</button>
               {r.is_owner && open && <button className="btn btn-wh btn-block" onClick={async () => { if (!confirm("Aradığınızı buldunuz mu? Talep kapanır ve numaranız yeni satıcılara gösterilmez.")) return; await api(`/requests/${r.id}/close`, { body: {} }); toast("Talep kapatıldı, numaranız artık yeni satıcılara gösterilmiyor."); void load(); }}>Aldım / Talebi kapat</button>}
+              {user?.role === "admin" && open && <button className="btn btn-wh btn-block" onClick={async () => {
+                try { await api(`/admin/requests/${r.id}/vitrin`, { body: { days: r.is_featured ? 0 : 30 } }); toast(r.is_featured ? "Vitrinden çıkarıldı." : "30 gün vitrinde, en başta görünecek."); void load(); }
+                catch (e) { toast((e as Error).message); }
+              }}>★ {r.is_featured ? "Vitrinden çıkar" : "Vitrine ekle (30 gün)"}</button>}
               {!r.is_owner && <button className="btn btn-gh btn-sm" onClick={report}><Icon name="flag" size={13} /> Talebi şikayet et</button>}
             </div>
           </div></div>

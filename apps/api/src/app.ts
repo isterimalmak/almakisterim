@@ -12,6 +12,7 @@ import { adminRoutes } from "./modules/admin.js";
 import { authRoutes } from "./modules/auth.js";
 import { categoryRoutes } from "./modules/categories.js";
 import { contactRoutes } from "./modules/contacts.js";
+import { adRoutes } from "./modules/ads.js";
 import { mediaRoutes } from "./modules/media.js";
 import { meRoutes } from "./modules/me.js";
 import { offerRoutes } from "./modules/offers.js";
@@ -69,6 +70,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     offerRoutes(api, deps);
     contactRoutes(api, deps);
     mediaRoutes(api, deps);
+    adRoutes(api, deps);
     vehicleRoutes(api);
     meRoutes(api, deps);
     adminRoutes(api, deps);

@@ -62,6 +62,17 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     return { ok: true };
   });
 
+  // Vitrine ekle / çıkar: days = 0 vitrinden çıkarır.
+  app.post("/admin/requests/:id/vitrin", async (req) => {
+    requireAdmin(req);
+    const { id } = z.object({ id: z.coerce.number().int() }).parse(req.params);
+    const { days } = z.object({ days: z.number().int().min(0).max(365) }).parse(req.body);
+    const r = await pool.query<{ featured_until: string | null }>(
+      "UPDATE requests SET featured_until = CASE WHEN $2::int > 0 THEN now() + make_interval(days => $2::int) END WHERE id = $1 RETURNING featured_until", [id, days]);
+    if (!r.rowCount) throw new HttpError(404, "bulunamadi", "Talep bulunamadı.");
+    return { featured_until: r.rows[0]!.featured_until };
+  });
+
   app.get("/admin/settings", async (req) => {
     requireAdmin(req);
     const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings ORDER BY key");

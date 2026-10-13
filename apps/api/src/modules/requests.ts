@@ -13,7 +13,7 @@ import { notifyAlarmMatches } from "./notifications.js";
 const LIST_COLUMNS = `
   r.id, r.title, r.description, r.category_id, c.name AS category_name, p.id AS top_id, p.name AS top_name,
   r.budget_min, r.budget_max, r.city, r.district, r.condition, r.attrs, r.is_urgent, r.is_corporate,
-  r.status, r.created_at, r.expires_at, r.buyer_id,
+  r.status, r.created_at, r.expires_at, r.buyer_id, coalesce(r.featured_until > now(), false) AS is_featured,
   u.name AS buyer_name, u.is_corporate AS buyer_is_corporate,
   (SELECT count(*)::int FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn') AS offer_count,
   (SELECT m.storage_key FROM media m WHERE m.request_id = r.id AND m.kind = 'image' ORDER BY m.position LIMIT 1) AS cover_key,
@@ -26,15 +26,17 @@ const publicRow = ({ buyer_id: _b, buyer_name, ...r }: Row) => ({ ...r, buyer_na
 const ListQuery = z.object({
   top: z.string().optional(), sub: z.string().optional(), q: z.string().max(100).optional(),
   city: z.string().optional(), bmin: z.coerce.number().int().optional(), bmax: z.coerce.number().int().optional(),
-  cond: z.string().optional(), urgent: z.enum(["1"]).optional(), no_offers: z.enum(["1"]).optional(),
+  cond: z.string().optional(), urgent: z.enum(["1"]).optional(), no_offers: z.enum(["1"]).optional(), featured: z.enum(["1"]).optional(),
   buyer: z.enum(["bireysel", "kurumsal"]).optional(),
-  sort: z.enum(["new", "old", "budget_desc", "budget_asc", "few_offers", "ending"]).default("new"),
+  sort: z.enum(["new", "old", "budget_desc", "budget_asc", "few_offers", "ending", "vitrin"]).default("new"),
   page: z.coerce.number().int().min(1).max(500).default(1), per: z.coerce.number().int().min(1).max(50).default(20),
 }).passthrough();
 
 const SORTS: Record<string, string> = {
   new: "r.created_at DESC", old: "r.created_at ASC", budget_desc: "r.budget_max DESC", budget_asc: "r.budget_max ASC",
   few_offers: "offer_count ASC, r.created_at DESC", ending: "r.expires_at ASC",
+  // Ana sayfa vitrini: önce öne çıkarılanlar, sonra fotoğraflı olanlar, sonra en yeniler.
+  vitrin: "coalesce(r.featured_until > now(), false) DESC, EXISTS (SELECT 1 FROM media m WHERE m.request_id = r.id AND m.kind = 'image') DESC, r.created_at DESC",
 };
 
 const CreateBody = z.object({
@@ -81,6 +83,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     if (q.bmax !== undefined) add("r.budget_min <= $?", q.bmax);
     if (q.cond) add("r.condition = ANY($?)", q.cond.split(","));
     if (q.urgent) where.push("r.is_urgent");
+    if (q.featured) where.push("r.featured_until > now()");
     if (q.no_offers) where.push("NOT EXISTS (SELECT 1 FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn')");
     if (q.buyer === "kurumsal") where.push("r.is_corporate");
     if (q.buyer === "bireysel") where.push("NOT r.is_corporate");

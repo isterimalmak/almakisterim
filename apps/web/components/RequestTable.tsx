@@ -72,3 +72,20 @@ export function VitrinCard({ r }: { r: RequestItem }) {
     </Link>
   );
 }
+
+// Ana sayfa vitrini: sahibinden vitrini gibi küçük kare kutucuk + tek satır başlık.
+export function VitrinTile({ r }: { r: RequestItem }) {
+  const t = theme(r.top_id);
+  const { categories } = useSession();
+  const icon = categories.find((c) => c.id === r.top_id)?.icon ?? "box";
+  return (
+    <Link className="vt-i" href={`/talep/${r.id}`} title={r.title}>
+      <span className="vt-img" style={{ background: t.c, color: t.fc }}>
+        {r.cover_url ? <img src={r.cover_url} alt="" loading="lazy" /> : <Icon name={icon} size={34} sw={1.4} />}
+        {r.is_featured && <span className="vt-star" aria-label="Öne çıkan">★</span>}
+      </span>
+      <span className="vt-t">{r.title}</span>
+      <span className="vt-p">{fmt(r.budget_max)} TL</span>
+    </Link>
+  );
+}

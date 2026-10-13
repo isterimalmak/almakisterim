@@ -32,7 +32,7 @@ export const MediaIds = z.array(z.uuid()).max(MAX_PER_ITEM.image + MAX_PER_ITEM.
 export async function attachMedia(c: Client, ownerId: string, ids: string[], target: { request_id: number } | { offer_id: number }) {
   if (!ids.length) return;
   if (new Set(ids).size !== ids.length) throw new HttpError(400, "medya_gecersiz", "Aynı dosya birden fazla eklenemez.");
-  const { rows } = await c.query<MediaRow>("SELECT * FROM media WHERE id = ANY($1::uuid[]) FOR UPDATE", [ids]);
+  const { rows } = await c.query<MediaRow>("SELECT * FROM media m WHERE id = ANY($1::uuid[]) AND NOT EXISTS (SELECT 1 FROM ads a WHERE a.media_id = m.id) FOR UPDATE", [ids]);
   const ok = rows.filter((m) => m.owner_id === ownerId && m.status === "ready" && m.request_id === null && m.offer_id === null);
   if (ok.length !== ids.length) throw new HttpError(400, "medya_gecersiz", "Eklenen fotoğraf veya videolardan biri bulunamadı. Lütfen yeniden yükleyin.");
   const count = (k: "image" | "video") => ok.filter((m) => m.kind === k).length;
@@ -102,7 +102,7 @@ export function mediaRoutes(app: FastifyInstance, deps: Deps) {
     const user = requireUser(req);
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
     const r = await pool.query<{ storage_key: string }>(
-      "DELETE FROM media WHERE id = $1 AND owner_id = $2 AND request_id IS NULL AND offer_id IS NULL RETURNING storage_key", [id, user.id]);
+      "DELETE FROM media m WHERE id = $1 AND owner_id = $2 AND request_id IS NULL AND offer_id IS NULL AND NOT EXISTS (SELECT 1 FROM ads a WHERE a.media_id = m.id) RETURNING storage_key", [id, user.id]);
     if (!r.rowCount) throw new HttpError(404, "bulunamadi", "Silinebilecek dosya bulunamadı.");
     await storage.remove(r.rows[0]!.storage_key).catch((e) => req.log.warn({ err: (e as Error).message }, "dosya silinemedi"));
     return { ok: true };
@@ -131,7 +131,7 @@ export function mediaRoutes(app: FastifyInstance, deps: Deps) {
 // Bir günden eski, hiçbir yere eklenmemiş dosyaları temizler (zamanlanmış görevden çağrılır).
 export async function cleanupOrphans(pool: Pool, storage: MediaStorage) {
   const { rows } = await pool.query<{ storage_key: string }>(
-    "DELETE FROM media WHERE request_id IS NULL AND offer_id IS NULL AND created_at < now() - interval '1 day' RETURNING storage_key");
+    "DELETE FROM media m WHERE request_id IS NULL AND offer_id IS NULL AND created_at < now() - interval '1 day' AND NOT EXISTS (SELECT 1 FROM ads a WHERE a.media_id = m.id) RETURNING storage_key");
   for (const r of rows) await storage.remove(r.storage_key).catch(() => {});
   return rows.length;
 }
