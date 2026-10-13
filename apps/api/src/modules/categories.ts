@@ -36,7 +36,7 @@ export async function visibleSubcategory(pool: Pool, id: string) {
   return rows[0] ?? null;
 }
 
-export function categoryRoutes(app: FastifyInstance, { pool }: Deps) {
+export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
   // İl seçilince ilçeler, ilçe seçilince mahalleler (PTT listesi). Değişmediği için uzun süre önbelleğe alınır.
   app.get("/locations", async (req, reply) => {
     const q = z.object({ il: z.string().max(40), ilce: z.string().max(60).optional() }).parse(req.query);
@@ -50,7 +50,7 @@ export function categoryRoutes(app: FastifyInstance, { pool }: Deps) {
   });
 
   app.get("/categories", async () => {
-    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','home_urgent_box')");
+    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','home_urgent_box','photo_required')");
     const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     return {
       categories: toTree(await listCategories(pool, true)),
@@ -59,6 +59,8 @@ export function categoryRoutes(app: FastifyInstance, { pool }: Deps) {
       launch_mode: s.launch_mode === true,
       phone_required: s.phone_required === true,
       home_urgent_box: s.home_urgent_box === true,
+      // Dosya deposu bağlı değilken fotoğraf istenemez.
+      photo_required: s.photo_required === true && storage.enabled,
     };
   });
 }

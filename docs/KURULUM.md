@@ -30,6 +30,7 @@ Bütün hesaplar **isterimalmak@gmail.com** ile açılır. Hiçbir anahtar sohbe
 | `NETGSM_USERCODE`, `NETGSM_PASSWORD` | SMS | Netgsm paneli → API kullanıcısı |
 | `GOOGLE_CLIENT_SECRET` | Google ile giriş | Google Cloud → APIs & Services → Credentials |
 | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Fotoğraf ve video deposu | Cloudflare → R2 → Manage API tokens |
+| `PIXABAY_API_KEY` (isteğe bağlı) | Talebe uyan ücretsiz hazır fotoğraflar | pixabay.com → giriş → pixabay.com/api/docs ("Your API key") |
 
 Eklemek için Cloud Shell'de: `bash infra/anahtar-ekle.sh ANAHTAR_ADI` (değer ekranda görünmez).
 

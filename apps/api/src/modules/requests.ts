@@ -200,6 +200,10 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     if (maxActive > 0 && active >= maxActive) throw new HttpError(409, "talep_siniri", `Aynı anda en fazla ${maxActive} açık talebiniz olabilir. Önce eski taleplerinizden birini kapatın.`);
     const cat = await visibleSubcategory(pool, b.category_id);
     if (!cat) throw new HttpError(400, "kategori_gecersiz", "Bu kategori şu anda talep kabul etmiyor.");
+    if (storage.enabled && (await pool.query("SELECT 1 FROM settings WHERE key = 'photo_required' AND value = 'true'")).rowCount) {
+      const imgs = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM media WHERE id = ANY($1::uuid[]) AND owner_id = $2 AND kind = 'image'", [b.media_ids, user.id])).rows[0]!.n;
+      if (!imgs) throw new HttpError(400, "fotograf_gerekli", "Talep vermek için en az bir fotoğraf ekleyin. Kendi fotoğrafınızı yükleyebilir ya da hazır görsellerden seçebilirsiniz.");
+    }
     const attrs = isVehicleSub(b.category_id)
       ? parseVehicleAttrs(b.category_id, b.attrs)
       : z.record(z.string().max(30), z.union([z.string().max(60), z.number()])).parse(b.attrs);

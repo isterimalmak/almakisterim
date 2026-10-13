@@ -1,6 +1,29 @@
 // Pexels: ücretsiz kullanım izinli stok fotoğraflar. Alıcının talebine uyan görseller aranır.
 // Anahtar yalnızca sunucuda durur (Secret Manager → PEXELS_API_KEY); tarayıcıya gitmez.
 export type StockPhoto = { id: number; thumb: string; large: string; alt: string; photographer: string; photographer_url: string; page_url: string };
+
+// Ücretsiz fotoğraf kaynağı (Pexels veya Pixabay): ara, tek fotoğrafı getir, indir.
+export interface PhotoSource {
+  readonly name: string;
+  readonly site: string;
+  readonly enabled: boolean;
+  search(query: string, perPage?: number): Promise<StockPhoto[]>;
+  photo(id: number): Promise<StockPhoto | null>;
+  download(photo: StockPhoto): Promise<{ body: Buffer; contentType: string }>;
+}
+
+// Seçilen fotoğraf indirilir (yalnızca kaynağın kendi görsel sunucusundan, en fazla 10 MB).
+export async function downloadImage(fetchFn: typeof fetch, url: string, hosts: string[]): Promise<{ body: Buffer; contentType: string }> {
+  const u = new URL(url);
+  if (u.protocol !== "https:" || !hosts.includes(u.hostname)) throw new Error("Beklenmeyen görsel adresi");
+  const res = await fetchFn(u, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`Görsel indirilemedi (${res.status})`);
+  const contentType = (res.headers.get("content-type") ?? "").split(";")[0]!;
+  if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) throw new Error("Görsel türü desteklenmiyor");
+  const body = Buffer.from(await res.arrayBuffer());
+  if (body.length > 10 * 1024 * 1024) throw new Error("Görsel çok büyük");
+  return { body, contentType };
+}
 type Raw = { id: number; url: string; alt: string; photographer: string; photographer_url: string; src: { large: string; medium: string } };
 
 const ALLOWED_HOST = "images.pexels.com";
@@ -36,7 +59,9 @@ export function queriesFor(category: string, araclar: { marka: string; model: st
   return araclar.slice(0, 3).map((a) => (a.model ? `${a.marka} ${modelEn(a.marka, a.model)}` : `${a.marka} ${kind}`).replace(/\s+/g, " ").trim());
 }
 
-export class Pexels {
+export class Pexels implements PhotoSource {
+  readonly name = "Pexels";
+  readonly site = "https://www.pexels.com";
   private cache = new Map<string, { at: number; items: StockPhoto[] }>();
   constructor(private key: string, private fetchFn: typeof fetch = fetch) {}
   get enabled() { return !!this.key; }
@@ -63,16 +88,5 @@ export class Pexels {
     return toPhoto((await res.json()) as Raw);
   }
 
-  // Seçilen fotoğraf indirilir (yalnızca Pexels'in görsel sunucusundan, en fazla 10 MB).
-  async download(photo: StockPhoto): Promise<{ body: Buffer; contentType: string }> {
-    const u = new URL(photo.large);
-    if (u.protocol !== "https:" || u.hostname !== ALLOWED_HOST) throw new Error("Beklenmeyen görsel adresi");
-    const res = await this.fetchFn(u, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) throw new Error(`Görsel indirilemedi (${res.status})`);
-    const contentType = (res.headers.get("content-type") ?? "").split(";")[0]!;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) throw new Error("Görsel türü desteklenmiyor");
-    const body = Buffer.from(await res.arrayBuffer());
-    if (body.length > 10 * 1024 * 1024) throw new Error("Görsel çok büyük");
-    return { body, contentType };
-  }
+  download(photo: StockPhoto) { return downloadImage(this.fetchFn, photo.large, [ALLOWED_HOST]); }
 }

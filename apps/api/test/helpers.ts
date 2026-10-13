@@ -1,4 +1,4 @@
-import type { Pexels } from "../src/services/pexels.js";
+import type { PhotoSource } from "../src/services/pexels.js";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
@@ -10,7 +10,7 @@ import { MemoryStorage, type MediaStorage } from "../src/services/storage.js";
 
 export type TestCtx = { app: FastifyInstance; pool: Pool; outbox: MemoryOutbox; storage: MediaStorage };
 
-export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; storage?: MediaStorage; pexels?: Pexels; env?: Record<string, string> } = {}): Promise<TestCtx> {
+export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; storage?: MediaStorage; photos?: PhotoSource; env?: Record<string, string> } = {}): Promise<TestCtx> {
   const config = loadConfig({
     NODE_ENV: "test",
     DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgres://postgres@localhost:5432/almakisterim_test",
@@ -22,7 +22,7 @@ export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; stora
   const pool = createPool(config.DATABASE_URL);
   const outbox = new MemoryOutbox();
   const storage = over.storage ?? new MemoryStorage();
-  const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle, storage, pexels: over.pexels });
+  const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle, storage, photos: over.photos });
   return { app, pool, outbox, storage };
 }
 
@@ -30,7 +30,7 @@ export async function resetData(pool: Pool) {
   await pool.query(`TRUNCATE stock_images, messages, ads, notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
   await pool.query(`ALTER TABLE requests ALTER COLUMN id RESTART WITH 1048200`);
   await pool.query(`UPDATE categories SET is_visible = true`);
-  await pool.query(`UPDATE settings SET value = CASE key WHEN 'free_unlocks_per_month' THEN '5' WHEN 'unlock_price_credits' THEN '1' WHEN 'unlock_price_by_top' THEN '{}' WHEN 'unlock_limit_per_request' THEN '10' WHEN 'max_active_requests_per_user' THEN '5' WHEN 'launch_mode' THEN 'false' WHEN 'phone_required' THEN 'true' WHEN 'home_urgent_box' THEN 'false' WHEN 'browse_min_requests' THEN '1' WHEN 'show_counts_min' THEN '20' WHEN 'unlock_price_tiers' THEN '[{"max_budget": 10000, "credits": 1}, {"max_budget": 100000, "credits": 3}, {"max_budget": null, "credits": 5}]' ELSE value END`);
+  await pool.query(`UPDATE settings SET value = CASE key WHEN 'free_unlocks_per_month' THEN '5' WHEN 'unlock_price_credits' THEN '1' WHEN 'unlock_price_by_top' THEN '{}' WHEN 'unlock_limit_per_request' THEN '10' WHEN 'max_active_requests_per_user' THEN '5' WHEN 'launch_mode' THEN 'false' WHEN 'phone_required' THEN 'true' WHEN 'home_urgent_box' THEN 'false' WHEN 'photo_required' THEN 'false' WHEN 'browse_min_requests' THEN '1' WHEN 'show_counts_min' THEN '20' WHEN 'unlock_price_tiers' THEN '[{"max_budget": 10000, "credits": 1}, {"max_budget": 100000, "credits": 3}, {"max_budget": null, "credits": 5}]' ELSE value END`);
 }
 
 // SMS ile giriş yapar ve oturum çerezini döndürür.

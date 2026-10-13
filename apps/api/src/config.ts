@@ -21,6 +21,7 @@ const schema = z.object({
 
   ANTHROPIC_API_KEY: z.string().default(""),
   PEXELS_API_KEY: z.string().default(""),
+  PIXABAY_API_KEY: z.string().default(""),
   CLAUDE_MODEL: z.string().default("claude-opus-5-5"),
 
   GOOGLE_CLIENT_ID: z.string().default(""),

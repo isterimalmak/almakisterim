@@ -5,7 +5,8 @@ import { api, type Media } from "@/lib/api";
 import { Icon } from "./Icon";
 import { useSession } from "./Session";
 
-export type PexelsPhoto = { id: number; thumb: string; alt: string; photographer: string; photographer_url: string; page_url: string };
+export type StockPhoto = { id: number; thumb: string; alt: string; photographer: string; photographer_url: string; page_url: string };
+export type PhotoSource = { name: string; url: string };
 export type StockItem = { id: number; title: string; category_id: string; marka: string | null; model: string | null; match: "model" | "marka" | "kategori"; media: Media };
 
 // Görselin adı her yerde aynı kuralla: "Marka Model" (araçta), yoksa kategori adı; yöneticinin açıklaması altta.
@@ -26,26 +27,27 @@ export function useStockNames() {
 // Talebe uyan hazır görseller: kategori, marka ve model seçildikçe sunucudan yeniden istenir.
 export function useStockImages(category: string, attrs: Record<string, unknown>) {
   const [items, setItems] = useState<StockItem[] | null>(null);
-  const [photos, setPhotos] = useState<PexelsPhoto[]>([]);
+  const [photos, setPhotos] = useState<StockPhoto[]>([]);
+  const [source, setSource] = useState<PhotoSource | null>(null);
   const key = (Array.isArray(attrs.araclar) ? attrs.araclar as { marka: string; model: string | null }[] : []).map((a) => `${a.marka}:${a.model ?? ""}`).join(",");
   useEffect(() => {
-    if (!category) { setItems([]); setPhotos([]); return; }
+    if (!category) { setItems([]); setPhotos([]); setSource(null); return; }
     let on = true;
     const qs = new URLSearchParams({ category, ...(key ? { araclar: key } : {}) });
-    void api<{ items: StockItem[]; pexels?: PexelsPhoto[] }>(`/stock-images?${qs}`)
-      .then((r) => { if (on) { setItems(r.items); setPhotos(r.pexels ?? []); } }).catch(() => on && setItems([]));
+    void api<{ items: StockItem[]; photos?: StockPhoto[]; photo_source?: PhotoSource | null }>(`/stock-images?${qs}`)
+      .then((r) => { if (on) { setItems(r.items); setPhotos(r.photos ?? []); setSource(r.photo_source ?? null); } }).catch(() => on && setItems([]));
     return () => { on = false; };
   }, [category, key]);
-  return { items, photos };
+  return { items, photos, source };
 }
 
 // Fotoğraf bölümünün altında: girilen bilgilere uyan görseller kendiliğinden çıkar, tek dokunuşla eklenir.
-export function StockStrip({ items, photos, onPick, onPickPhoto, onMore, busy }: {
-  items: StockItem[]; photos: PexelsPhoto[]; onPick: (it: StockItem) => void; onPickPhoto: (p: PexelsPhoto) => void; onMore: () => void; busy: number | null;
+export function StockStrip({ items, photos, source, onPick, onPickPhoto, onMore, busy }: {
+  items: StockItem[]; photos: StockPhoto[]; source: PhotoSource | null; onPick: (it: StockItem) => void; onPickPhoto: (p: StockPhoto) => void; onMore: () => void; busy: number | null;
 }) {
   const { label } = useStockNames();
   const best = items.filter((x) => x.match !== "kategori");
-  // Önce kendi galerimizdeki uyanlar; yoksa Pexels'ten bulunanlar; o da yoksa kategorinin görselleri.
+  // Önce kendi galerimizdeki uyanlar; yoksa ücretsiz fotoğraf kaynağından bulunanlar; o da yoksa kategorinin görselleri.
   const own = best.length ? best : photos.length ? [] : items;
   const shown = own.slice(0, 6);
   const shownPhotos = photos.slice(0, 6 - shown.length);
@@ -61,18 +63,19 @@ export function StockStrip({ items, photos, onPick, onPickPhoto, onMore, busy }:
           {busy === it.id && <span className="stk-busy"><span className="spinner" /></span>}
         </button>
       ))}
-      {shownPhotos.map((p) => <PhotoTile key={`p${p.id}`} p={p} busy={busy} onPick={onPickPhoto} />)}
+      {shownPhotos.map((p) => <PhotoTile key={`p${p.id}`} p={p} src={source} busy={busy} onPick={onPickPhoto} />)}
       </div>
-      {!!shownPhotos.length && <div className="stk-credit">Fotoğraflar: <a href="https://www.pexels.com" target="_blank" rel="noreferrer">Pexels</a> (ücretsiz kullanım)</div>}
+      {!!shownPhotos.length && source && <div className="stk-credit">Fotoğraflar: <a href={source.url} target="_blank" rel="noreferrer">{source.name}</a> (ücretsiz kullanım)</div>}
     </div>
   );
 }
 
-function PhotoTile({ p, busy, onPick, add = true }: { p: PexelsPhoto; busy: number | null; onPick: (p: PexelsPhoto) => void; add?: boolean }) {
+function PhotoTile({ p, src, busy, onPick, add = true }: { p: StockPhoto; src: PhotoSource | null; busy: number | null; onPick: (p: StockPhoto) => void; add?: boolean }) {
+  const by = [p.photographer, src?.name].filter(Boolean).join(" / ");
   return (
-    <button type="button" className="stk-i" disabled={busy !== null} onClick={() => onPick(p)} aria-label={`${p.alt || "Fotoğraf"} görselini ekle`} title={`Fotoğraf: ${p.photographer} / Pexels`}>
+    <button type="button" className="stk-i" disabled={busy !== null} onClick={() => onPick(p)} aria-label={`${p.alt || "Fotoğraf"} görselini ekle`} title={`Fotoğraf: ${by}`}>
       <img src={p.thumb} alt="" loading="lazy" />
-      <span className="stk-t"><small>{p.photographer} / Pexels</small></span>
+      <span className="stk-t"><small>{by}</small></span>
       {add && <span className="stk-plus" aria-hidden="true">+</span>}
       {busy === -p.id && <span className="stk-busy"><span className="spinner" /></span>}
     </button>
@@ -80,8 +83,8 @@ function PhotoTile({ p, busy, onPick, add = true }: { p: PexelsPhoto; busy: numb
 }
 
 // Tüm galeri: kategori adıyla başlık, marka ve model sekmeleriyle gezinme.
-export function StockPicker({ category, items, photos, onPick, onPickPhoto, onClose, busy }: {
-  category: string; items: StockItem[]; photos: PexelsPhoto[]; onPick: (it: StockItem) => void; onPickPhoto: (p: PexelsPhoto) => void; onClose: () => void; busy: number | null;
+export function StockPicker({ category, items, photos, source, onPick, onPickPhoto, onClose, busy }: {
+  category: string; items: StockItem[]; photos: StockPhoto[]; source: PhotoSource | null; onPick: (it: StockItem) => void; onPickPhoto: (p: StockPhoto) => void; onClose: () => void; busy: number | null;
 }) {
   const { label, path } = useStockNames();
   const best = items.filter((x) => x.match !== "kategori");
@@ -119,9 +122,9 @@ export function StockPicker({ category, items, photos, onPick, onPickPhoto, onCl
             ))}</div>}
             {!!photos.length && (tab === "" || tab === "__oneri" || !items.length) && (
               <>
-                <div className="stk-h">Pexels'ten ücretsiz fotoğraflar</div>
-                <div className="stk-grid">{photos.map((p) => <PhotoTile key={p.id} p={p} busy={busy} onPick={onPickPhoto} add={false} />)}</div>
-                <div className="stk-credit">Fotoğraflar <a href="https://www.pexels.com" target="_blank" rel="noreferrer">Pexels</a>'ten; ücretsiz kullanılabilir.</div>
+                <div className="stk-h">Ücretsiz fotoğraflar{source ? ` (${source.name})` : ""}</div>
+                <div className="stk-grid">{photos.map((p) => <PhotoTile key={p.id} p={p} src={source} busy={busy} onPick={onPickPhoto} add={false} />)}</div>
+                {source && <div className="stk-credit">Fotoğraflar <a href={source.url} target="_blank" rel="noreferrer">{source.name}</a> sitesinden; ücretsiz kullanılabilir.</div>}
               </>
             )}
           </>

@@ -21,7 +21,7 @@ const fakeFetch = (async (input: string | URL) => {
 
 let ctx: TestCtx;
 beforeEach(async () => {
-  ctx ??= await makeApp({ pexels: new Pexels("test-key", fakeFetch) });
+  ctx ??= await makeApp({ photos: new Pexels("test-key", fakeFetch) });
   await resetData(ctx.pool);
   calls.length = 0;
 });
@@ -36,8 +36,9 @@ describe("Pexels stok fotoğrafları", () => {
 
   it("galeride uygun görsel yoksa Pexels sonuçları gelir; seçilen fotoğraf kendi depomuza kopyalanıp talebe eklenir", async () => {
     const r = (await ctx.app.inject({ url: `/api/stock-images?category=otomobil&araclar=${encodeURIComponent("BMW:3 Serisi")}` })).json();
-    expect(r.pexels.map((p: { id: number }) => p.id)).toEqual([11, 12]);
-    expect(r.pexels[0]).toMatchObject({ photographer: "Ayşe K.", thumb: expect.stringContaining("images.pexels.com") });
+    expect(r.photos.map((p: { id: number }) => p.id)).toEqual([11, 12]);
+    expect(r.photos[0]).toMatchObject({ photographer: "Ayşe K.", thumb: expect.stringContaining("images.pexels.com") });
+    expect(r.photo_source).toEqual({ name: "Pexels", url: "https://www.pexels.com" });
     expect(calls.some((c) => c.includes("BMW+3+Series"))).toBe(true);
 
     // İkinci arama önbellekten gelir.
@@ -46,14 +47,14 @@ describe("Pexels stok fotoğrafları", () => {
     expect(calls).toHaveLength(0);
 
     const buyer = await login(ctx, "05321112233");
-    const used = await ctx.app.inject({ method: "POST", url: "/api/stock-images/pexels/11/use", headers: { cookie: buyer } });
+    const used = await ctx.app.inject({ method: "POST", url: "/api/stock-images/photos/11/use", headers: { cookie: buyer } });
     expect(used.statusCode, used.body).toBe(201);
     expect(used.json().url).toMatch(/^\/api\/__media\/file\/image\//);
     expect((await ctx.app.inject({ url: used.json().url })).statusCode).toBe(200);
     const id = await createRequest(ctx, buyer, { media_ids: [used.json().id] });
     expect((await ctx.app.inject({ url: `/api/requests/${id}` })).json().request.media).toHaveLength(1);
 
-    expect((await ctx.app.inject({ method: "POST", url: "/api/stock-images/pexels/99/use", headers: { cookie: buyer } })).statusCode).toBe(404);
-    expect((await ctx.app.inject({ method: "POST", url: "/api/stock-images/pexels/11/use" })).statusCode).toBe(401);
+    expect((await ctx.app.inject({ method: "POST", url: "/api/stock-images/photos/99/use", headers: { cookie: buyer } })).statusCode).toBe(404);
+    expect((await ctx.app.inject({ method: "POST", url: "/api/stock-images/photos/11/use" })).statusCode).toBe(401);
   });
 });
