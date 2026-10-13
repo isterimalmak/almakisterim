@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { Thumbs } from "@/components/Media";
 import { useSession } from "@/components/Session";
 import { AdsAdmin } from "@/components/AdsAdmin";
+import { StockAdmin } from "@/components/StockAdmin";
 import { api, type Media, type CategoryTop } from "@/lib/api";
 import { dateTr } from "@/lib/format";
 
@@ -19,7 +20,7 @@ type UserRow = { id: string; name: string; email: string | null; phone: string |
 
 export default function Admin() {
   const { user, ready, refresh, toast } = useSession();
-  const [tab, setTab] = useState<"kat" | "den" | "num" | "kul" | "rek" | "ayar">("kat");
+  const [tab, setTab] = useState<"kat" | "den" | "num" | "kul" | "rek" | "gor" | "ayar">("kat");
   const [unl, setUnl] = useState<UnlockStats | null>(null);
   const [creps, setCreps] = useState<ContactReport[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -81,6 +82,7 @@ export default function Admin() {
         <button className={tab === "num" ? "on" : ""} onClick={() => setTab("num")}>Numaralar ve Şikâyetler ({creps.length})</button>
         <button className={tab === "kul" ? "on" : ""} onClick={() => setTab("kul")}>Kullanıcılar ve Kredi</button>
         <button className={tab === "rek" ? "on" : ""} onClick={() => setTab("rek")}>Reklam Alanları</button>
+        <button className={tab === "gor" ? "on" : ""} onClick={() => setTab("gor")}>Hazır Görseller</button>
         <button className={tab === "ayar" ? "on" : ""} onClick={() => setTab("ayar")}>Ayarlar</button>
       </div></div>
 
@@ -160,6 +162,7 @@ export default function Admin() {
       )}
 
       {tab === "rek" && <AdsAdmin />}
+      {tab === "gor" && <StockAdmin />}
 
       {tab === "ayar" && settings && (
         <div className="box"><div className="box-h"><h2>Ayarlar</h2></div><div className="box-b">

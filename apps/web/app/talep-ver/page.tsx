@@ -11,7 +11,7 @@ import { placeTxt, useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useSession } from "@/components/Session";
 import { VehicleFields, VehicleRows } from "@/components/VehicleFields";
 import { api, type Draft, type Media } from "@/lib/api";
-import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
+import { ATTRS, CITIES, condsFor } from "@/lib/catalog";
 import { budgetTxt } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
@@ -24,6 +24,11 @@ function Create() {
   const router = useRouter();
   const sp = useSearchParams();
   const [d, setD] = useState<D>(EMPTY);
+  // Kategori değişince ürün durumu o kategoride geçerli bir değere çekilir (ör. emlakta "Hizmet" kalmasın).
+  useEffect(() => {
+    const ok = condsFor(d.top);
+    if (!ok.includes(d.condition)) setD((x) => ({ ...x, condition: ok.includes("Farketmez") ? "Farketmez" : ok[0]! }));
+  }, [d.top, d.condition]);
   const districts = useDistricts(d.city);
   const hoods = useNeighbourhoods(d.city, d.district);
   const [aiBusy, setAiBusy] = useState(false);
@@ -133,7 +138,7 @@ function Create() {
               <div className="fg"><label htmlFor="f-c">İl *</label><select className="sel" id="f-c" value={d.city} onChange={(e) => set({ city: e.target.value, district: "", hood: "" })}><option value="">Seçin</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
               <div className="fg"><label htmlFor="f-d">İlçe</label><select className="sel" id="f-d" value={d.district} disabled={!d.city} onChange={(e) => set({ district: e.target.value, hood: "" })}><option value="">{d.city ? "İlçe farketmez" : "Önce il seçin"}</option>{(districts.includes(d.district) || !d.district ? districts : [d.district, ...districts]).map((x) => <option key={x}>{x}</option>)}</select></div>
               {d.district && <div className="fg"><label htmlFor="f-m">Mahalle</label><select className="sel" id="f-m" value={d.hood} onChange={(e) => set({ hood: e.target.value })}><option value="">Mahalle farketmez</option>{hoods.map((x) => <option key={x}>{x}</option>)}</select></div>}
-              <div className="fg full"><label>Ürün durumu</label><div className="radio-row">{CONDS.map((c) => <label key={c}><input type="radio" name="k" checked={d.condition === c} onChange={() => set({ condition: c })} />{c}</label>)}</div></div>
+              {condsFor(d.top).length > 1 && <div className="fg full"><label>Ürün durumu</label><div className="radio-row">{condsFor(d.top).map((c) => <label key={c}><input type="radio" name="k" checked={d.condition === c} onChange={() => set({ condition: c })} />{c}</label>)}</div></div>}
               {vehicle && <VehicleFields sub={d.sub} value={d.attrs as VehicleAttrs} onChange={(attrs) => setD((x) => ({ ...x, attrs }))} />}
               {sch.map((a) => (
                 <div className="fg" key={a.k}><label htmlFor={`fa-${a.k}`}>{a.l}</label>
@@ -144,7 +149,7 @@ function Create() {
               ))}
               <div className="fg full"><label>Fotoğraf / video <span className="muted">(isteğe bağlı)</span></label>
                 {user
-                  ? <MediaPicker value={d.media} onChange={(media) => setD((x) => ({ ...x, media }))} onError={toast} />
+                  ? <MediaPicker value={d.media} onChange={(media) => setD((x) => ({ ...x, media }))} onError={toast} stock={d.sub ? { category: d.sub, attrs: d.attrs } : undefined} />
                   : <span className="hint">Örnek fotoğraf eklemek için <Link className="link" href="/giris?sonra=/talep-ver" onClick={() => { try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ } }}>giriş yapın</Link>. Fotoğrafsız da talep verebilirsiniz.</span>}
               </div>
               <div className="fg"><label htmlFor="f-days">Talebin yayında kalma süresi</label><select className="sel" id="f-days" value={d.days} onChange={(e) => set({ days: Number(e.target.value) as D["days"] })}>{[7, 14, 30].map((n) => <option key={n} value={n}>{n} gün</option>)}</select></div>
@@ -162,7 +167,7 @@ function Create() {
           <table className="info" style={{ maxWidth: 560 }}><tbody>
             <tr><th>Bütçe</th><td><span className="price-big">{budgetTxt(Number(d.b0) || Math.round(Number(d.b1) * 0.8), Number(d.b1))}</span></td></tr>
             <tr><th>Kategori</th><td>{top.name} › {sub.name}</td></tr>
-            <tr><th>Ürün durumu</th><td>{d.condition}</td></tr>
+            {condsFor(d.top).length > 1 && <tr><th>Ürün durumu</th><td>{d.condition}</td></tr>}
             {sch.filter((a) => d.attrs[a.k] !== undefined && d.attrs[a.k] !== "").map((a) => <tr key={a.k}><th>{a.l}</th><td>{String(d.attrs[a.k])}</td></tr>)}
             {vehicle && <VehicleRows a={d.attrs as VehicleAttrs} />}
             <tr><th>Konum</th><td>{placeTxt({ city: d.city, district: d.district || "İlçe farketmez", neighbourhood: d.hood })}</td></tr>

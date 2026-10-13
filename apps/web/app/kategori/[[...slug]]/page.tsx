@@ -8,7 +8,7 @@ import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 import { fmt } from "@/lib/format";
-import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
+import { ATTRS, CITIES, condsFor } from "@/lib/catalog";
 import { useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useVehicleCatalog } from "@/lib/vehicles";
 
@@ -140,7 +140,7 @@ function Listing() {
             {f.district && <span className="hint">İlçe veya mahalle "farketmez" diyen alıcılar da listelenir.</span>}
           </div>
           <div className="flt-sec"><h4>Alıcının bütçesi (TL)</h4><div className="mm"><input className="inp" type="number" placeholder="en az" value={f.bmin} onChange={(e) => set({ bmin: e.target.value })} aria-label="Bütçe en az" /><input className="inp" type="number" placeholder="en çok" value={f.bmax} onChange={(e) => set({ bmax: e.target.value })} aria-label="Bütçe en çok" /></div></div>
-          <div className="flt-sec"><h4>Ürün durumu</h4>{CONDS.map((c) => <label className="chk" key={c}><input type="checkbox" checked={f.cond.includes(c)} onChange={() => set({ cond: toggle(f.cond, c) })} />{c}</label>)}</div>
+          {condsFor(top).length > 1 && <div className="flt-sec"><h4>Ürün durumu</h4>{condsFor(top).map((c) => <label className="chk" key={c}><input type="checkbox" checked={f.cond.includes(c)} onChange={() => set({ cond: toggle(f.cond, c) })} />{c}</label>)}</div>}
           {selAttrs.map((a) => (
             <div className="flt-sec" key={a.k}><h4>{a.l}</h4>
               {a.o!.map((o) => <label className="chk" key={o}><input type="checkbox" checked={(f.attrs[a.k] ?? []).includes(o)} onChange={() => set({ attrs: { ...f.attrs, [a.k]: toggle(f.attrs[a.k] ?? [], o) } })} />{o}</label>)}

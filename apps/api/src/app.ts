@@ -17,6 +17,7 @@ import { mediaRoutes } from "./modules/media.js";
 import { meRoutes } from "./modules/me.js";
 import { messageRoutes } from "./modules/messages.js";
 import { offerRoutes } from "./modules/offers.js";
+import { stockRoutes } from "./modules/stock.js";
 import { requestRoutes } from "./modules/requests.js";
 import { vehicleRoutes } from "./modules/vehicles.js";
 import { MemoryOutbox } from "./services/notify.js";
@@ -71,6 +72,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     offerRoutes(api, deps);
     contactRoutes(api, deps);
     messageRoutes(api, deps);
+    stockRoutes(api, deps);
     mediaRoutes(api, deps);
     adRoutes(api, deps);
     vehicleRoutes(api);
