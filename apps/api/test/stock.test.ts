@@ -35,6 +35,12 @@ describe("hazır görsel galerisi", () => {
     expect(list.map((x: { title: string }) => x.title)).toContain("Genel araba");
     expect(list.map((x: { title: string }) => x.title)).not.toContain("Daire");
     expect(list[0].match).toBe("model");
+    // Başka markanın görseli (Fiat Egea) BMW talebinde çıkmaz; marka seçilmemişse hepsi çıkar.
+    expect(list.map((x: { title: string }) => x.title)).not.toContain("Egea");
+    const bentley = (await ctx.app.inject({ url: `/api/stock-images?category=otomobil&araclar=${encodeURIComponent("Bentley:")}` })).json().items;
+    expect(bentley.map((x: { title: string }) => x.title)).toEqual(["Genel araba"]);
+    const all = (await ctx.app.inject({ url: "/api/stock-images?category=otomobil" })).json().items;
+    expect(all.map((x: { title: string }) => x.title)).toContain("Egea");
 
     const buyer = await login(ctx, "05321112233");
     const used = await ctx.app.inject({ method: "POST", url: `/api/stock-images/${bmw3.id}/use`, headers: { cookie: buyer } });

@@ -34,7 +34,7 @@ export function AdsAdmin() {
     await load();
   };
 
-  const patch = async (a: Ad, body: Partial<Pick<Ad, "title" | "link_url" | "is_active">>) => {
+  const patch = async (a: Ad, body: Partial<Pick<Ad, "title" | "link_url" | "is_active" | "is_welcome">>) => {
     try { await api(`/admin/tanitim/${a.id}`, { method: "PATCH", body }); await load(); }
     catch (e) { toast((e as Error).message); }
   };
@@ -54,7 +54,7 @@ export function AdsAdmin() {
 
   return (
     <div className="box"><div className="box-h"><h2>Reklam Alanları</h2></div><div className="box-b">
-      <div className="note n-info" style={{ marginBottom: 12 }}><span>Eklediğiniz resim ve videolar ana sayfada soldaki kategorilerin altında, buradaki sırayla alt alta görünür (telefonda kategorilerin altında). İstediğiniz kadar ekleyebilirsiniz. Önerilen boyut: 460×300 veya 460×600 piksel; video sessiz ve döngüde oynar.</span></div>
+      <div className="note n-info" style={{ marginBottom: 12 }}><span>Eklediğiniz resim ve videolar ana sayfada soldaki kategorilerin altında, buradaki sırayla alt alta görünür (telefonda kategorilerin altında). İstediğiniz kadar ekleyebilirsiniz. Önerilen boyut: 460×300 veya 460×600 piksel; video sessiz başlar, ziyaretçi köşedeki düğmeyle sesi açabilir. "Açılışta göster" işaretlediğiniz reklam siteye girişte ekranın ortasında açılır (tek bir reklam seçilebilir; videoda ses açık başlatılmaya çalışılır). Her reklamın altındaki "Tıklayınca gideceği adres" kutusuna bağlantı yazarsanız reklama tıklayan oraya gider.</span></div>
       <input ref={input} type="file" accept={TYPES.join(",")} multiple hidden onChange={(e) => void add(e.target.files)} aria-label="Reklam dosyası seç" />
       <button className="btn btn-or" disabled={!!busy} onClick={() => input.current?.click()}>+ Resim veya video ekle</button>
       {busy && <span className="muted" style={{ marginLeft: 10 }}>{busy}</span>}
@@ -65,7 +65,8 @@ export function AdsAdmin() {
               <div className="yk-on">{a.media.kind === "video" ? <video src={a.media.url} muted playsInline preload="metadata" /> : <img src={a.media.url} alt="" />}</div>
               <div className="yk-alan">
                 <label>Başlık<input className="inp" defaultValue={a.title} aria-label={`${i + 1}. reklam başlığı`} onBlur={(e) => e.target.value !== a.title && void patch(a, { title: e.target.value })} /></label>
-                <label>Tıklayınca gideceği adres (isteğe bağlı)<input className="inp" defaultValue={a.link_url ?? ""} placeholder="https://… veya /kategori/vasita" aria-label={`${i + 1}. reklam bağlantısı`} onBlur={(e) => e.target.value !== (a.link_url ?? "") && void patch(a, { link_url: e.target.value })} /></label>
+                <label>Tıklayınca gideceği adres (isteğe bağlı)<input className="inp" defaultValue={a.link_url ?? ""} placeholder="www.siteniz.com veya /kategori/vasita" aria-label={`${i + 1}. reklam bağlantısı`} onBlur={(e) => e.target.value !== (a.link_url ?? "") && void patch(a, { link_url: e.target.value })} /></label>
+                <label className="chk"><input type="checkbox" checked={!!a.is_welcome} onChange={(e) => { const on = e.target.checked; setItems((xs) => xs && xs.map((x) => ({ ...x, is_welcome: x.id === a.id ? on : on ? false : x.is_welcome }))); void patch(a, { is_welcome: on }); }} aria-label={`${i + 1}. reklam açılışta göster`} />Açılışta göster (siteye girince ekranın ortasında çıkar)</label>
               </div>
               <div className="yk-is">
                 <button className={"sw" + (a.is_active ? " on" : "")} role="switch" aria-checked={a.is_active} aria-label={`${i + 1}. reklam yayında`} onClick={() => void patch(a, { is_active: !a.is_active })} />
