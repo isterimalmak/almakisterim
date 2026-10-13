@@ -57,17 +57,24 @@ export default function Home() {
 
       <div>
         <section className="concept">
-          <div>
-            <h1>Burada ilanı alıcı verir, satıcı alıcıyı bulur.</h1>
-            <p>Ne almak istediğinizi ve bütçenizi yazın; elinde uygun ürün olan satıcılar sizi arasın veya mesaj atsın. Satmak istiyorsanız alıcıları listeleyin, ulaşın. Talep vermek ücretsizdir.</p>
-            <form className="quick" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
-              <div className="quick-in">
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Örn. 2. el iPhone 13 almak istiyorum, bütçem 20.000 TL" aria-label="Ne almak istiyorsunuz?" />
-                <button type="submit">Talep Oluştur</button>
-              </div>
-            </form>
+          <h1>Burada ilanı alıcı verir, satıcı alıcıyı bulur.</h1>
+          <div className="hero-2">
+            <div className="hero-c">
+              <div className="hero-k"><span className="hero-ic"><Icon name="search" size={18} sw={2.2} /></span><div><b>Almak istiyorum</b><span>Ne aradığınızı ve bütçenizi yazın; satıcılar sizi arasın veya mesaj atsın.</span></div></div>
+              <form className="quick" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
+                <div className="quick-in">
+                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Örn. 2. el iPhone 13, bütçem 20.000 TL" aria-label="Ne almak istiyorsunuz?" />
+                  <button type="submit">Talep Oluştur</button>
+                </div>
+              </form>
+              <small className="hero-n">Talep vermek ücretsizdir.</small>
+            </div>
+            <div className="hero-c sell">
+              <div className="hero-k"><span className="hero-ic"><Icon name="list" size={18} sw={2.2} /></span><div><b>Satmak istiyorum</b><span>Elinizdekini almak isteyen alıcıları listeleyin; arayın veya mesaj atın.</span></div></div>
+              <Link className="btn btn-sell" href="/kategori">Satmak İstiyorum, Alıcıları Gör!</Link>
+              <small className="hero-n">İl, ilçe, bütçe ve kategoriye göre süzün.</small>
+            </div>
           </div>
-          <Link className="btn btn-wh" href="/kategori">Satmak istiyorum, alıcıları gör</Link>
         </section>
 
         {homeUrgentBox && !!urgent?.items.length && (
