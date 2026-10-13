@@ -62,7 +62,7 @@ test("alıcı talep verir, satıcı teklif verir, alıcı kabul eder", async ({ 
   await buyer.reload();
   await expect(buyer.locator(".phone-hidden")).toContainText("1 / 10 satıcı gördü");
   await expect(buyer.getByRole("button", { name: "Rahatsız etti" })).toBeVisible();
-  await expect(buyer.locator(".badge")).toHaveText("1");
+  await expect(buyer.locator(".hdr .badge")).toHaveText("1");
   await expect(buyer.getByText("14.250 TL").first()).toBeVisible();
   await expect(buyer.getByText("[numara gizlendi]")).toBeVisible();
   buyer.once("dialog", (d) => d.accept());
@@ -239,4 +239,42 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await seller.getByLabel("Aracın yılı").fill("2015");
   await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
   await ctx.close();
+});
+
+test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir; satıcı teklif yoluyla ulaşır", async ({ browser }) => {
+  const buyerCtx = await browser.newContext();
+  const buyer = await buyerCtx.newPage();
+  const title = `Telefonsuz talep ${rnd()}`;
+  await loginEmail(buyer, `alici${rnd()}@example.com`);
+  await buyer.goto(`/talep-ver?metin=${encodeURIComponent(`${title}, bütçem 5 bin TL, Bursa`)}`);
+  await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue(title);
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await expect(buyer.getByText("Telefon numaranızı doğrulayın.")).toHaveCount(0);
+  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  const url = buyer.url();
+
+  const sellerCtx = await browser.newContext();
+  const seller = await sellerCtx.newPage();
+  await loginEmail(seller, `satici${rnd()}@example.com`);
+  await seller.goto(url);
+  await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
+  await expect(seller.getByText("Alıcı telefon numarası eklememiş.", { exact: false })).toBeVisible();
+  await buyerCtx.close(); await sellerCtx.close();
+});
+
+test("site uygulama gibi yüklenebilir; telefonda alt menü çalışır", async ({ page }, info) => {
+  const m = await (await page.request.get("/manifest.webmanifest")).json();
+  expect(m).toMatchObject({ short_name: "almakisterim", display: "standalone", lang: "tr" });
+  expect((await page.request.get("/icons/icon-512.png")).status()).toBe(200);
+  expect((await page.request.get("/sw.js")).status()).toBe(200);
+  await page.goto("/");
+  const bar = page.getByRole("navigation", { name: "Uygulama menüsü" });
+  if (info.project.name !== "telefon") { await expect(bar).toBeHidden(); return; }
+  await expect(bar).toBeVisible();
+  await bar.getByRole("link", { name: "Talepler" }).click();
+  await page.waitForURL(/\/kategori/);
+  await bar.getByRole("link", { name: "Talep Ver" }).click();
+  await page.waitForURL(/\/talep-ver/);
 });

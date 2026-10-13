@@ -114,6 +114,34 @@ describe("numarayı gör", () => {
   });
 });
 
+describe("telefon zorunluluğu kapalıyken", () => {
+  it("yönetici kapatınca telefonsuz talep verilir; satıcı ücretsiz açar ve numara yerine teklif yolu görünür", async () => {
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    const put = await ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { phone_required: false } });
+    expect(put.statusCode, put.body).toBe(200);
+    expect((await ctx.app.inject({ url: "/api/categories" })).json().phone_required).toBe(false);
+
+    const buyer = await login(ctx, "elif@example.com");
+    const id = await createRequest(ctx, buyer);
+    const seller = await login(ctx, "satici@example.com");
+    const before = (await ctx.pool.query("SELECT credits FROM users WHERE email = 'satici@example.com'")).rows[0].credits;
+    const r = await unlock(seller, id);
+    expect(r.statusCode, r.body).toBe(201);
+    expect(r.json()).toMatchObject({ phone: null, charged_credits: 0, free: false });
+    expect((await ctx.pool.query("SELECT credits FROM users WHERE email = 'satici@example.com'")).rows[0].credits).toBe(before);
+    const c = (await detail(id, seller)).contact;
+    expect(c).toMatchObject({ unlocked: true, phone: null });
+    // Telefonu olan alıcıda numara yine görünür ve ücret kuralları geçerlidir.
+    const pBuyer = await login(ctx, "05321112233");
+    const id2 = await createRequest(ctx, pBuyer);
+    expect((await unlock(seller, id2)).json().phone).toBe("905321112233");
+
+    // Tekrar açınca eski kurallar döner.
+    await ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { phone_required: true } });
+    expect((await ctx.app.inject({ method: "POST", url: "/api/requests", headers: { cookie: buyer }, payload: sampleRequest })).json().error).toBe("telefon_gerekli");
+  });
+});
+
 describe("numara güvenliği", () => {
   it("satıcının telefonu doğrulanmamışsa numara açamaz", async () => {
     const buyer = await login(ctx, "05321112233");

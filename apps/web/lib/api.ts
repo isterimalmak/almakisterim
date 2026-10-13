@@ -43,7 +43,7 @@ export type RequestDetail = RequestItem & { media: Media[]; is_owner: boolean; i
 // Satıcının alıcı numarasını görmesi (ücretli). viewers yalnızca talep sahibine gelir.
 export type Contact = {
   price: number; limit: number; used: number; slots_left: number | null; unlocked: boolean; unlock_id: number | null; phone: string | null;
-  hidden: boolean; blocked: boolean;
+  hidden: boolean; blocked: boolean; has_phone?: boolean;
   viewers?: { unlock_id: number; seller_name: string; created_at: string; reported: boolean }[];
 };
 

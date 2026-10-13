@@ -140,9 +140,12 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const mine = viewer ? unlockRows.find((u) => u.seller_id === viewer.id) : undefined;
     const accepted = (offers as { mine: boolean; status: string }[]).some((o) => o.mine && o.status === "accepted");
     const showPhone = !!mine && !mine.revoked && !extra.hidden && (r.status === "active" || accepted);
-    const phone = showPhone ? (await pool.query<{ phone: string | null }>("SELECT phone FROM users WHERE id = $1", [r.buyer_id])).rows[0]?.phone ?? null : null;
+    const buyerPhone = (await pool.query<{ phone: string | null }>("SELECT phone FROM users WHERE id = $1", [r.buyer_id])).rows[0]?.phone ?? null;
+    const phone = showPhone ? buyerPhone : null;
     const contact = {
-      price: priceFor(s, String(r.top_id), Number(r.budget_max)), limit: s.limit, used: unlockRows.length,
+      // Telefon eklememiş alıcıda numara yoktur; satıcı ücretsiz açar ve teklif gönderir.
+      price: buyerPhone ? priceFor(s, String(r.top_id), Number(r.budget_max)) : 0, limit: s.limit, used: unlockRows.length,
+      has_phone: !!buyerPhone,
       slots_left: s.limit > 0 ? Math.max(0, s.limit - unlockRows.length) : null,
       unlocked: !!mine, unlock_id: mine?.id ?? null, phone, hidden: extra.hidden,
       blocked: !!mine && (mine.revoked || extra.hidden),
@@ -169,10 +172,10 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/requests", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
-    if (!user.phone) throw new HttpError(409, "telefon_gerekli", "Talep vermek için önce telefon numaranızı doğrulayın.");
     const b = CreateBody.parse(req.body);
     // Sahte taleplerle satıcıları kendine aratmayı önlemek için kişi başı açık talep sınırı.
-    const { maxActive } = await unlockSettings(pool);
+    const { maxActive, phoneRequired } = await unlockSettings(pool);
+    if (!user.phone && phoneRequired) throw new HttpError(409, "telefon_gerekli", "Talep vermek için önce telefon numaranızı doğrulayın.");
     const active = (await pool.query<{ n: number }>(
       "SELECT count(*)::int AS n FROM requests WHERE buyer_id = $1 AND status IN ('active','pending_review') AND expires_at > now()", [user.id])).rows[0]!.n;
     if (maxActive > 0 && active >= maxActive) throw new HttpError(409, "talep_siniri", `Aynı anda en fazla ${maxActive} açık talebiniz olabilir. Önce eski taleplerinizden birini kapatın.`);

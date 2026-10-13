@@ -6,15 +6,16 @@ import { HttpError, idParam } from "../lib/util.js";
 
 // Gelir modeli: satıcı, alıcının numarasını görmek için kredi harcar. Numarayı açan satıcı teklif de verebilir.
 export type PriceTier = { max_budget: number | null; credits: number };
-export type UnlockSettings = { launch: boolean; free: number; price: number; priceByTop: Record<string, number>; tiers: PriceTier[]; limit: number; maxActive: number };
+export type UnlockSettings = { launch: boolean; phoneRequired: boolean; free: number; price: number; priceByTop: Record<string, number>; tiers: PriceTier[]; limit: number; maxActive: number };
 
 export async function unlockSettings(db: Pool | Client): Promise<UnlockSettings> {
   const { rows } = await db.query<{ key: string; value: unknown }>(
     `SELECT key, value FROM settings WHERE key IN ('free_unlocks_per_month','unlock_price_credits','unlock_price_by_top',
-       'unlock_price_tiers','unlock_limit_per_request','max_active_requests_per_user','launch_mode')`);
+       'unlock_price_tiers','unlock_limit_per_request','max_active_requests_per_user','launch_mode','phone_required')`);
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   return {
     launch: s.launch_mode === true,
+    phoneRequired: s.phone_required === true,
     free: Number(s.free_unlocks_per_month ?? 0),
     price: Number(s.unlock_price_credits ?? 1),
     priceByTop: (s.unlock_price_by_top as Record<string, number>) ?? {},
@@ -61,8 +62,8 @@ export function contactRoutes(app: FastifyInstance, deps: Deps) {
   app.post("/requests/:id/unlock", { config: { rateLimit: { max: 60, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
     const id = idParam(req.params);
-    // Alıcıyı rahatsız eden satıcı bulunabilsin ve ücretsiz haklar çoklu hesapla sömürülmesin.
-    if (!user.phone) throw new HttpError(409, "telefon_gerekli", "Numara görmek için önce kendi telefon numaranızı doğrulayın.");
+    // Alıcıyı rahatsız eden satıcı bulunabilsin ve ücretsiz haklar çoklu hesapla sömürülmesin (yönetimden açılır).
+    if (!user.phone && (await unlockSettings(pool)).phoneRequired) throw new HttpError(409, "telefon_gerekli", "Numara görmek için önce kendi telefon numaranızı doğrulayın.");
     const out = await tx(pool, async (c) => {
       const r = (await c.query<{ buyer_id: string; title: string; status: string; open: boolean; hidden: boolean; phone: string | null; top_id: string; budget_max: number }>(
         `SELECT r.buyer_id, r.title, r.status, r.expires_at > now() AS open, r.contact_hidden_at IS NOT NULL AS hidden, u.phone,
@@ -78,13 +79,13 @@ export function contactRoutes(app: FastifyInstance, deps: Deps) {
       }
       if (r.status !== "active" || !r.open) throw new HttpError(409, "talep_kapali", "Bu talep artık yeni satıcı kabul etmiyor.");
       if (r.hidden) throw new HttpError(409, "numara_gizli", "Alıcı numarasını artık paylaşmıyor.");
-      if (!r.phone) throw new HttpError(409, "numara_yok", "Bu alıcının doğrulanmış telefon numarası yok.");
-
       const s = await unlockSettings(c);
+      if (!r.phone && s.phoneRequired) throw new HttpError(409, "numara_yok", "Bu alıcının doğrulanmış telefon numarası yok.");
       const count = (await c.query<{ n: number }>("SELECT count(*)::int AS n FROM contact_unlocks WHERE request_id = $1", [id])).rows[0]!.n;
       if (s.limit > 0 && count >= s.limit) throw new HttpError(409, "sinir_doldu", `Bu talepte numarayı görebilecek satıcı sayısı (${s.limit}) doldu.`);
 
-      const price = priceFor(s, r.top_id, r.budget_max);
+      // Alıcı telefon eklememişse satıcı ücret ödemez; yalnızca teklif gönderebilir.
+      const price = r.phone ? priceFor(s, r.top_id, r.budget_max) : 0;
       let free = false, charged = 0;
       if (price === 0) {
         // Lansman dönemi veya ücretsiz kategori: aylık ücretsiz hakkı da harcamaz.
@@ -98,7 +99,7 @@ export function contactRoutes(app: FastifyInstance, deps: Deps) {
       await c.query("INSERT INTO contact_unlocks (request_id, seller_id, credits, is_free) VALUES ($1,$2,$3,$4)", [id, user.id, charged, free]);
       if (charged) await c.query("INSERT INTO credit_ledger (user_id, delta, reason, ref) VALUES ($1, $2, 'numara', $3)", [user.id, -charged, `request:${id}`]);
       // Alıcı, arayan satıcıya şaşırmasın diye site içinde bilgilendirilir.
-      await notify(c, r.buyer_id, `Bir satıcı "${r.title}" talebiniz için numaranızı gördü; sizi arayabilir.`, `/talep/${id}`);
+      await notify(c, r.buyer_id, r.phone ? `Bir satıcı "${r.title}" talebiniz için numaranızı gördü; sizi arayabilir.` : `Bir satıcı "${r.title}" talebinizle ilgileniyor; teklifini bekleyin.`, `/talep/${id}`);
       return { phone: r.phone, charged, free, already: false };
     });
     if (!out.already) reply.code(201);

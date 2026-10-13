@@ -19,7 +19,7 @@ const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "
 const KEY = "ak_taslak";
 
 function Create() {
-  const { categories, user, toast } = useSession();
+  const { categories, user, toast, phoneRequired } = useSession();
   const router = useRouter();
   const sp = useSearchParams();
   const [d, setD] = useState<D>(EMPTY);
@@ -75,7 +75,7 @@ function Create() {
 
   const publish = async () => {
     if (!d.agree) return toast("Yayınlamak için kuralları ve numara paylaşımını onaylayın.");
-    if (user && !user.phone) return toast("Yayınlamadan önce telefon numaranızı doğrulayın.");
+    if (user && !user.phone && phoneRequired) return toast("Yayınlamadan önce telefon numaranızı doğrulayın.");
     if (!user) {
       try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ }
       router.push("/giris?sonra=/talep-ver");
@@ -166,7 +166,7 @@ function Create() {
           </tbody></table>
           {d.description && <div className="desc" style={{ marginTop: 12 }}>{d.description}</div>}
           <div className="note n-info" style={{ marginTop: 14 }}><span>Telefon numaranız herkese açık gösterilmez. Talebinize uygun ürünü olan ve ücret ödeyen <b>sınırlı sayıda satıcı</b> numaranızı görüp sizi arayabilir veya teklif gönderebilir. Numaranızı kimlerin gördüğünü talep sayfanızdan takip edersiniz; talebi kapatınca numaranız gizlenir. E-postanız hiçbir satıcıyla paylaşılmaz.</span></div>
-          {user && !user.phone && (
+          {user && !user.phone && phoneRequired && (
             <div className="note n-warn" style={{ marginTop: 12, display: "block" }}>
               <b>Telefon numaranızı doğrulayın.</b> Satıcıların size ulaşabilmesi için talep vermeden önce numaranızı SMS koduyla doğrulamanız gerekiyor.
               <div style={{ marginTop: 10 }}><PhoneVerify /></div>
