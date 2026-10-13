@@ -89,7 +89,7 @@ input,select,textarea{font:inherit;color:inherit}
 .ct-subs a{display:flex;justify-content:space-between;gap:6px;font-size:12.5px;color:#3A414B;padding:1.5px 0}
 .ct-subs a:hover{color:var(--blue);text-decoration:underline}
 .ct-subs .n{color:var(--muted)}
-.concept{background:var(--navy);color:#fff;border-radius:4px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:end;margin-bottom:14px}
+.concept{background:linear-gradient(135deg,#13235B 0%,#1B3480 100%);color:#fff;border-radius:6px;padding:20px;margin-bottom:14px}
 .concept h1{font-size:21px;font-weight:700;line-height:1.25}
 .concept p{color:#C8D0EA;font-size:13.5px;margin-top:5px}
 .concept .btn-wh{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}
@@ -356,7 +356,6 @@ footer{background:#fff;border-top:1px solid var(--line);padding:24px 0;font-size
   .home{grid-template-columns:1fr;padding:12px}
   .ctree{display:none}
   .home .side{grid-template-columns:1fr}
-  .concept{grid-template-columns:1fr}
   .vitrin{grid-template-columns:repeat(2,1fr)}
   .listing,.det,.det-top,.acc{grid-template-columns:1fr}
   .acc{padding:12px 12px 40px}
@@ -538,7 +537,8 @@ button.link{padding:0;font-size:inherit}
   .app-x{flex:none;background:none;border:0;font-size:22px;color:var(--muted);padding:0 4px;cursor:pointer}
   /* telefonda "Talep Ver" ve "Ana Sayfa" alt menüde */
   .hdr-right .btn-or{display:none}
-  .subnav .sn-home,.subnav.sn-empty{display:none}
+  /* telefonda kategoriler ana sayfadaki kutucuklarda ve "Talepler" sekmesinde; üst şerit tekrar etmez */
+  .subnav{display:none}
 }
 @media (display-mode:standalone){body{overscroll-behavior-y:none}}
 .flt-adr .sel+.sel{margin-top:6px}
@@ -564,7 +564,16 @@ button.link{padding:0;font-size:inherit}
 .cv-a{grid-row:1;grid-column:2;font-size:12px}
 .cv-t{grid-column:1/-1;font-size:13px;color:var(--blue)}
 .cv-b{grid-column:1/-1;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ct-acil{display:inline-flex;align-items:center;justify-content:center;background:#E5484D!important;color:#fff!important;font-weight:800;font-size:12px;letter-spacing:-1px}
+.ct-acil{display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#FF6A3D,#E5383B)!important;color:#fff!important;box-shadow:0 2px 6px rgba(229,56,59,.35)}
+.ct-acil svg{fill:currentColor}
 .ct-quick{border-bottom:1px solid var(--line-2)}
 .ct-quick .ct-top{color:#C62828}
 .ct-acil-tile span:last-child{color:#C62828}
+
+/* ana sayfa üst bölüm: tek satırda "talep oluştur" ve "alıcıları gör" */
+.hero-row{display:flex;align-items:center;gap:10px;margin-top:14px}
+.hero-row .quick{flex:1;min-width:0;margin:0}
+.hero-or{color:#9FAAD1;font-size:12.5px;flex:none}
+.btn-sell{flex:none;height:40px;padding:0 16px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--navy);font-weight:700;border-radius:4px;font-size:14px;white-space:nowrap}
+.btn-sell:hover{background:#EAF0FC}
+@media (max-width:860px){.hero-row{flex-direction:column;align-items:stretch;gap:8px}.hero-or{text-align:center}}

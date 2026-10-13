@@ -34,7 +34,7 @@ export default function Home() {
         {/* sahibinden'deki gibi: acil talepler kategorilerin üstünde ayrı bir bağlantı */}
         {!!urgent?.total && (
           <div className="ct-group ct-quick">
-            <Link className="ct-top" href="/kategori?acil=1"><span className="ct-ic ct-acil" aria-hidden="true">!!</span>Acil Talepler {count(urgent.total) !== null && <span className="n">({urgent.total})</span>}</Link>
+            <Link className="ct-top" href="/kategori?acil=1"><span className="ct-ic ct-acil" aria-hidden="true"><Icon name="bolt" size={16} sw={2.2} /></span>Acil Talepler {count(urgent.total) !== null && <span className="n">({urgent.total})</span>}</Link>
           </div>
         )}
         {browseCategories.length ? browseCategories.map((t) => (
@@ -57,17 +57,18 @@ export default function Home() {
 
       <div>
         <section className="concept">
-          <div>
-            <h1>Burada ilanı alıcı verir, satıcı alıcıyı bulur.</h1>
-            <p>Ne almak istediğinizi ve bütçenizi yazın; elinde uygun ürün olan satıcılar sizi arasın veya mesaj atsın. Satmak istiyorsanız alıcıları listeleyin, ulaşın. Talep vermek ücretsizdir.</p>
+          <h1>Burada ilanı alıcı verir, satıcı alıcıyı bulur.</h1>
+          <p>Almak istediğinizi yazın, satıcılar sizi arasın veya mesaj atsın. Satıyorsanız alıcıları listeleyin, ulaşın.</p>
+          <div className="hero-row">
             <form className="quick" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
               <div className="quick-in">
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Örn. 2. el iPhone 13 almak istiyorum, bütçem 20.000 TL" aria-label="Ne almak istiyorsunuz?" />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Örn. 2. el iPhone 13, bütçem 20.000 TL" aria-label="Ne almak istiyorsunuz?" />
                 <button type="submit">Talep Oluştur</button>
               </div>
             </form>
+            <span className="hero-or">veya</span>
+            <Link className="btn btn-sell" href="/kategori">Satmak İstiyorum, Alıcıları Gör!</Link>
           </div>
-          <Link className="btn btn-wh" href="/kategori">Satmak istiyorum, alıcıları gör</Link>
         </section>
 
         {homeUrgentBox && !!urgent?.items.length && (
@@ -79,7 +80,7 @@ export default function Home() {
 
         {/* Telefonda soldaki liste gizli; kategoriler renkli kutucuklar olarak burada. */}
         <section className="cat-tiles" aria-label="Kategoriler">
-          {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ic ct-acil" aria-hidden="true">!!</span><span>Acil Talepler</span></Link>}
+          {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ic ct-acil" aria-hidden="true"><Icon name="bolt" size={16} sw={2.2} /></span><span>Acil Talepler</span></Link>}
           {(browseCategories.length ? browseCategories : categories).map((t) => (
             <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span></Link>
           ))}

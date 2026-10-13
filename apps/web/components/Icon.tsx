@@ -19,6 +19,7 @@ const P: Record<string, React.ReactNode> = {
   search: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
   play: <path d="M8 5v14l11-7z" />,
+  bolt: <path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z" />,
   chat: <path d="M4 5h16v11H9l-5 4z" />,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></>,
   list: <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />,
