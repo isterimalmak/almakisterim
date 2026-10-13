@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "@/components/Icon";
 import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
+import { fmt } from "@/lib/format";
 import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
 import { useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useVehicleCatalog } from "@/lib/vehicles";
@@ -93,10 +95,21 @@ function Listing() {
 
   if (top && categories.length && !t) return <div className="wrap"><div className="crumb"><Link href="/">Ana Sayfa</Link></div><div className="box"><div className="empty">Bu kategori şu anda yayında değil.</div></div></div>;
 
+  // Seçili filtreler üstte tek tek kaldırılabilen etiketler olarak görünür.
+  const chips: { k: string; l: string; clear: () => void }[] = [];
+  if (f.q.trim()) chips.push({ k: "q", l: `"${f.q.trim()}"`, clear: () => set({ q: "" }) });
+  if (f.city) chips.push({ k: "city", l: [f.city, f.district, f.hood].filter(Boolean).join(" / "), clear: () => set({ city: "", district: "", hood: "" }) });
+  if (f.bmin || f.bmax) chips.push({ k: "b", l: `${f.bmin ? fmt(Number(f.bmin)) : "0"} – ${f.bmax ? fmt(Number(f.bmax)) : "∞"} TL`, clear: () => set({ bmin: "", bmax: "" }) });
+  for (const c of f.cond) chips.push({ k: `c-${c}`, l: c, clear: () => set({ cond: f.cond.filter((x) => x !== c) }) });
+  for (const [k, vs] of Object.entries(f.attrs)) for (const v of vs) chips.push({ k: `a-${k}-${v}`, l: v, clear: () => set({ attrs: { ...f.attrs, [k]: (f.attrs[k] ?? []).filter((x) => x !== v) } }) });
+  if (f.veh.marka) chips.push({ k: "veh", l: [f.veh.marka, f.veh.model, f.veh.yil].filter(Boolean).join(" "), clear: () => set({ veh: NO_VEH }) });
+  if (f.urgent) chips.push({ k: "u", l: "Acil", clear: () => set({ urgent: false }) });
+  if (f.buyer) chips.push({ k: "buyer", l: f.buyer === "kurumsal" ? "Kurumsal alıcılar" : "Bireysel alıcılar", clear: () => set({ buyer: "" }) });
+
   return (
     <div className="wrap">
       <div className="crumb"><Link href="/">Ana Sayfa</Link> › <Link href="/kategori">Talepler</Link>{t && <> › <Link href={`/kategori/${t.id}`}>{t.name}</Link></>}{s && <> › {s.name}</>}</div>
-      <div className="list-head"><h1>{title}</h1><button className="btn btn-wh btn-sm flt-toggle" onClick={() => setOpenFilters((o) => !o)}>Filtrele</button></div>
+      <div className="list-head"><h1>{title}</h1><button className="btn btn-wh btn-sm flt-toggle" onClick={() => setOpenFilters((o) => !o)}>Filtrele{chips.length > 0 && <span className="badge">{chips.length}</span>}</button></div>
       <div className="listing">
         <aside className={"flt" + (openFilters ? " open" : "")}>
           <div className="flt-sec flt-cats">
@@ -135,25 +148,31 @@ function Listing() {
           ))}
           <div className="flt-sec">
             <label className="chk"><input type="checkbox" checked={f.urgent} onChange={(e) => set({ urgent: e.target.checked })} />Sadece acil talepler</label>
+            <label className="chk"><input type="checkbox" checked={f.buyer === "kurumsal"} onChange={(e) => set({ buyer: e.target.checked ? "kurumsal" : "" })} />Sadece kurumsal alıcılar (firma, faturalı alım)</label>
             <button className="btn btn-wh btn-sm" style={{ marginTop: 8 }} onClick={() => setF({ ...initial(), q: "", urgent: false, noOffers: false, buyer: "" })}>Filtreleri temizle</button>
           </div>
         </aside>
         <div>
           <div className="res-bar">
-            <div className="tabs">
-              {([["", "Tüm Talepler"], ["bireysel", "Bireysel"], ["kurumsal", "Kurumsal"]] as const).map(([v, l]) => <button key={v} className={f.buyer === v ? "on" : ""} onClick={() => set({ buyer: v })}>{l}</button>)}
+            <div className="res-sum">
+              <div className="res-cnt">{!data ? "Yükleniyor…" : data.total > 0 ? (count(data.total) !== null ? <><b>{data.total}</b> alıcı talebi</> : <>Alıcı talepleri</>) : <>Uygun talep yok</>}</div>
+              {chips.length > 0 && (
+                <div className="res-chips">
+                  {chips.map((c) => <button key={c.k} className="fchip" onClick={c.clear} aria-label={`${c.l} filtresini kaldır`}>{c.l}<span aria-hidden="true">×</span></button>)}
+                  <button className="link" style={{ fontSize: 12 }} onClick={() => setF({ ...initial(), q: "", urgent: false, noOffers: false, buyer: "" })}>Temizle</button>
+                </div>
+              )}
             </div>
             <div className="res-tools">
-              <button className="link save-alarm" onClick={saveAlarm}>Aramayı kaydet</button>
+              <button className="save-alarm" onClick={saveAlarm}><Icon name="bell" size={14} sw={2.2} />Aramayı kaydet</button>
               <select className="sel" value={f.sort} onChange={(e) => set({ sort: e.target.value })} aria-label="Sıralama">
-                <option value="new">Tarih (önce en yeni)</option><option value="old">Tarih (önce en eski)</option>
-                <option value="budget_desc">Bütçe (yüksekten düşüğe)</option><option value="budget_asc">Bütçe (düşükten yükseğe)</option>
-                <option value="ending">Bitişe kalan süre</option>
+                <option value="new">En yeni</option><option value="old">En eski</option>
+                <option value="budget_desc">Bütçe: yüksekten düşüğe</option><option value="budget_asc">Bütçe: düşükten yükseğe</option>
+                <option value="ending">Süresi yakında bitecek</option>
               </select>
             </div>
           </div>
           <div className="tbl-wrap">
-            {data && data.total > 0 && count(data.total) !== null && <div style={{ padding: "8px 10px", fontSize: 12.5, background: "#fff", borderBottom: "1px solid var(--line-2)" }}><b>{data.total}</b> talep bulundu</div>}
             {!data ? <div className="loading">Yükleniyor…</div> : data.total > 0 ? <RequestTable items={data.items} /> : (
               <div className="soon">
                 <h2>{s?.name ?? t?.name ?? "Bu arama"} için talepler yakında burada</h2>

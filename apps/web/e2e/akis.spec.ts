@@ -312,6 +312,11 @@ test("alıcı il/ilçe/mahalle seçer; satıcı İstanbul → Kadıköy diye ara
   await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toBeVisible();
   await seller.getByLabel("İlçe", { exact: true }).selectOption("Üsküdar");
   await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
+  // Seçili filtre üstte etiket olarak görünür; × ile kaldırılınca talep geri gelir.
+  const chip = seller.getByRole("button", { name: "İstanbul / Üsküdar filtresini kaldır" });
+  await expect(chip).toBeVisible();
+  await chip.click();
+  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toBeVisible();
   await ctx.close();
 });
 
