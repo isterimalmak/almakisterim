@@ -732,3 +732,7 @@ button.link{padding:0;font-size:inherit}
 .ap-int small{color:#8592A6;font-size:12px}
 .ap-dot{width:10px;height:10px;border-radius:50%;background:#C9D2E0;flex:none}
 .ap-int.on .ap-dot{background:#16A34A;box-shadow:0 0 0 3px #E7F7EC}
+/* "Haber ver" (aramayı alarm olarak kaydet): tek satır, telefonda kısa yazı */
+.save-alarm{white-space:nowrap;flex:none}
+.save-alarm .sa-s{display:none}
+@media (max-width:860px){.save-alarm .sa-l{display:none}.save-alarm .sa-s{display:inline}.res-tools .sel{flex:0 1 auto;max-width:55%}}
