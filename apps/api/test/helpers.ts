@@ -26,7 +26,7 @@ export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; stora
 }
 
 export async function resetData(pool: Pool) {
-  await pool.query(`TRUNCATE notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
+  await pool.query(`TRUNCATE ads, notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
   await pool.query(`ALTER TABLE requests ALTER COLUMN id RESTART WITH 1048200`);
   await pool.query(`UPDATE categories SET is_visible = true`);
   await pool.query(`UPDATE settings SET value = CASE key WHEN 'free_unlocks_per_month' THEN '5' WHEN 'unlock_price_credits' THEN '1' WHEN 'unlock_price_by_top' THEN '{}' WHEN 'unlock_limit_per_request' THEN '10' WHEN 'max_active_requests_per_user' THEN '5' WHEN 'launch_mode' THEN 'false' WHEN 'browse_min_requests' THEN '1' WHEN 'show_counts_min' THEN '20' WHEN 'unlock_price_tiers' THEN '[{"max_budget": 10000, "credits": 1}, {"max_budget": 100000, "credits": 3}, {"max_budget": null, "credits": 5}]' ELSE value END`);

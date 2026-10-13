@@ -91,6 +91,50 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByRole("switch", { name: "Moda & Giyim" }).click();
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(1);
+
+  // Reklam alanı: resim yüklenir, başlık ve bağlantı verilir, ana sayfada soldaki kategorilerin altında görünür.
+  const ad = `Galeri reklamı ${rnd()}`;
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: "reklam.png", mimeType: "image/png", buffer: PNG });
+  await expect(page.getByText("Reklam eklendi; ana sayfada görünüyor.")).toBeVisible();
+  const n = await page.locator(".ad-row").count();
+  const titleBox = page.getByLabel(`${n}. reklam başlığı`);
+  await titleBox.fill(ad);
+  await page.getByLabel(`${n}. reklam bağlantısı`).fill("/kategori/vasita");
+  await page.getByLabel(`${n}. reklam bağlantısı`).blur();
+  await expect(page.getByLabel(`${n}. reklam bağlantısı`)).toHaveValue("/kategori/vasita");
+  await page.waitForResponse((r) => r.url().includes("/api/admin/ads") && r.request().method() === "GET");
+  await page.goto("/");
+  const img = page.locator(".home-left .ads").getByAltText(ad);
+  await expect(img).toBeVisible();
+  await img.click();
+  await page.waitForURL(/\/kategori\/vasita/);
+  // Temizlik: test reklamı silinir.
+  page.on("dialog", (d) => void d.accept());
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  await page.locator(".ad-row").nth(n - 1).getByRole("button", { name: "Sil" }).click();
+  await expect(page.getByText("Reklam silindi.")).toBeVisible();
+});
+
+test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page }) => {
+  const title = `Vitrin bisiklet ${rnd()}`;
+  await loginSms(page, `0536${rnd().slice(0, 7)}`, "Deniz Kaya");
+  await page.goto(`/talep-ver?metin=${encodeURIComponent(`${title}, bütçem 9 bin TL, Ankara`)}`);
+  await expect(page.getByLabel("Talep başlığı *")).toHaveValue(title);
+  await page.getByLabel("Fotoğraf / video ekle").setInputFiles({ name: "v.png", mimeType: "image/png", buffer: PNG });
+  await expect(page.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.getByLabel(/kurallarını/).check();
+  await page.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Ana Sayfa Vitrini" })).toBeVisible();
+  const tile = page.locator(".vt").getByTitle(title);
+  await expect(tile).toBeVisible();
+  await tile.click();
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
 });
 
 test("sayfalar yana taşmıyor", async ({ page }) => {

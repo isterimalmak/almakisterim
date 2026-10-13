@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
-import { CatIcon, RequestTable, VitrinCard } from "@/components/RequestTable";
+import { Ads } from "@/components/Ads";
+import { CatIcon, RequestTable, VitrinCard, VitrinTile } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 
@@ -16,11 +17,13 @@ export default function Home() {
   const [q, setQ] = useState("");
   const [urgent, setUrgent] = useState<List | null>(null);
   const [latest, setLatest] = useState<List | null>(null);
+  const [vitrin, setVitrin] = useState<List | null>(null);
   const [corp, setCorp] = useState<List | null>(null);
   const [noOffer, setNoOffer] = useState<number | null>(null);
 
   useEffect(() => {
     void api<List>("/requests?urgent=1&per=8").then(setUrgent).catch(() => setUrgent({ total: 0, items: [] }));
+    void api<List>("/requests?sort=vitrin&per=20").then(setVitrin).catch(() => setVitrin({ total: 0, items: [] }));
     void api<List>("/requests?per=10").then(setLatest).catch(() => setLatest({ total: 0, items: [] }));
     void api<List>("/requests?buyer=kurumsal&per=5").then(setCorp).catch(() => setCorp({ total: 0, items: [] }));
     void api<List>("/requests?no_offers=1&per=1").then((r) => setNoOffer(r.total)).catch(() => setNoOffer(0));
@@ -28,6 +31,7 @@ export default function Home() {
 
   return (
     <div className="wrap home">
+      <div className="home-left">
       <aside className="ctree" aria-label="Kategoriler">
         {browseCategories.length ? browseCategories.map((t) => (
           <div className="ct-group" key={t.id}>
@@ -44,6 +48,8 @@ export default function Home() {
           </div>
         )}
       </aside>
+      <Ads />
+      </div>
 
       <div>
         <section className="concept">
@@ -73,6 +79,15 @@ export default function Home() {
             <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span></Link>
           ))}
         </section>
+
+        <Ads cls="ads-m" />
+
+        {!!vitrin?.items.length && (
+          <section className="box" style={{ marginBottom: 14 }}>
+            <div className="box-h"><h2>Ana Sayfa Vitrini</h2><Link className="link" href="/kategori">Tüm talepleri göster »</Link></div>
+            <div className="box-b"><div className="vt">{vitrin.items.map((r) => <VitrinTile key={r.id} r={r} />)}</div></div>
+          </section>
+        )}
 
         <section className="box" style={{ marginBottom: 14 }}>
           <div className="box-h"><h2>Son Eklenen Talepler</h2>{!!latest?.total && <Link className="link" href="/kategori">Tüm talepler{count(latest.total) !== null && ` (${latest.total})`} »</Link>}</div>

@@ -26,8 +26,10 @@ export type RequestItem = {
   id: number; title: string; description: string; category_id: string; category_name: string; top_id: string; top_name: string;
   budget_min: number; budget_max: number; city: string; district: string; condition: string; attrs: Record<string, unknown>;
   is_urgent: boolean; is_corporate: boolean; status: string; created_at: string; expires_at: string; buyer_name: string; offer_count: number;
-  cover_url: string | null; media_count: number;
+  cover_url: string | null; media_count: number; is_featured?: boolean;
 };
+
+export type Ad = { id: number; title: string; link_url: string | null; media: Media; is_active?: boolean; position?: number };
 
 export type Media = { id: string; kind: "image" | "video"; content_type: string; url: string };
 
