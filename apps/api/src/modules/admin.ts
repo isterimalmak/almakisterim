@@ -91,6 +91,7 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
       browse_min_requests: z.number().int().min(0).max(1000).optional(),
       show_counts_min: z.number().int().min(0).max(100000).optional(),
       launch_mode: z.boolean().optional(),
+      phone_required: z.boolean().optional(),
       store_monthly_price_try: z.number().int().min(0).optional(),
       credit_packages: z.array(z.object({ id: z.string(), credits: z.number().int().min(1), price_try: z.number().int().min(0) })).max(10).optional(),
     }).parse(req.body);
