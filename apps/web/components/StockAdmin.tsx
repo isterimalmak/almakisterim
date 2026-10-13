@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, uploadFile, type Media } from "@/lib/api";
 import { brandsOf, isVehicleSub, useVehicleCatalog } from "@/lib/vehicles";
 import { useSession } from "./Session";
+import { useStockNames } from "./StockPicker";
 
 type Item = { id: number; title: string; category_id: string; marka: string | null; model: string | null; is_active: boolean; uses: number; media: Media };
 
@@ -16,6 +17,7 @@ export function StockAdmin() {
   const [busy, setBusy] = useState<string | null>(null);
   const [show, setShow] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const { label } = useStockNames();
   const load = useCallback(async () => setItems((await api<{ items: Item[] }>("/admin/stock-images")).items), []);
   useEffect(() => { void load().catch((e) => toast((e as Error).message)); }, [load, toast]);
 
@@ -33,7 +35,7 @@ export function StockAdmin() {
       try {
         setBusy(`${f.name} yükleniyor… %0`);
         const m = await uploadFile(f, (p) => setBusy(`${f.name} yükleniyor… %${p}`));
-        await api("/admin/stock-images", { body: { media_id: m.id, category_id: form.category_id, marka: form.marka || null, model: form.model || null, title: form.title || [form.marka, form.model].filter(Boolean).join(" ") } });
+        await api("/admin/stock-images", { body: { media_id: m.id, category_id: form.category_id, marka: form.marka || null, model: form.model || null, title: form.title } });
         ok++;
       } catch (e) { toast((e as Error).message); }
     }
@@ -50,12 +52,12 @@ export function StockAdmin() {
 
   return (
     <div className="box"><div className="box-h"><h2>Hazır Görseller</h2></div><div className="box-b">
-      <div className="note n-info" style={{ marginBottom: 12 }}><span>Alıcılar talep verirken "Hazır görsellerden seç" ile buradaki görselleri kullanır; talebin kategorisine ve araçta seçilen marka/modele uyanlar önce çıkar. Yalnızca kullanım hakkınız olan görselleri yükleyin (kendi çektikleriniz, lisanslı veya ücretsiz kullanım izni olan stok görseller).</span></div>
+      <div className="note n-info" style={{ marginBottom: 12 }}><span>Alıcılar talep verirken buradaki görselleri seçer. Görselin adı otomatik verilir (araçta "Marka Model", diğerlerinde kategori adı); talebin kategorisine ve araçta seçilen marka/modele uyanlar önce çıkar. Yalnızca kullanım hakkınız olan görselleri yükleyin (kendi çektikleriniz, lisanslı veya ücretsiz kullanım izni olan stok görseller).</span></div>
       <div className="form-grid" style={{ maxWidth: 760 }}>
         <div className="fg"><label htmlFor="st-c">Kategori *</label><select className="sel" id="st-c" value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value, marka: "", model: "" })}><option value="">Seçin</option>{subs.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
         {vehicle && <div className="fg"><label htmlFor="st-m">Marka</label><select className="sel" id="st-m" value={form.marka} onChange={(e) => setForm({ ...form, marka: e.target.value, model: "" })}><option value="">Tüm markalar</option>{Object.keys(brands).map((b) => <option key={b}>{b}</option>)}</select></div>}
         {vehicle && form.marka && <div className="fg"><label htmlFor="st-mo">Model</label><select className="sel" id="st-mo" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })}><option value="">Tüm modeller</option>{(brands[form.marka] ?? []).map((m) => <option key={m}>{m}</option>)}</select></div>}
-        <div className="fg"><label htmlFor="st-t">Başlık (isteğe bağlı)</label><input className="inp" id="st-t" value={form.title} maxLength={120} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Örn. Beyaz sedan, 3+1 daire salon" /></div>
+        <div className="fg"><label htmlFor="st-t">Açıklama (isteğe bağlı)</label><input className="inp" id="st-t" value={form.title} maxLength={120} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Örn. beyaz, salon, deniz manzaralı" /></div>
       </div>
       <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(e) => void add(e.target.files)} aria-label="Galeri görseli seç" />
       <button className="btn btn-or" style={{ marginTop: 10 }} disabled={!!busy} onClick={() => input.current?.click()}>+ Görsel yükle</button>
@@ -70,7 +72,7 @@ export function StockAdmin() {
           <div key={it.id} className={"stk-adm" + (it.is_active ? "" : " off")}>
             <img src={it.media.url} alt="" loading="lazy" />
             <div className="stk-adm-b">
-              <b>{it.title || [it.marka, it.model].filter(Boolean).join(" ") || "Başlıksız"}</b>
+              <b>{label(it)}</b>{it.title && <span>{it.title}</span>}
               <span className="muted">{name(it.category_id)}{it.marka && ` · ${it.marka}${it.model ? ` ${it.model}` : ""}`}</span>
               <span className="muted">{it.uses} kez seçildi</span>
               <button className="link" style={{ fontSize: 12, textAlign: "left" }} onClick={() => void toggle(it)}>{it.is_active ? "Yayından kaldır" : "Yayına al"}</button>

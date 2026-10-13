@@ -27,7 +27,7 @@ export function stockRoutes(app: FastifyInstance, deps: Deps) {
       `${SELECT} JOIN categories c ON c.id = $1
         WHERE s.is_active AND (s.category_id = c.id OR s.category_id = c.parent_id) ORDER BY s.uses DESC, s.id DESC LIMIT 200`, [q.category]);
     const score = (r: Row) => Math.max(0, ...wanted.map((w) => (r.marka === w.marka ? (w.model && r.model === w.model ? 3 : r.model ? 1 : 2) : 0))) + (r.category_id === q.category ? 0.5 : 0);
-    const items = rows.map((r) => ({ r, s: score(r) })).sort((a, b) => b.s - a.s).slice(0, 48)
+    const items = rows.map((r) => ({ r, s: score(r) })).sort((a, b) => b.s - a.s).slice(0, 120)
       .map(({ r, s }) => ({ ...out(r), match: s >= 3 ? "model" : s >= 1 ? "marka" : "kategori" }));
     return { items: items.map(({ is_active: _a, uses: _u, ...x }) => x) };
   });

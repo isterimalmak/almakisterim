@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { api, uploadFile, type Media } from "@/lib/api";
 import { Icon } from "./Icon";
-import { StockPicker } from "./StockPicker";
+import { StockPicker, StockStrip, useStockImages, type StockItem } from "./StockPicker";
 
 // Sunucudaki sınırların aynısı; kullanıcı beklemeden uyarılsın diye tarayıcıda da kontrol edilir.
 const TYPES: Record<string, "image" | "video"> = {
@@ -14,12 +14,21 @@ const MAX_MB = { image: 10, video: 100 };
 const MAX_COUNT = { image: 8, video: 1 };
 
 type Pending = { key: string; name: string; pct: number };
+const NO_ATTRS: Record<string, unknown> = {};
 
 export function MediaPicker({ value, onChange, label = "Fotoğraf / video ekle", onError, stock }: {
   value: Media[]; onChange: (m: Media[]) => void; label?: string; onError: (msg: string) => void;
   stock?: { category: string; attrs: Record<string, unknown> };
 }) {
   const [gallery, setGallery] = useState(false);
+  const [stockBusy, setStockBusy] = useState<number | null>(null);
+  const stockItems = useStockImages(stock?.category ?? "", stock?.attrs ?? NO_ATTRS);
+  const usePick = async (it: StockItem) => {
+    if (value.filter((m) => m.kind === "image").length >= MAX_COUNT.image) { onError(`En fazla ${MAX_COUNT.image} fotoğraf ekleyebilirsiniz.`); return; }
+    setStockBusy(it.id);
+    try { onChange([...current.current, await api<Media>(`/stock-images/${it.id}/use`, { body: {} })]); setGallery(false); }
+    catch (e) { onError((e as Error).message); } finally { setStockBusy(null); }
+  };
   const input = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const current = useRef(value);
@@ -75,13 +84,14 @@ export function MediaPicker({ value, onChange, label = "Fotoğraf / video ekle",
         <button type="button" className="mp-add" onClick={() => input.current?.click()} disabled={images >= MAX_COUNT.image && value.some((m) => m.kind === "video")}>
           <Icon name="plus" size={20} /><span>{label}</span>
         </button>
-        {stock && (
+        {stock && !!stockItems?.length && (
           <button type="button" className="mp-add mp-stock" onClick={() => setGallery(true)} disabled={value.filter((m) => m.kind === "image").length >= MAX_COUNT.image}>
             <Icon name="camera" size={20} /><span>Hazır görsellerden seç</span>
           </button>
         )}
       </div>
-      {gallery && stock && <StockPicker category={stock.category} attrs={stock.attrs} onError={onError} onClose={() => setGallery(false)} onPick={(m) => onChange([...current.current, m])} />}
+      {stock && !!stockItems?.length && <StockStrip items={stockItems} busy={stockBusy} onPick={(it) => void usePick(it)} onMore={() => setGallery(true)} />}
+      {gallery && stock && stockItems && <StockPicker category={stock.category} items={stockItems} busy={stockBusy} onClose={() => setGallery(false)} onPick={(it) => void usePick(it)} />}
       <input ref={input} type="file" hidden multiple accept={Object.keys(TYPES).join(",")} aria-label={label} onChange={(e) => pick(e.target.files)} />
       <span className="hint">En fazla 8 fotoğraf (10 MB) ve 1 video (100 MB). İlk fotoğraf kapak olur. Fotoğraflarda telefon numarası veya adres görünmesin.</span>
     </div>

@@ -610,3 +610,9 @@ button.link{padding:0;font-size:inherit}
 .stk-adm.off{opacity:.5}
 .stk-adm img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
 .stk-adm-b{display:flex;flex-direction:column;gap:2px;padding:6px 8px;font-size:12px}
+.stk-strip{margin:4px 0 8px;padding:10px;border:1px solid #D3DEF7;background:#F7F9FE;border-radius:6px}
+.stk-strip-h{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px;margin-bottom:8px;color:var(--navy)}
+.stk-row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.stk-plus{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:var(--orange);color:#fff;font-weight:700;display:grid;place-items:center;font-size:14px;line-height:1}
+.stk-t small{display:block;font-weight:400;opacity:.85}
+@media (max-width:640px){.stk-row{grid-template-columns:repeat(3,minmax(0,1fr))}}

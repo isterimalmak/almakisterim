@@ -110,14 +110,17 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByLabel("Kategori *").selectOption("otomobil");
   await page.getByLabel("Marka", { exact: true }).selectOption("BMW");
   await page.getByLabel("Model", { exact: true }).selectOption("3 Serisi");
-  await page.getByLabel("Başlık (isteğe bağlı)").fill(`Beyaz BMW ${gtag}`);
+  await page.getByLabel("Açıklama (isteğe bağlı)").fill(`beyaz ${gtag}`);
   await page.getByLabel("Galeri görseli seç").setInputFiles({ name: "bmw.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByText("1 görsel galeriye eklendi.")).toBeVisible();
   await page.goto(`/talep-ver?metin=${encodeURIComponent("BMW 3 serisi almak istiyorum, bütçem 1 milyon TL, Ankara")}`);
   await expect(page.locator(".chip.on", { hasText: "BMW 3 Serisi" })).toBeVisible();
-  await page.getByRole("button", { name: "Hazır görsellerden seç" }).click();
-  await expect(page.getByText("Talebinize uyanlar")).toBeVisible();
-  await page.getByRole("button", { name: `Beyaz BMW ${gtag} seç` }).click();
+  // Girilen marka/modele uyan görseller fotoğraf bölümünde kendiliğinden çıkar.
+  await expect(page.getByText("Talebinize uygun hazır görseller")).toBeVisible();
+  await page.getByRole("button", { name: "Tümünü gör", exact: false }).click();
+  await expect(page.getByRole("dialog", { name: "Hazır görsellerden seç" }).getByText("Vasıta › Otomobil")).toBeVisible();
+  await page.getByRole("button", { name: "Kapat" }).click();
+  await page.getByRole("button", { name: "BMW 3 Serisi görselini ekle" }).first().click();
   await expect(page.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
 
   // Reklam alanı: resim yüklenir, başlık ve bağlantı verilir, ana sayfada soldaki kategorilerin altında görünür.
