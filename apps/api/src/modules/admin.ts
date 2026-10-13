@@ -93,6 +93,7 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
       launch_mode: z.boolean().optional(),
       phone_required: z.boolean().optional(),
       home_urgent_box: z.boolean().optional(),
+      photo_required: z.boolean().optional(),
       store_monthly_price_try: z.number().int().min(0).optional(),
       credit_packages: z.array(z.object({ id: z.string(), credits: z.number().int().min(1), price_try: z.number().int().min(0) })).max(10).optional(),
     }).parse(req.body);

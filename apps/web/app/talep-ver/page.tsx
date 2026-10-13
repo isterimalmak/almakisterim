@@ -20,7 +20,7 @@ const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "
 const KEY = "ak_taslak";
 
 function Create() {
-  const { categories, user, toast, phoneRequired } = useSession();
+  const { categories, user, toast, phoneRequired, photoRequired } = useSession();
   const router = useRouter();
   const sp = useSearchParams();
   const [d, setD] = useState<D>(EMPTY);
@@ -78,6 +78,7 @@ function Create() {
     if (!(Number(d.b1) > 0)) return "En fazla bütçeyi yazın.";
     if (d.b0 && Number(d.b0) > Number(d.b1)) return "En az bütçe, en fazla bütçeden büyük olamaz.";
     if (!d.city) return "İl seçin.";
+    if (photoRequired && !d.media.some((m) => m.kind === "image")) return "En az bir fotoğraf ekleyin: kendi fotoğrafınızı yükleyin ya da hazır görsellerden seçin.";
     return null;
   };
 
@@ -147,15 +148,24 @@ function Create() {
                     : <input className="inp" id={`fa-${a.k}`} type="number" value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: { ...d.attrs, [a.k]: e.target.value ? Number(e.target.value) : "" } })} />}
                 </div>
               ))}
-              <div className="fg full"><label>Fotoğraf / video <span className="muted">(isteğe bağlı)</span></label>
+              <div className="fg full"><label>Fotoğraf / video {photoRequired ? "*" : <span className="muted">(isteğe bağlı)</span>}</label>
                 {user
                   ? <MediaPicker value={d.media} onChange={(media) => setD((x) => ({ ...x, media }))} onError={toast} stock={d.sub ? { category: d.sub, attrs: d.attrs } : undefined} />
-                  : <span className="hint">Örnek fotoğraf eklemek için <Link className="link" href="/giris?sonra=/talep-ver" onClick={() => { try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ } }}>giriş yapın</Link>. Fotoğrafsız da talep verebilirsiniz.</span>}
+                  : <span className="hint">Örnek fotoğraf eklemek için <Link className="link" href="/giris?sonra=/talep-ver" onClick={() => { try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ } }}>giriş yapın</Link>.{photoRequired ? " Talep vermek için en az bir fotoğraf gerekir; giriş yapınca kendi fotoğrafınızı yükleyebilir ya da hazır görsellerden seçebilirsiniz." : " Fotoğrafsız da talep verebilirsiniz."}</span>}
               </div>
               <div className="fg"><label htmlFor="f-days">Talebin yayında kalma süresi</label><select className="sel" id="f-days" value={d.days} onChange={(e) => set({ days: Number(e.target.value) as D["days"] })}>{[7, 14, 30].map((n) => <option key={n} value={n}>{n} gün</option>)}</select></div>
               <div className="fg"><label>Seçenekler</label><label className="chk"><input type="checkbox" checked={d.urgent} onChange={(e) => set({ urgent: e.target.checked })} />Acil olarak işaretle</label><label className="chk"><input type="checkbox" checked={d.corporate} onChange={(e) => set({ corporate: e.target.checked })} />Firma adına faturalı alım</label></div>
             </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}><button className="btn btn-wh btn-lg" onClick={() => set({ step: 1 })}>Geri</button><button className="btn btn-or btn-lg" onClick={() => { const err = validate(); if (err) toast(err); else { set({ step: 3 }); window.scrollTo(0, 0); } }}>Devam</button></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}><button className="btn btn-wh btn-lg" onClick={() => set({ step: 1 })}>Geri</button><button className="btn btn-or btn-lg" onClick={() => {
+              const err = validate();
+              if (!err) { set({ step: 3 }); window.scrollTo(0, 0); return; }
+              toast(err);
+              // Giriş yapmamış kişi fotoğraf ekleyemez: taslak saklanır, girişten sonra buraya dönülür.
+              if (!user && err.startsWith("En az bir fotoğraf")) {
+                try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ }
+                router.push("/giris?sonra=/talep-ver");
+              }
+            }}>Devam</button></div>
           </div></div>
         </>
       )}

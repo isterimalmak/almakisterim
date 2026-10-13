@@ -16,6 +16,12 @@ async function loginSms(page: Page, phone: string, name: string) {
   await page.waitForURL((u) => !u.pathname.startsWith("/giris"));
 }
 
+// Talep verirken zorunlu fotoğraf: 1x1 piksellik resim yüklenir.
+async function addPhoto(page: Page) {
+  await page.getByLabel("Fotoğraf / video ekle").setInputFiles({ name: "foto.png", mimeType: "image/png", buffer: PNG });
+  await expect(page.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
+}
+
 async function loginEmail(page: Page, email: string) {
   await page.goto("/giris");
   await page.getByRole("button", { name: "E-posta", exact: true }).click();
@@ -40,6 +46,11 @@ test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevap
   await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue(title);
   await expect(buyer.getByLabel("En fazla bütçe (TL) *")).toHaveValue("15000");
   await expect(buyer.getByLabel("İl *")).toHaveValue("Ankara");
+  // Fotoğraf zorunlu: fotoğrafsız devam edilemez.
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await expect(buyer.getByText("En az bir fotoğraf ekleyin", { exact: false })).toBeVisible();
+  await expect(buyer.getByRole("button", { name: /Kendi fotoğrafını yükle/ })).toBeVisible();
+  await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await buyer.getByLabel(/kurallarını/).check();
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
@@ -239,6 +250,7 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await buyer.getByLabel("Model", { exact: true }).selectOption("C Serisi");
   await buyer.getByRole("button", { name: "+ Ekle" }).click();
   await expect(buyer.locator(".chip.on", { hasText: "Mercedes-Benz C Serisi" })).toBeVisible();
+  await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("BMW 3 Serisi, Audi A4, Mercedes-Benz C Serisi")).toBeVisible();
   await buyer.getByLabel(/kurallarını/).check();
@@ -268,6 +280,7 @@ test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir;
   await loginEmail(buyer, `alici${rnd()}@example.com`);
   await buyer.goto(`/talep-ver?metin=${encodeURIComponent(`${title}, bütçem 5 bin TL, Bursa`)}`);
   await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue(title);
+  await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("Telefon numaranızı doğrulayın.")).toHaveCount(0);
   await buyer.getByLabel(/kurallarını/).check();
@@ -315,6 +328,7 @@ test("alıcı il/ilçe/mahalle seçer; satıcı İstanbul → Kadıköy diye ara
   await expect(buyer.getByLabel("İl *")).toHaveValue("İstanbul");
   await expect(buyer.getByLabel("İlçe")).toHaveValue("Kadıköy");
   await buyer.getByLabel("Mahalle").selectOption("Caferağa");
+  await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("İstanbul / Kadıköy / Caferağa")).toBeVisible();
   await buyer.getByLabel(/kurallarını/).check();
@@ -345,6 +359,7 @@ test("acil talepler solda kategorilerin üstünde bağlantı olarak durur; ortad
   await loginSms(page, `0538${rnd().slice(0, 7)}`, "Okan Er");
   await page.goto(`/talep-ver?metin=${encodeURIComponent(`${title} acil lazım, bütçem 30 bin TL, İzmir`)}`);
   await expect(page.getByLabel("Talep başlığı *")).toHaveValue(new RegExp(title));
+  await addPhoto(page);
   await page.getByRole("button", { name: "Devam" }).click();
   await page.getByLabel(/kurallarını/).check();
   await page.getByRole("button", { name: "Talebi Yayınla" }).click();

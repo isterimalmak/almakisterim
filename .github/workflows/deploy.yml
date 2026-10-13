@@ -75,6 +75,10 @@ jobs:
 
       - name: API'yi yayınla
         run: |
+          # Sonradan eklenen isteğe bağlı anahtarlar: kasada varsa bağlanır, yoksa o özellik kapalı kalır.
+          for S in PEXELS_API_KEY PIXABAY_API_KEY; do
+            if gcloud secrets describe "$S" >/dev/null 2>&1; then SECRETS="$SECRETS,$S=$S:latest"; echo "$S bağlandı"; else echo "$S yok, bu özellik kapalı"; fi
+          done
           gcloud run deploy almakisterim-api --region "$REGION" --image "$REGISTRY/api:$GITHUB_SHA" \
             --service-account "$RUNTIME_SA" --allow-unauthenticated --port 8080 \
             --cpu 1 --memory 512Mi --min-instances 0 --max-instances 10 \

@@ -3,6 +3,9 @@ import { z } from "zod";
 import { requireAdmin, requireUser, type Deps } from "../context.js";
 import { tx } from "../db.js";
 import { HttpError } from "../lib/util.js";
+import { randomUUID } from "node:crypto";
+import { Pexels, queriesFor, type StockPhoto } from "../services/pexels.js";
+import { Pixabay } from "../services/pixabay.js";
 import { toPublic } from "./media.js";
 
 // Hazır görsel galerisi: alıcının elinde ürün yok, hayalindekinin görselini galeriden seçer.
@@ -16,6 +19,8 @@ const Text = z.string().trim().max(60).nullable().optional().transform((v) => v 
 
 export function stockRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, storage } = deps;
+  // Ücretsiz fotoğraf kaynağı: Pixabay anahtarı varsa o, yoksa Pexels (ikisi de yoksa kapalı).
+  const photoSrc = deps.photos ?? (deps.config.PIXABAY_API_KEY ? new Pixabay(deps.config.PIXABAY_API_KEY) : new Pexels(deps.config.PEXELS_API_KEY));
   const out = (r: Row) => ({ id: Number(r.id), title: r.title, category_id: r.category_id, marka: r.marka, model: r.model, is_active: r.is_active, uses: r.uses,
     media: toPublic(storage, { id: r.media_id, kind: r.kind, content_type: r.content_type, storage_key: r.storage_key }) });
 
@@ -29,7 +34,15 @@ export function stockRoutes(app: FastifyInstance, deps: Deps) {
     const score = (r: Row) => Math.max(0, ...wanted.map((w) => (r.marka === w.marka ? (w.model && r.model === w.model ? 3 : r.model ? 1 : 2) : 0))) + (r.category_id === q.category ? 0.5 : 0);
     const items = rows.map((r) => ({ r, s: score(r) })).sort((a, b) => b.s - a.s).slice(0, 120)
       .map(({ r, s }) => ({ ...out(r), match: s >= 3 ? "model" : s >= 1 ? "marka" : "kategori" }));
-    return { items: items.map(({ is_active: _a, uses: _u, ...x }) => x) };
+    // Kendi galerimizde talebe uyan görsel azsa ücretsiz fotoğraf kaynağında da aranır (anahtar varsa).
+    let photos: StockPhoto[] = [];
+    if (photoSrc.enabled && items.filter((x) => x.match !== "kategori").length < 6) {
+      const qs = queriesFor(q.category, wanted);
+      const found = await Promise.all(qs.map((x) => photoSrc.search(x, qs.length > 1 ? 6 : 12).catch((e) => { req.log.warn({ err: (e as Error).message }, "stok fotoğraf arama"); return []; })));
+      const seen = new Set<number>();
+      photos = found.flat().filter((p) => !seen.has(p.id) && seen.add(p.id)).slice(0, 12);
+    }
+    return { items: items.map(({ is_active: _a, uses: _u, ...x }) => x), photos, photo_source: photos.length ? { name: photoSrc.name, url: photoSrc.site } : null };
   });
 
   // Seçilen görsel alıcının dosyası olarak eklenir (aynı dosyayı paylaşır; talepten çıkarınca asıl dosya silinmez).
@@ -47,6 +60,31 @@ export function stockRoutes(app: FastifyInstance, deps: Deps) {
     });
     reply.code(201);
     return media;
+  });
+
+  // Seçilen ücretsiz fotoğraf kendi depomuza kopyalanır; kaynaktan kalksa da talepte kalır.
+  app.post("/stock-images/photos/:pid/use", { config: { rateLimit: { max: 30, timeWindow: "1 hour" } } }, async (req, reply) => {
+    const user = requireUser(req);
+    const { pid } = z.object({ pid: z.coerce.number().int().positive() }).parse(req.params);
+    if (!photoSrc.enabled || !storage.enabled) throw new HttpError(503, "kapali", "Hazır görseller şu anda kullanılamıyor.");
+    let photo: StockPhoto | null, file: { body: Buffer; contentType: string };
+    try {
+      photo = await photoSrc.photo(pid);
+      if (!photo) throw new HttpError(404, "bulunamadi", "Görsel bulunamadı.");
+      file = await photoSrc.download(photo);
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      req.log.warn({ err: (e as Error).message }, "stok fotoğraf indirme");
+      throw new HttpError(502, "indirilemedi", "Görsel alınamadı, lütfen başka bir görsel seçin.");
+    }
+    const ext = file.contentType === "image/png" ? "png" : file.contentType === "image/webp" ? "webp" : "jpg";
+    const key = `image/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${ext}`;
+    await storage.put(key, file.contentType, file.body);
+    const { rows } = await pool.query<{ id: string }>(
+      "INSERT INTO media (owner_id, kind, storage_key, content_type, size_bytes, status) VALUES ($1,'image',$2,$3,$4,'ready') RETURNING id",
+      [user.id, key, file.contentType, file.body.length]);
+    reply.code(201);
+    return toPublic(storage, { id: rows[0]!.id, kind: "image", content_type: file.contentType, storage_key: key });
   });
 
   app.get("/admin/stock-images", async (req) => {

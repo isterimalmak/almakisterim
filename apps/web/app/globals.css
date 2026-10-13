@@ -616,3 +616,18 @@ button.link{padding:0;font-size:inherit}
 .stk-plus{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:var(--orange);color:#fff;font-weight:700;display:grid;place-items:center;font-size:14px;line-height:1}
 .stk-t small{display:block;font-weight:400;opacity:.85}
 @media (max-width:640px){.stk-row{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.stk-credit{font-size:11px;color:var(--muted);margin-top:6px}
+.stk-credit a{color:inherit;text-decoration:underline}
+
+/* Talep verirken tek fotoğraf alanı */
+.mp-one{border:1.5px dashed #C9D3E6;border-radius:8px;padding:10px;background:#FBFCFE}
+.mp-one .stk-strip{border:0;background:transparent;padding:4px 0 0;margin:8px 0 4px}
+.mp-one .mp-grid{margin-top:8px}
+.mp-acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.mp-act{display:flex;align-items:center;gap:10px;min-width:0;padding:12px;border:1px solid var(--line-2);border-radius:6px;background:#fff;color:var(--navy);text-align:left;cursor:pointer}
+.mp-act:hover{border-color:var(--navy)}
+.mp-act:disabled{opacity:.45;cursor:not-allowed}
+.mp-act b{display:block;font-size:13.5px}
+.mp-act small{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
+.mp-act-st{background:var(--blue-soft);border-color:#D3DEF7;color:var(--blue)}
+@media (max-width:520px){.mp-acts{grid-template-columns:minmax(0,1fr)}}
