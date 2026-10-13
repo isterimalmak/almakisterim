@@ -39,6 +39,9 @@ describe("ayrıntılı talep alarmı", () => {
     const seller = await login(ctx, "05331110002");
     const buyer = await login(ctx, "05321110002");
     expect((await alarm(seller, { category_id: "otomobil", filters: { arac_marka: "BMW", arac_model: "3 Serisi" } })).statusCode).toBe(201);
+    // Üst kategori (Vasıta tümü) + marka/model: yalnızca o aracı isteyen talepler.
+    const other = await login(ctx, "05331110003");
+    expect((await alarm(other, { category_id: "vasita", filters: { arac_marka: "BMW", arac_model: "1 Serisi" } })).statusCode).toBe(201);
     expect((await alarm(seller, { category_id: "elektronik", city: "Ankara", min_budget: 10000 })).statusCode).toBe(201);
     expect((await alarm(seller, { category_id: "arsa", filters: { city: "İzmir", district: "Olmayanilçe" } })).statusCode).toBe(400);
     expect((await alarm(seller, { category_id: "arsa", filters: { bmin: "5", bmax: "1" } })).statusCode).toBe(400);
@@ -48,6 +51,8 @@ describe("ayrıntılı talep alarmı", () => {
     await createRequest(ctx, buyer, { ...car, title: "Audi A4 arıyorum", attrs: { araclar: [{ marka: "Audi", model: "A4" }] } });
     await createRequest(ctx, buyer, { category_id: "telefon", condition: "İkinci El", city: "Ankara", district: "", budget_min: 15000, budget_max: 20000, title: "iPhone arıyorum", attrs: {} });
     await createRequest(ctx, buyer, { category_id: "telefon", condition: "İkinci El", city: "İzmir", district: "", budget_min: 15000, budget_max: 20000, title: "İzmir'de iPhone", attrs: {} });
+    await createRequest(ctx, buyer, { ...car, category_id: "suv", title: "BMW 1 serisi arıyorum", attrs: { araclar: [{ marka: "BMW", model: "1 Serisi" }] } });
+    await expect.poll(() => notified("5331110003")).toEqual(['Alarmınıza uyan yeni talep: "BMW 1 serisi arıyorum"']);
     await expect.poll(() => notified("5331110002")).toEqual(['Alarmınıza uyan yeni talep: "BMW 3 serisi arıyorum"', 'Alarmınıza uyan yeni talep: "iPhone arıyorum"']);
   });
 });

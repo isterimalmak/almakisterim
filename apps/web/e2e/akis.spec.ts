@@ -456,7 +456,8 @@ test("talep formunda alt kategoriye göre seçenekler çıkar: arsada imar ve ta
 test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütçe aralığı", async ({ page }) => {
   await loginSms(page, `0539${rnd().slice(0, 7)}`, "Arsa Satıcısı");
   await page.goto("/bana-ozel?s=alarm");
-  await page.getByLabel("Kategori *").selectOption("arsa");
+  await page.getByLabel("Ana kategori *").selectOption("emlak");
+  await page.getByLabel("Alt kategori").selectOption("arsa");
   await page.getByLabel("İl", { exact: true }).selectOption("İzmir");
   await page.getByLabel("İlçe", { exact: true }).selectOption("Urla");
   await page.getByLabel("Alıcı bütçesi en az (TL)").fill("1000000");
@@ -468,5 +469,12 @@ test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütç
   await expect(row.getByText("İzmir / Urla")).toBeVisible();
   await expect(row.getByText("1.000.000 – 5.000.000 TL")).toBeVisible();
   await expect(row.getByText("İmar durumu: Konut")).toBeVisible();
+
+  // Vasıta (tümü) seçilince de marka/model sorulur: yalnızca BMW 1 Serisi isteyen alıcılar için alarm.
+  await page.getByLabel("Ana kategori *").selectOption("vasita");
+  await page.getByLabel("Elinizdeki aracın markası").selectOption("BMW");
+  await page.getByLabel("Modeli").selectOption("1 Serisi");
+  await page.getByRole("button", { name: "Alarm kur" }).click();
+  await expect(page.locator(".tbl tbody tr", { hasText: "Vasıta" }).getByText("BMW 1 Serisi")).toBeVisible();
 
 });

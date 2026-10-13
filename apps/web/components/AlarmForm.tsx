@@ -42,17 +42,23 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
   const hoods = useNeighbourhoods(f.city ?? "", f.district ?? "");
   const top = categories.find((t) => t.id === catId || t.subs.some((s) => s.id === catId));
   const sub = top?.subs.find((s) => s.id === catId);
-  const vehicle = isVehicleSub(sub?.id);
+  // Vasıtada alt kategori seçilmese de marka/model sorulur (otomobil, SUV, ticari… hepsinde aranır).
+  const vehicle = top?.id === "vasita" ? !sub || isVehicleSub(sub.id) : isVehicleSub(sub?.id);
   const attrs = vehicle ? [] : attrsFor(top?.id, sub?.id).filter((a) => a.t === "sel");
   const conds = condsFor(top?.id).filter((c) => c !== "Farketmez");
-  const brands = cat && sub && vehicle ? brandsOf(cat, sub.id) : {};
+  const brands = cat && vehicle ? (sub ? brandsOf(cat, sub.id) : cat.cars) : {};
   const set = (p: AlarmFilters) => setF((x) => { const n = { ...x, ...p }; for (const k of Object.keys(n)) if (!n[k]) delete n[k]; return n; });
   // Çoklu seçim (ürün durumu, özellikler): değerler virgülle saklanır, listedeki süzgeçle aynı.
   const toggle = (k: string, v: string) => { const cur = (f[k] ?? "").split(",").filter(Boolean); set({ [k]: (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]).join(",") }); };
   const on = (k: string, v: string) => (f[k] ?? "").split(",").includes(v);
 
+  // Kategori değişince yalnızca yer, bütçe ve kelime korunur; kategoriye özel seçimler sıfırlanır.
+  const pick = (id: string) => {
+    setCatId(id);
+    setF((x) => Object.fromEntries(Object.entries(x).filter(([k]) => ["city", "district", "neighbourhood", "bmin", "bmax", "q"].includes(k))));
+  };
   const save = async () => {
-    if (!catId) return toast("Kategori seçin.");
+    if (!catId) return toast("Ana kategori seçin.");
     setBusy(true);
     try {
       await api("/me/alarms", { body: { category_id: catId, filters: f } });
@@ -64,10 +70,13 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
   return (
     <div className="box"><div className="box-h"><h3>Yeni alarm</h3></div><div className="box-b">
       <div className="form-grid">
-        <div className="fg full"><label htmlFor="al-top">Kategori *</label>
-          <select className="sel" id="al-top" value={catId} onChange={(e) => { setCatId(e.target.value); setF((x) => ({ ...(x.city ? { city: x.city } : {}), ...(x.district ? { district: x.district } : {}), ...(x.neighbourhood ? { neighbourhood: x.neighbourhood } : {}), ...(x.bmin ? { bmin: x.bmin } : {}), ...(x.bmax ? { bmax: x.bmax } : {}), ...(x.q ? { q: x.q } : {}) })); }}>
-            <option value="">Seçin</option>
-            {categories.map((t) => <optgroup key={t.id} label={t.name}><option value={t.id}>{t.name} (tümü)</option>{t.subs.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</optgroup>)}
+        <div className="fg"><label htmlFor="al-top">Ana kategori *</label>
+          <select className="sel" id="al-top" value={top?.id ?? ""} onChange={(e) => pick(e.target.value)}>
+            <option value="">Seçin</option>{categories.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select></div>
+        <div className="fg"><label htmlFor="al-sub">Alt kategori</label>
+          <select className="sel" id="al-sub" value={sub?.id ?? ""} disabled={!top} onChange={(e) => pick(e.target.value || top!.id)}>
+            <option value="">{top ? `Tüm ${top.name}` : "Önce ana kategori"}</option>{top?.subs.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           </select></div>
         <div className="fg"><label htmlFor="al-c">İl</label><select className="sel" id="al-c" value={f.city ?? ""} onChange={(e) => set({ city: e.target.value, district: "", neighbourhood: "" })}><option value="">Tüm iller</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
         <div className="fg"><label htmlFor="al-d">İlçe</label><select className="sel" id="al-d" value={f.district ?? ""} disabled={!f.city} onChange={(e) => set({ district: e.target.value, neighbourhood: "" })}><option value="">{f.city ? "Tüm ilçeler" : "Önce il seçin"}</option>{districts.map((x) => <option key={x}>{x}</option>)}</select></div>
@@ -77,8 +86,8 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
         <div className="fg full"><label htmlFor="al-q">Kelime (isteğe bağlı)</label><input className="inp" id="al-q" maxLength={60} value={f.q ?? ""} onChange={(e) => set({ q: e.target.value })} placeholder="Örn. deniz manzaralı, iPhone 15, 4x4" /><span className="hint">Talebin başlığında ya da açıklamasında bu kelime geçenler.</span></div>
         {vehicle && cat && (
           <>
-            <div className="fg"><label htmlFor="al-mk">Marka</label><select className="sel" id="al-mk" value={f.arac_marka ?? ""} onChange={(e) => set({ arac_marka: e.target.value, arac_model: "" })}><option value="">Tüm markalar</option>{Object.keys(brands).map((b) => <option key={b}>{b}</option>)}</select></div>
-            <div className="fg"><label htmlFor="al-md">Model</label><select className="sel" id="al-md" value={f.arac_model ?? ""} disabled={!f.arac_marka} onChange={(e) => set({ arac_model: e.target.value })}><option value="">Tüm modeller</option>{(brands[f.arac_marka ?? ""] ?? []).map((m) => <option key={m}>{m}</option>)}</select></div>
+            <div className="fg"><label htmlFor="al-mk">Elinizdeki aracın markası</label><select className="sel" id="al-mk" value={f.arac_marka ?? ""} onChange={(e) => set({ arac_marka: e.target.value, arac_model: "" })}><option value="">Tüm markalar</option>{Object.keys(brands).map((b) => <option key={b}>{b}</option>)}</select></div>
+            <div className="fg"><label htmlFor="al-md">Modeli</label><select className="sel" id="al-md" value={f.arac_model ?? ""} disabled={!f.arac_marka} onChange={(e) => set({ arac_model: e.target.value })}><option value="">Tüm modeller</option>{(brands[f.arac_marka ?? ""] ?? []).map((m) => <option key={m}>{m}</option>)}</select></div>
             <div className="fg"><label htmlFor="al-y">Elinizdeki aracın yılı</label><input className="inp" id="al-y" type="number" inputMode="numeric" value={f.arac_yil ?? ""} onChange={(e) => set({ arac_yil: e.target.value })} placeholder="Örn. 2019" /></div>
             <div className="fg"><label htmlFor="al-km">Kilometresi</label><input className="inp" id="al-km" type="number" inputMode="numeric" value={f.arac_km ?? ""} onChange={(e) => set({ arac_km: e.target.value })} /></div>
             <div className="fg"><label htmlFor="al-yk">Yakıt</label><select className="sel" id="al-yk" value={f.arac_yakit ?? ""} onChange={(e) => set({ arac_yakit: e.target.value })}><option value="">Farketmez</option>{cat.fuels.map((x) => <option key={x}>{x}</option>)}</select></div>
@@ -102,7 +111,7 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
         </div>
       </div>
       <button className="btn btn-bl" style={{ marginTop: 12 }} disabled={busy} onClick={() => void save()}>{busy ? "Kaydediliyor…" : "Alarm kur"}</button>
-      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Seçtiklerinize uyan yeni talep gelince sitedeki zil simgesinden ve (bağlıysa) SMS/e-posta ile haber veririz. Boş bıraktığınız alanlar "farketmez" sayılır.</p>
+      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Alarm satıcılar içindir: elinizdeki ürünü almak isteyen bir alıcı talep verince haber verir. Seçtiklerinize uyan yeni talep gelince sitedeki zil simgesinden ve (bağlıysa) SMS/e-posta ile haber veririz. Boş bıraktığınız alanlar "farketmez" sayılır.</p>
     </div></div>
   );
 }
