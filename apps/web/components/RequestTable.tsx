@@ -48,7 +48,7 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
             <td className="budget-cell"><div className="budget">{budgetTxt(r.budget_min, r.budget_max)}<small>bütçe</small></div></td>
             <td data-m="Kalan" className="nowrap">{leftTxt(r.expires_at)}</td>
             <td data-m="Tarih" className="nowrap muted">{dateTr(r.created_at)}</td>
-            <td data-m="Konum" className="nowrap">{r.city}{r.district && <span className="muted" style={{ fontSize: 12, marginLeft: 4 }}>{r.district}{r.neighbourhood && ` / ${r.neighbourhood}`}</span>}</td>
+            <td data-m="Konum" className="loc">{r.city}{r.district && <span className="loc-d muted">{r.district}{r.neighbourhood && ` / ${r.neighbourhood}`}</span>}</td>
           </tr>
         ))}
       </tbody>

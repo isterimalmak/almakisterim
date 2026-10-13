@@ -631,3 +631,14 @@ button.link{padding:0;font-size:inherit}
 .mp-act small{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
 .mp-act-st{background:var(--blue-soft);border-color:#D3DEF7;color:var(--blue)}
 @media (max-width:520px){.mp-acts{grid-template-columns:minmax(0,1fr)}}
+
+/* Reklam videosunda ses düğmesi */
+.yk-ses{position:absolute;left:6px;bottom:6px;width:32px;height:32px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;display:grid;place-items:center;cursor:pointer}
+.yk-ses:hover{background:rgba(0,0,0,.8)}
+
+/* Talep listesinde konum: ilçe/mahalle alt satıra iner, tablo kutudan taşmaz */
+.tbl td.loc{min-width:96px;max-width:170px}
+.tbl .loc-d{font-size:12px;margin-left:4px}
+@media (min-width:861px){.tbl .loc-d{display:block;margin-left:0;line-height:1.3}}
+.box:has(> .tbl){container-type:inline-size}
+@media (min-width:861px){@container (max-width:760px){.tbl th:nth-child(4),.tbl td:nth-child(4){display:none}}}

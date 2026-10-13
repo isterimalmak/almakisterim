@@ -160,6 +160,21 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByRole("button", { name: "Reklam Alanları" }).click();
   await page.locator(".yk-satir").nth(n - 1).getByRole("button", { name: "Sil" }).click();
   await expect(page.getByText("Reklam silindi.")).toBeVisible();
+
+  // Video reklam sessiz başlar; köşedeki düğmeyle ses açılır ve kapanır.
+  await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: "reklam.mp4", mimeType: "video/mp4", buffer: Buffer.from("00000018667479706d703432", "hex") });
+  await expect(page.getByText("Reklam eklendi; ana sayfada görünüyor.")).toBeVisible();
+  await page.goto("/");
+  const vid = page.locator(".home-left .yk-list .yk").filter({ has: page.locator("video") }).last();
+  await expect(vid.locator("video")).toHaveJSProperty("muted", true);
+  await vid.getByRole("button", { name: "Sesi aç" }).click();
+  await expect(vid.locator("video")).toHaveJSProperty("muted", false);
+  await vid.getByRole("button", { name: "Sesi kapat" }).click();
+  await expect(vid.locator("video")).toHaveJSProperty("muted", true);
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  await page.locator(".yk-satir").last().getByRole("button", { name: "Sil" }).click();
+  await expect(page.getByText("Reklam silindi.")).toBeVisible();
 });
 
 test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page }) => {
