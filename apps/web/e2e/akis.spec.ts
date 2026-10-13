@@ -280,3 +280,32 @@ test("site uygulama gibi yüklenebilir; telefonda alt menü çalışır", async 
   await bar.getByRole("link", { name: "Talep Ver" }).click();
   await page.waitForURL(/\/talep-ver/);
 });
+
+test("alıcı il/ilçe/mahalle seçer; satıcı İstanbul → Kadıköy diye arayınca bulur, Üsküdar'da bulmaz", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const buyer = await ctx.newPage();
+  const tag = rnd();
+  await loginSms(buyer, `0537${rnd().slice(0, 7)}`, "Selin Ak");
+  await buyer.goto(`/talep-ver?metin=${encodeURIComponent(`Kadıköy'de satılık ev almak istiyorum ${tag}, bütçem 8 milyon TL`)}`);
+  await expect(buyer.getByLabel("İl *")).toHaveValue("İstanbul");
+  await expect(buyer.getByLabel("İlçe")).toHaveValue("Kadıköy");
+  await buyer.getByLabel("Mahalle").selectOption("Caferağa");
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await expect(buyer.getByText("İstanbul / Kadıköy / Caferağa")).toBeVisible();
+  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(buyer.getByRole("heading", { level: 1 })).toContainText(tag);
+
+  const seller = await (await browser.newContext()).newPage();
+  await seller.goto("/kategori");
+  const toggle = seller.getByRole("button", { name: "Filtrele", exact: true });
+  if (await toggle.isVisible()) await toggle.click();
+  await seller.getByLabel("İl", { exact: true }).selectOption("İstanbul");
+  await seller.getByLabel("İlçe", { exact: true }).selectOption("Kadıköy");
+  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toBeVisible();
+  await seller.getByLabel("Mahalle", { exact: true }).selectOption("Caferağa");
+  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toBeVisible();
+  await seller.getByLabel("İlçe", { exact: true }).selectOption("Üsküdar");
+  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
+  await ctx.close();
+});

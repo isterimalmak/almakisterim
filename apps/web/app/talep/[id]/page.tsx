@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker, Thumbs } from "@/components/Media";
 import { PhoneVerify } from "@/components/PhoneVerify";
+import { placeTxt } from "@/lib/locations";
 import { VehicleRows } from "@/components/VehicleFields";
 import { CatIcon, Labels } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
@@ -68,7 +69,7 @@ export default function RequestPage() {
               <tr><th>Ürün Durumu</th><td>{r.condition}</td></tr>
               {sch.filter((a) => r.attrs[a.k] !== undefined).map((a) => <tr key={a.k}><th>{a.l}</th><td>{a.t === "num" && a.k !== "yil" ? fmt(Number(r.attrs[a.k])) : String(r.attrs[a.k])}</td></tr>)}
               {isVehicleSub(r.category_id) && <VehicleRows a={r.attrs as VehicleAttrs} />}
-              <tr><th>Konum</th><td>{r.city}{r.district && ` / ${r.district}`}</td></tr>
+              <tr><th>Konum</th><td>{placeTxt(r)}{!r.district && <span className="muted"> (ilçe farketmez)</span>}</td></tr>
               <tr><th>Alıcı Tipi</th><td>{r.is_corporate ? "Kurumsal (faturalı alım)" : "Bireysel"}</td></tr>
               <tr><th>Gelen Teklif</th><td>{r.offer_count}</td></tr>
             </tbody></table>

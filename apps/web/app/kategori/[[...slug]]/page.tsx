@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
+import { useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useVehicleCatalog } from "@/lib/vehicles";
 
 type Veh = { marka: string; model: string; yil: string; km: string; yakit: string; vites: string };
 const NO_VEH: Veh = { marka: "", model: "", yil: "", km: "", yakit: "", vites: "" };
-type F = { veh: Veh; q: string; city: string; bmin: string; bmax: string; cond: string[]; attrs: Record<string, string[]>; urgent: boolean; noOffers: boolean; buyer: "" | "bireysel" | "kurumsal"; sort: string; page: number };
+type F = { veh: Veh; q: string; city: string; district: string; hood: string; bmin: string; bmax: string; cond: string[]; attrs: Record<string, string[]>; urgent: boolean; noOffers: boolean; buyer: "" | "bireysel" | "kurumsal"; sort: string; page: number };
 const PER = 20;
 
 function Listing() {
@@ -21,12 +22,18 @@ function Listing() {
   const [top, sub] = slug;
   const t = categories.find((c) => c.id === top);
   const s = t?.subs.find((x) => x.id === sub);
-  const initial = (): F => ({ veh: NO_VEH, q: sp.get("q") ?? "", city: "", bmin: "", bmax: "", cond: [], attrs: {}, urgent: sp.get("acil") === "1", noOffers: sp.get("teklifsiz") === "1", buyer: (sp.get("buyer") as F["buyer"]) ?? "", sort: "new", page: 1 });
+  const initial = (): F => ({ veh: NO_VEH, q: sp.get("q") ?? "", city: "", district: "", hood: "", bmin: "", bmax: "", cond: [], attrs: {}, urgent: sp.get("acil") === "1", noOffers: sp.get("teklifsiz") === "1", buyer: (sp.get("buyer") as F["buyer"]) ?? "", sort: "new", page: 1 });
   const [f, setF] = useState<F>(initial);
+  const districts = useDistricts(f.city);
+  const hoods = useNeighbourhoods(f.city, f.district);
   const [data, setData] = useState<{ total: number; items: RequestItem[] } | null>(null);
   const [openFilters, setOpenFilters] = useState(false);
   const [others, setOthers] = useState<RequestItem[] | null>(null);
-  useEffect(() => setF(initial()), [top, sub, sp]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Kategori veya adres çubuğundaki arama değişince filtreler sıfırlanır; ilk açılışta (zaten başlangıç değerleri) sıfırlanmaz,
+  // yoksa kullanıcının sayfa açılırken seçtiği il kaybolur.
+  const navKey = `${top}|${sub}|${sp.toString()}`;
+  const lastKey = useRef(navKey);
+  useEffect(() => { if (lastKey.current !== navKey) { lastKey.current = navKey; setF(initial()); } }, [navKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -34,6 +41,8 @@ function Listing() {
     if (sub) p.set("sub", sub);
     if (f.q.trim()) p.set("q", f.q.trim());
     if (f.city) p.set("city", f.city);
+    if (f.city && f.district) p.set("district", f.district);
+    if (f.city && f.district && f.hood) p.set("neighbourhood", f.hood);
     if (f.bmin) p.set("bmin", f.bmin);
     if (f.bmax) p.set("bmax", f.bmax);
     if (f.cond.length) p.set("cond", f.cond.join(","));
@@ -111,7 +120,12 @@ function Listing() {
             </div>
           )}
           <div className="flt-sec"><h4>Kelime</h4><input className="inp" value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Talepte ara" /></div>
-          <div className="flt-sec"><h4>Adres</h4><select className="sel" value={f.city} onChange={(e) => set({ city: e.target.value })} aria-label="İl"><option value="">Tüm iller</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
+          <div className="flt-sec flt-adr"><h4>Adres</h4>
+            <select className="sel" value={f.city} onChange={(e) => set({ city: e.target.value, district: "", hood: "" })} aria-label="İl"><option value="">Tüm iller</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select>
+            {f.city && <select className="sel" value={f.district} onChange={(e) => set({ district: e.target.value, hood: "" })} aria-label="İlçe"><option value="">Tüm ilçeler</option>{districts.map((c) => <option key={c}>{c}</option>)}</select>}
+            {f.district && <select className="sel" value={f.hood} onChange={(e) => set({ hood: e.target.value })} aria-label="Mahalle"><option value="">Tüm mahalleler</option>{hoods.map((c) => <option key={c}>{c}</option>)}</select>}
+            {f.district && <span className="hint">İlçe veya mahalle "farketmez" diyen alıcılar da listelenir.</span>}
+          </div>
           <div className="flt-sec"><h4>Alıcının bütçesi (TL)</h4><div className="mm"><input className="inp" type="number" placeholder="en az" value={f.bmin} onChange={(e) => set({ bmin: e.target.value })} aria-label="Bütçe en az" /><input className="inp" type="number" placeholder="en çok" value={f.bmax} onChange={(e) => set({ bmax: e.target.value })} aria-label="Bütçe en çok" /></div></div>
           <div className="flt-sec"><h4>Ürün durumu</h4>{CONDS.map((c) => <label className="chk" key={c}><input type="checkbox" checked={f.cond.includes(c)} onChange={() => set({ cond: toggle(f.cond, c) })} />{c}</label>)}</div>
           {selAttrs.map((a) => (
