@@ -32,6 +32,10 @@ describe("Pexels stok fotoğrafları", () => {
     expect(queriesFor("otomobil", [{ marka: "BMW", model: "3 Serisi" }, { marka: "Mercedes-Benz", model: "C Serisi" }, { marka: "Audi", model: "" }]))
       .toEqual(["BMW 3 Series", "Mercedes-Benz C-Class", "Audi car"]);
     expect(queriesFor("satilik", [])).toEqual(["apartment interior living room"]);
+    // Formda seçilen tipe göre arama: yat talebine yat, arsa talebine arsa görseli.
+    expect(queriesFor("deniz", [], "Yat")).toEqual(["luxury yacht"]);
+    expect(queriesFor("isyeri", [], "Depo")).toEqual(["warehouse"]);
+    expect(queriesFor("arsa", [])).toEqual(["vacant land plot for sale"]);
   });
 
   it("galeride uygun görsel yoksa Pexels sonuçları gelir; seçilen fotoğraf kendi depomuza kopyalanıp talebe eklenir", async () => {

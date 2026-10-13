@@ -29,15 +29,16 @@ export function useStockImages(category: string, attrs: Record<string, unknown>)
   const [items, setItems] = useState<StockItem[] | null>(null);
   const [photos, setPhotos] = useState<StockPhoto[]>([]);
   const [source, setSource] = useState<PhotoSource | null>(null);
+  const tip = typeof attrs.tip === "string" ? attrs.tip : typeof attrs.model === "string" ? attrs.model : "";
   const key = (Array.isArray(attrs.araclar) ? attrs.araclar as { marka: string; model: string | null }[] : []).map((a) => `${a.marka}:${a.model ?? ""}`).join(",");
   useEffect(() => {
     if (!category) { setItems([]); setPhotos([]); setSource(null); return; }
     let on = true;
-    const qs = new URLSearchParams({ category, ...(key ? { araclar: key } : {}) });
+    const qs = new URLSearchParams({ category, ...(key ? { araclar: key } : {}), ...(tip && tip !== "Farketmez" ? { tip } : {}) });
     void api<{ items: StockItem[]; photos?: StockPhoto[]; photo_source?: PhotoSource | null }>(`/stock-images?${qs}`)
       .then((r) => { if (on) { setItems(r.items); setPhotos(r.photos ?? []); setSource(r.photo_source ?? null); } }).catch(() => on && setItems([]));
     return () => { on = false; };
-  }, [category, key]);
+  }, [category, key, tip]);
   return { items, photos, source };
 }
 

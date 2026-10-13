@@ -91,13 +91,38 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   test.skip(info.project.name !== "masaustu");
   await loginEmail(page, "yonetici@almakisterim.com");
   await page.goto("/yonetim");
+  // Panel açılınca genel bakış: sayaç kartları, grafikler, son hareketler.
+  await expect(page.getByRole("heading", { level: 1, name: "Genel Bakış" })).toBeVisible();
+  await expect(page.getByText("Toplam Üye")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Son 7 Gün — Yeni Üye" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Son Hareketler" })).toBeVisible();
+  // Talepler bölümü: bütün talepler aranır.
+  await page.getByRole("button", { name: "Talepler", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Talepler" })).toBeVisible();
+  await page.getByLabel("Yönetimde talep ara").fill("istiyorum");
+  await page.getByRole("button", { name: "Ara", exact: true }).last().click();
+  await expect(page.locator(".ap-body .tbl tbody tr").first()).toBeVisible();
+  // Bildirim Gönder: bütün üyelere site içi duyuru.
+  await page.getByRole("button", { name: "Bildirim Gönder" }).click();
+  await page.getByLabel("Bildirim metni *").fill(`Test duyurusu ${rnd()}`);
+  page.once("dialog", (d) => void d.accept());
+  await page.getByRole("button", { name: "Bildirimi gönder" }).click();
+  await expect(page.getByText(/üyeye bildirim gönderildi/)).toBeVisible();
+  // Entegrasyonlar: hangi hizmet bağlı görünür, anahtar görünmez.
+  await page.getByRole("button", { name: "Entegrasyonlar" }).click();
+  await expect(page.locator(".ap-int.on", { hasText: "Fotoğraf ve video deposu" })).toBeVisible();
+  // Üyeler: liste kendiliğinden gelir, Excel'e indirilebilir.
+  await page.getByRole("button", { name: "Üyeler ve Kredi" }).click();
+  await expect(page.locator(".ap-body .tbl tbody tr").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Excel'e indir" })).toHaveAttribute("href", "/api/admin/users.csv");
+  await page.getByRole("button", { name: "Kategoriler" }).click();
   const sw = page.getByRole("switch", { name: "Moda & Giyim" });
   await sw.click();
   await expect(sw).toHaveAttribute("aria-checked", "false");
   // Talep verirken bütün yayındaki kategoriler görünür; gizlenen görünmez.
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(0);
-  await page.goto("/yonetim");
+  await page.goto("/yonetim#kat");
   await page.getByRole("switch", { name: "Moda & Giyim" }).click();
   // Kayıt bitmeden sayfadan çıkılmasın.
   await expect(page.getByRole("switch", { name: "Moda & Giyim" })).toHaveAttribute("aria-checked", "true");
@@ -406,4 +431,24 @@ test("acil talepler solda kategorilerin üstünde bağlantı olarak durur; ortad
   await link.click();
   await page.waitForURL(/acil=1/);
   await expect(page.locator(".tbl-wrap").getByRole("link", { name: new RegExp(title) })).toBeVisible();
+});
+
+test("talep formunda alt kategoriye göre seçenekler çıkar: arsada imar ve tapu, oda sayısı yok; yatta tekne tipi", async ({ page }) => {
+  await loginSms(page, `0538${rnd().slice(0, 7)}`, "Arsa Arayan");
+  await page.goto("/talep-ver");
+  await page.locator(".cat-col").getByRole("button", { name: "Emlak" }).click();
+  await page.locator(".cat-col").getByRole("button", { name: "Arsa" }).click();
+  await page.getByRole("button", { name: "Devam" }).click();
+  await expect(page.getByLabel("İmar durumu")).toBeVisible();
+  await expect(page.getByLabel("Tapu durumu")).toBeVisible();
+  await expect(page.getByLabel("m² (en az)")).toBeVisible();
+  await expect(page.getByLabel("Oda sayısı")).toHaveCount(0);
+  await expect(page.getByLabel("Eşya durumu")).toHaveCount(0);
+  await page.getByRole("button", { name: "Değiştir" }).click();
+  await page.locator(".cat-col").getByRole("button", { name: "Vasıta" }).click();
+  await page.locator(".cat-col").getByRole("button", { name: "Deniz Araçları" }).click();
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.getByLabel("Tip").selectOption("Yat");
+  await expect(page.getByLabel("Boy (en az, metre)")).toBeVisible();
+  await expect(page.getByLabel("İmar durumu")).toHaveCount(0);
 });

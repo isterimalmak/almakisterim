@@ -15,6 +15,8 @@ type Row = { id: number; title: string; category_id: string; marka: string | nul
 
 const SELECT = `SELECT s.id, s.title, s.category_id, s.marka, s.model, s.is_active, s.uses, m.id AS media_id, m.kind, m.content_type, m.storage_key, m.size_bytes
   FROM stock_images s JOIN media m ON m.id = s.media_id`;
+// Talebe uyan ücretsiz fotoğraflardan en fazla bu kadarı gösterilir.
+const MAX_PHOTOS = 50;
 const Text = z.string().trim().max(60).nullable().optional().transform((v) => v || null);
 
 export function stockRoutes(app: FastifyInstance, deps: Deps) {
@@ -26,23 +28,23 @@ export function stockRoutes(app: FastifyInstance, deps: Deps) {
 
   // ?category=otomobil&araclar=BMW:3 Serisi,Audi: → önce tam model, sonra marka, sonra kategorinin diğer görselleri.
   app.get("/stock-images", async (req) => {
-    const q = z.object({ category: z.string().max(40), araclar: z.string().max(400).optional() }).parse(req.query);
+    const q = z.object({ category: z.string().max(40), araclar: z.string().max(400).optional(), tip: z.string().max(60).optional() }).parse(req.query);
     const wanted = (q.araclar ?? "").split(",").map((x) => x.split(":")).filter(([m]) => m).map(([marka, model]) => ({ marka: marka!.trim(), model: (model ?? "").trim() }));
     const { rows } = await pool.query<Row>(
       `${SELECT} JOIN categories c ON c.id = $1
         WHERE s.is_active AND (s.category_id = c.id OR s.category_id = c.parent_id) ORDER BY s.uses DESC, s.id DESC LIMIT 200`, [q.category]);
     const score = (r: Row) => Math.max(0, ...wanted.map((w) => (r.marka === w.marka ? (w.model && r.model === w.model ? 3 : r.model ? 1 : 2) : 0))) + (r.category_id === q.category ? 0.5 : 0);
-    // Marka seçildiyse başka markaların görselleri gösterilmez (Bentley talebine Audi görseli çıkmasın); markasız genel görseller kalır.
+    // Marka seçildiyse yalnızca o markanın görselleri gösterilir (Bentley talebine Audi ya da genel araba görseli çıkmasın).
     const brands = new Set(wanted.map((w) => w.marka));
-    const items = rows.filter((r) => !brands.size || !r.marka || brands.has(r.marka)).map((r) => ({ r, s: score(r) })).sort((a, b) => b.s - a.s).slice(0, 120)
+    const items = rows.filter((r) => !brands.size || (!!r.marka && brands.has(r.marka))).map((r) => ({ r, s: score(r) })).sort((a, b) => b.s - a.s).slice(0, 120)
       .map(({ r, s }) => ({ ...out(r), match: s >= 3 ? "model" : s >= 1 ? "marka" : "kategori" }));
     // Kendi galerimizde talebe uyan görsel azsa ücretsiz fotoğraf kaynağında da aranır (anahtar varsa).
     let photos: StockPhoto[] = [];
     if (photoSrc.enabled && items.filter((x) => x.match !== "kategori").length < 6) {
-      const qs = queriesFor(q.category, wanted);
-      const found = await Promise.all(qs.map((x) => photoSrc.search(x, qs.length > 1 ? 6 : 12).catch((e) => { req.log.warn({ err: (e as Error).message }, "stok fotoğraf arama"); return []; })));
+      const qs = queriesFor(q.category, wanted, q.tip);
+      const found = await Promise.all(qs.map((x) => photoSrc.search(x, Math.ceil(MAX_PHOTOS / qs.length), q.category).catch((e) => { req.log.warn({ err: (e as Error).message }, "stok fotoğraf arama"); return []; })));
       const seen = new Set<number>();
-      photos = found.flat().filter((p) => !seen.has(p.id) && seen.add(p.id)).slice(0, 12);
+      photos = found.flat().filter((p) => !seen.has(p.id) && seen.add(p.id)).slice(0, MAX_PHOTOS);
     }
     return { items: items.map(({ is_active: _a, uses: _u, ...x }) => x), photos, photo_source: photos.length ? { name: photoSrc.name, url: photoSrc.site } : null };
   });

@@ -22,6 +22,62 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     return rows[0];
   });
 
+  // Panelin ana ekranı: sayaçlar, son 7 günün yeni üyeleri, son 6 ayın talepleri/kredileri ve son hareketler.
+  app.get("/admin/dashboard", async (req) => {
+    requireAdmin(req);
+    const day = `date_trunc('day', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul'`;
+    const month = `date_trunc('month', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul'`;
+    const totals = (await pool.query(`SELECT
+      (SELECT count(*)::int FROM users) AS users,
+      (SELECT count(*)::int FROM users WHERE created_at >= ${day}) AS users_today,
+      (SELECT count(*)::int FROM requests WHERE status = 'active' AND expires_at > now()) AS active_requests,
+      (SELECT count(*)::int FROM requests WHERE status = 'pending_review') AS pending_review,
+      (SELECT count(*)::int FROM requests WHERE created_at >= ${month}) AS requests_month,
+      (SELECT count(*)::int FROM contact_unlocks WHERE created_at >= ${month}) AS unlocks_month,
+      (SELECT COALESCE(sum(credits), 0)::int FROM contact_unlocks WHERE created_at >= ${month}) AS credits_month,
+      (SELECT count(*)::int FROM messages WHERE created_at >= ${day}) AS messages_today,
+      (SELECT count(*)::int FROM contact_reports WHERE status = 'open') AS open_reports`)).rows[0];
+    // Gün ve ay sınırları İstanbul saatine göre.
+    const users7 = (await pool.query<{ d: string; n: number }>(
+      `SELECT to_char(g.d, 'YYYY-MM-DD') AS d, count(u.id)::int AS n
+         FROM generate_series((now() AT TIME ZONE 'Europe/Istanbul')::date - 6, (now() AT TIME ZONE 'Europe/Istanbul')::date, interval '1 day') AS g(d)
+         LEFT JOIN users u ON (u.created_at AT TIME ZONE 'Europe/Istanbul')::date = g.d::date
+        GROUP BY g.d ORDER BY g.d`)).rows;
+    const months = (await pool.query<{ m: string; requests: number; credits: number }>(
+      `SELECT to_char(g.m, 'YYYY-MM') AS m,
+              (SELECT count(*)::int FROM requests r WHERE date_trunc('month', r.created_at AT TIME ZONE 'Europe/Istanbul') = g.m) AS requests,
+              (SELECT COALESCE(sum(cu.credits), 0)::int FROM contact_unlocks cu WHERE date_trunc('month', cu.created_at AT TIME ZONE 'Europe/Istanbul') = g.m) AS credits
+         FROM generate_series(date_trunc('month', now() AT TIME ZONE 'Europe/Istanbul') - interval '5 months', date_trunc('month', now() AT TIME ZONE 'Europe/Istanbul'), interval '1 month') AS g(m)
+        ORDER BY g.m`)).rows;
+    const recent = (await pool.query(
+      `(SELECT 'uye' AS kind, COALESCE(NULLIF(name, ''), 'Yeni üye') AS text, NULL::bigint AS request_id, created_at FROM users ORDER BY created_at DESC LIMIT 8)
+       UNION ALL (SELECT 'talep', title, id, created_at FROM requests ORDER BY created_at DESC LIMIT 8)
+       UNION ALL (SELECT 'numara', r.title, r.id, cu.created_at FROM contact_unlocks cu JOIN requests r ON r.id = cu.request_id ORDER BY cu.created_at DESC LIMIT 8)
+       UNION ALL (SELECT 'mesaj', r.title, r.id, m.created_at FROM messages m JOIN requests r ON r.id = m.request_id ORDER BY m.created_at DESC LIMIT 8)
+       ORDER BY created_at DESC LIMIT 12`)).rows;
+    return { totals, users_7d: users7, months, recent };
+  });
+
+  // Bütün talepler: arama ve duruma göre süzme; yönetici buradan yayından kaldırır ya da vitrine alır.
+  app.get("/admin/requests", async (req) => {
+    requireAdmin(req);
+    const q = z.object({ q: z.string().trim().max(100).default(""), status: z.enum(["all", "active", "pending_review", "expired", "closed", "rejected"]).default("all"),
+      page: z.coerce.number().int().min(1).max(500).default(1) }).parse(req.query);
+    const where = ["($1 = '' OR r.title ILIKE '%' || $1 || '%' OR u.name ILIKE '%' || $1 || '%' OR r.id::text = $1)"];
+    if (q.status === "active") where.push("r.status = 'active' AND r.expires_at > now()");
+    else if (q.status === "expired") where.push("(r.status = 'expired' OR (r.status = 'active' AND r.expires_at <= now()))");
+    else if (q.status !== "all") where.push(`r.status = '${q.status}'`);
+    const { rows } = await pool.query(
+      `SELECT r.id, r.title, r.status, r.created_at, r.expires_at, r.budget_max, r.city, r.district, r.is_urgent,
+              coalesce(r.featured_until > now(), false) AS is_featured, u.name AS buyer_name, u.phone AS buyer_phone, u.email AS buyer_email,
+              (SELECT count(*)::int FROM contact_unlocks cu WHERE cu.request_id = r.id) AS unlocks,
+              (SELECT count(*)::int FROM messages m WHERE m.request_id = r.id) AS messages,
+              count(*) OVER ()::int AS total
+         FROM requests r JOIN users u ON u.id = r.buyer_id
+        WHERE ${where.join(" AND ")} ORDER BY r.created_at DESC LIMIT 50 OFFSET $2`, [q.q, (q.page - 1) * 50]);
+    return { items: rows.map(({ total: _t, ...x }) => x), total: rows[0]?.total ?? 0 };
+  });
+
   // Kategoriler: gizli olanlar dahil hepsi.
   app.get("/admin/categories", async (req) => {
     requireAdmin(req);
@@ -121,9 +177,63 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     requireAdmin(req);
     const { q } = z.object({ q: z.string().max(100).default("") }).parse(req.query);
     const { rows } = await pool.query(
-      `SELECT id, name, email, phone, role, credits, created_at FROM users
-        WHERE $1 = '' OR name ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%' OR phone LIKE '%' || $1 || '%'
-        ORDER BY created_at DESC LIMIT 50`, [q]);
+      `SELECT u.id, u.name, u.email, u.phone, u.role, u.credits, u.is_corporate, u.created_at,
+              (SELECT count(*)::int FROM requests r WHERE r.buyer_id = u.id) AS requests,
+              (SELECT count(*)::int FROM contact_unlocks cu WHERE cu.seller_id = u.id) AS unlocks
+         FROM users u
+        WHERE $1 = '' OR u.name ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%' OR u.phone LIKE '%' || $1 || '%'
+        ORDER BY u.created_at DESC LIMIT 50`, [q]);
+    return { items: rows };
+  });
+
+  // Bildirim gönder: seçilen kitleye site içi bildirim (zil simgesinde görünür).
+  app.post("/admin/notify", { config: { rateLimit: { max: 20, timeWindow: "1 hour" } } }, async (req) => {
+    requireAdmin(req);
+    const b = z.object({ text: z.string().trim().min(3, "Bildirim metnini yazın.").max(300), link: z.string().trim().max(300).regex(/^(\/|https:\/\/|$)/, "Bağlantı / veya https:// ile başlamalı.").default(""),
+      audience: z.enum(["all", "buyers", "sellers"]) }).parse(req.body);
+    const who = b.audience === "buyers" ? "WHERE EXISTS (SELECT 1 FROM requests r WHERE r.buyer_id = u.id)"
+      : b.audience === "sellers" ? "WHERE EXISTS (SELECT 1 FROM contact_unlocks cu WHERE cu.seller_id = u.id) OR EXISTS (SELECT 1 FROM alarms a WHERE a.user_id = u.id)" : "";
+    const r = await pool.query(`INSERT INTO notifications (user_id, text, link) SELECT u.id, $1, $2 FROM users u ${who}`, [b.text, b.link]);
+    return { sent: r.rowCount ?? 0 };
+  });
+
+  // Entegrasyonlar: hangi dış hizmet bağlı (anahtarların kendisi asla gösterilmez).
+  app.get("/admin/integrations", async (req) => {
+    requireAdmin(req);
+    const has = (...v: string[]) => v.every((x) => !!x.trim());
+    return { items: [
+      { key: "storage", name: "Fotoğraf ve video deposu (Cloudflare R2)", connected: deps.storage.enabled, note: "Fotoğraf/video yükleme" },
+      { key: "ai", name: "Yapay zekâ (Anthropic Claude)", connected: has(config.ANTHROPIC_API_KEY), note: "Talebi otomatik doldurma ve içerik denetimi" },
+      { key: "photos", name: "Ücretsiz fotoğraflar (Pixabay / Pexels)", connected: has(config.PIXABAY_API_KEY) || has(config.PEXELS_API_KEY), note: "Talebe uyan hazır görseller" },
+      { key: "mail", name: "E-posta (Resend)", connected: has(config.RESEND_API_KEY), note: "E-postayla giriş kodu ve bildirimler" },
+      { key: "sms", name: "SMS (Netgsm)", connected: has(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER), note: "SMS ile giriş kodu ve talep alarmları" },
+      { key: "google", name: "Google ile giriş", connected: has(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET), note: "Tek tıkla giriş" },
+      { key: "pay", name: "Ödeme (iyzico / PayTR)", connected: false, note: "Kredi satın alma (henüz bağlanmadı; kredi elle tanımlanıyor)" },
+    ] };
+  });
+
+  // Üye listesi Excel'de açılacak CSV olarak (Türkçe karakterler için UTF-8 BOM, ayraç ;).
+  app.get("/admin/users.csv", async (req, reply) => {
+    requireAdmin(req);
+    const { rows } = await pool.query(
+      `SELECT u.name, u.email, u.phone, u.credits, u.is_corporate, u.created_at,
+              (SELECT count(*)::int FROM requests r WHERE r.buyer_id = u.id) AS requests,
+              (SELECT count(*)::int FROM contact_unlocks cu WHERE cu.seller_id = u.id) AS unlocks
+         FROM users u ORDER BY u.created_at DESC`);
+    const cell = (v: unknown) => { const t = v === null || v === undefined ? "" : String(v); return /[;"\n\r]/.test(t) || /^[=+\-@]/.test(t) ? `"${t.replace(/^([=+\-@])/, "'$1").replace(/"/g, '""')}"` : t; };
+    const head = ["Ad Soyad", "E-posta", "Telefon", "Kredi", "Kurumsal", "Talep sayısı", "Açtığı numara", "Kayıt tarihi"];
+    const lines = rows.map((r) => [r.name, r.email, r.phone, r.credits, r.is_corporate ? "Evet" : "Hayır", r.requests, r.unlocks,
+      new Date(r.created_at).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })].map(cell).join(";"));
+    reply.header("content-type", "text/csv; charset=utf-8").header("content-disposition", `attachment; filename="uyeler-${new Date().toISOString().slice(0, 10)}.csv"`);
+    return "\uFEFF" + [head.join(";"), ...lines].join("\r\n");
+  });
+
+  // Kredi hareketleri: kim, ne zaman, neden kredi kazandı/harcadı.
+  app.get("/admin/credits", async (req) => {
+    requireAdmin(req);
+    const { rows } = await pool.query(
+      `SELECT l.id, l.delta, l.reason, l.created_at, u.name, u.phone, u.email
+         FROM credit_ledger l JOIN users u ON u.id = l.user_id ORDER BY l.created_at DESC LIMIT 100`);
     return { items: rows };
   });
 
