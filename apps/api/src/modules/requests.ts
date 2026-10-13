@@ -7,6 +7,7 @@ import { listCategories, VISIBLE_CATEGORY_SQL, visibleSubcategory } from "./cate
 import { tx } from "../db.js";
 import { priceFor, unlockSettings } from "./contacts.js";
 import { attachMedia, imageUrls, MediaIds, mediaFor } from "./media.js";
+import { cleanVehicleDraft, isVehicleSub, parseVehicleAttrs, VehicleQuery, vehicleFilters } from "./vehicles.js";
 import { notifyAlarmMatches } from "./notifications.js";
 
 const LIST_COLUMNS = `
@@ -45,7 +46,8 @@ const CreateBody = z.object({
   city: z.string().refine((c) => CITIES.includes(c), "Geçerli bir il seçin."),
   district: z.string().trim().max(60).default(""),
   condition: z.enum(CONDITIONS),
-  attrs: z.record(z.string().max(30), z.union([z.string().max(60), z.number()])).default({}),
+  // Araç kategorilerinde ayrıntılı alanlar (birden fazla marka/model, yıl aralığı...) ayrıca doğrulanır.
+  attrs: z.record(z.string().max(30), z.unknown()).default({}),
   is_urgent: z.boolean().default(false),
   is_corporate: z.boolean().default(false),
   days: z.union([z.literal(7), z.literal(14), z.literal(30)]).default(14),
@@ -64,6 +66,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
 
   app.get("/requests", async (req) => {
     const q = ListQuery.parse(req.query);
+    const vq = VehicleQuery.parse(req.query);
     const where = ["r.status = 'active'", "r.expires_at > now()", VISIBLE_CATEGORY_SQL];
     const params: unknown[] = [];
     const add = (sql: string, v: unknown) => { params.push(v); where.push(sql.replaceAll("$?", `$${params.length}`)); };
@@ -85,6 +88,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     for (const [k, v] of Object.entries(q)) {
       if (k.startsWith("a_") && /^a_[a-z0-9]{1,20}$/.test(k) && typeof v === "string") add(`r.attrs->>'${k.slice(2)}' = ANY($?)`, v.split(","));
     }
+    vehicleFilters(vq, params, where);
     const whereSql = where.join(" AND ");
     const total = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n ${FROM} WHERE ${whereSql}`, params)).rows[0]!.n;
     params.push(q.per, (q.page - 1) * q.per);
@@ -152,7 +156,11 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const tops = new Map(cats.filter((c) => !c.parent_id).map((c) => [c.id, c.name]));
     const refs: CategoryRef[] = cats.filter((c) => c.parent_id).map((c) => ({ id: c.id, name: `${tops.get(c.parent_id!)} › ${c.name}`, parent: c.parent_id! }));
     const masked = maskContacts(text);
-    const [draft, moderation] = await Promise.all([ai.draftRequest(masked.text, refs), ai.moderate(masked.text)]);
+    const [rawDraft, moderation] = await Promise.all([ai.draftRequest(masked.text, refs), ai.moderate(masked.text)]);
+    // Araçta alanlar katalogla eşleştirilir; diğer kategorilerde yalnızca basit değerler kalır.
+    const draft = { ...rawDraft, attrs: rawDraft.category_id && isVehicleSub(rawDraft.category_id)
+      ? cleanVehicleDraft(rawDraft.category_id, rawDraft.attrs)
+      : Object.fromEntries(Object.entries(rawDraft.attrs).filter(([, v]) => typeof v === "string" || typeof v === "number")) };
     return { draft: { ...draft, title: maskContacts(draft.title).text, description: masked.text }, moderation, contacts_masked: masked.masked };
   });
 
@@ -167,6 +175,9 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     if (maxActive > 0 && active >= maxActive) throw new HttpError(409, "talep_siniri", `Aynı anda en fazla ${maxActive} açık talebiniz olabilir. Önce eski taleplerinizden birini kapatın.`);
     const cat = await visibleSubcategory(pool, b.category_id);
     if (!cat) throw new HttpError(400, "kategori_gecersiz", "Bu kategori şu anda talep kabul etmiyor.");
+    const attrs = isVehicleSub(b.category_id)
+      ? parseVehicleAttrs(b.category_id, b.attrs)
+      : z.record(z.string().max(30), z.union([z.string().max(60), z.number()])).parse(b.attrs);
     const budgetMin = b.budget_min ?? Math.round(b.budget_max * 0.8);
     if (budgetMin > b.budget_max) throw new HttpError(400, "butce_gecersiz", "En az bütçe, en fazla bütçeden büyük olamaz.");
     const title = maskContacts(b.title).text, description = maskContacts(b.description).text;
@@ -178,7 +189,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
         `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, condition, attrs,
                                is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now() + make_interval(days => $15), now()) RETURNING id`,
-        [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.condition, b.attrs,
+        [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.condition, attrs,
           b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days]);
       await attachMedia(c, user.id, b.media_ids, { request_id: rows[0]!.id });
       return rows[0]!.id;

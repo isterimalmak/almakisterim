@@ -157,3 +157,42 @@ test("boş kategori gezinirken görünmez; açılırsa boş liste yerine yönlen
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Anne & Bebek" })).toHaveCount(1);
 });
+
+test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bulur", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const buyer = await ctx.newPage();
+  const tag = rnd();
+  await loginSms(buyer, `0536${rnd().slice(0, 7)}`, "Burak Er");
+  await buyer.goto("/");
+  await buyer.getByLabel("Ne almak istiyorsunuz?").fill(`BMW 3 serisi veya Audi A4 almak istiyorum ${tag}, 2018 sonrası, dizel otomatik, bütçem 1,5 milyon TL, İstanbul`);
+  await buyer.getByRole("button", { name: "Talep Oluştur" }).click();
+  await expect(buyer.locator(".chip.on", { hasText: "BMW 3 Serisi" })).toBeVisible();
+  await expect(buyer.locator(".chip.on", { hasText: "Audi A4" })).toBeVisible();
+  await expect(buyer.getByLabel("Model yılı (en eski)")).toHaveValue("2018");
+  await expect(buyer.getByRole("button", { name: "Otomatik", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // Üçüncü araç elle eklenir.
+  await buyer.getByLabel("Marka", { exact: true }).selectOption("Mercedes-Benz");
+  await buyer.getByLabel("Model", { exact: true }).selectOption("C Serisi");
+  await buyer.getByRole("button", { name: "+ Ekle" }).click();
+  await expect(buyer.locator(".chip.on", { hasText: "Mercedes-Benz C Serisi" })).toBeVisible();
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await expect(buyer.getByText("BMW 3 Serisi, Audi A4, Mercedes-Benz C Serisi")).toBeVisible();
+  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(buyer.getByRole("heading", { level: 1 })).toContainText(tag);
+  await expect(buyer.getByText("BMW 3 Serisi, Audi A4, Mercedes-Benz C Serisi")).toBeVisible();
+
+  const seller = await (await browser.newContext()).newPage();
+  await seller.goto("/kategori/vasita");
+  // Telefonda filtreler "Filtrele" düğmesinin arkasında.
+  const toggle = seller.getByRole("button", { name: "Filtrele", exact: true });
+  if (await toggle.isVisible()) await toggle.click();
+  await seller.getByLabel("Aracın markası").selectOption("Audi");
+  await seller.getByLabel("Aracın modeli").selectOption("A4");
+  await seller.getByLabel("Aracın yılı").fill("2020");
+  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toBeVisible();
+  // 2015 model araç "2018 sonrası" talebine uymaz; ana listede çıkmaz (alttaki "diğer talepler"de görünebilir).
+  await seller.getByLabel("Aracın yılı").fill("2015");
+  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
+  await ctx.close();
+});

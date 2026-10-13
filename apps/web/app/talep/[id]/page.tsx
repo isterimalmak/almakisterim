@@ -6,11 +6,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker, Thumbs } from "@/components/Media";
 import { PhoneVerify } from "@/components/PhoneVerify";
+import { VehicleRows } from "@/components/VehicleFields";
 import { CatIcon, Labels } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type Contact, type Media, type Offer, type RequestDetail } from "@/lib/api";
 import { ATTRS, DELIVERY } from "@/lib/catalog";
 import { ago, budgetTxt, dateTr, fmt, initials, leftParts } from "@/lib/format";
+import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
 export default function RequestPage() {
   const { id } = useParams<{ id: string }>();
@@ -65,6 +67,7 @@ export default function RequestPage() {
               <tr><th>Kategori</th><td>{r.top_name} › {r.category_name}</td></tr>
               <tr><th>Ürün Durumu</th><td>{r.condition}</td></tr>
               {sch.filter((a) => r.attrs[a.k] !== undefined).map((a) => <tr key={a.k}><th>{a.l}</th><td>{a.t === "num" && a.k !== "yil" ? fmt(Number(r.attrs[a.k])) : String(r.attrs[a.k])}</td></tr>)}
+              {isVehicleSub(r.category_id) && <VehicleRows a={r.attrs as VehicleAttrs} />}
               <tr><th>Konum</th><td>{r.city}{r.district && ` / ${r.district}`}</td></tr>
               <tr><th>Alıcı Tipi</th><td>{r.is_corporate ? "Kurumsal (faturalı alım)" : "Bireysel"}</td></tr>
               <tr><th>Gelen Teklif</th><td>{r.offer_count}</td></tr>

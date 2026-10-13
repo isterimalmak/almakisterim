@@ -16,6 +16,7 @@ import { mediaRoutes } from "./modules/media.js";
 import { meRoutes } from "./modules/me.js";
 import { offerRoutes } from "./modules/offers.js";
 import { requestRoutes } from "./modules/requests.js";
+import { vehicleRoutes } from "./modules/vehicles.js";
 import { MemoryOutbox } from "./services/notify.js";
 
 // Loglara gizli bilgi düşmesin: çerez ve yetki başlıkları maskelenir; istek gövdeleri hiç loglanmaz.
@@ -68,6 +69,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     offerRoutes(api, deps);
     contactRoutes(api, deps);
     mediaRoutes(api, deps);
+    vehicleRoutes(api);
     meRoutes(api, deps);
     adminRoutes(api, deps);
     // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.

@@ -7,8 +7,11 @@ import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
+import { useVehicleCatalog } from "@/lib/vehicles";
 
-type F = { q: string; city: string; bmin: string; bmax: string; cond: string[]; attrs: Record<string, string[]>; urgent: boolean; noOffers: boolean; buyer: "" | "bireysel" | "kurumsal"; sort: string; page: number };
+type Veh = { marka: string; model: string; yil: string; km: string; yakit: string; vites: string };
+const NO_VEH: Veh = { marka: "", model: "", yil: "", km: "", yakit: "", vites: "" };
+type F = { veh: Veh; q: string; city: string; bmin: string; bmax: string; cond: string[]; attrs: Record<string, string[]>; urgent: boolean; noOffers: boolean; buyer: "" | "bireysel" | "kurumsal"; sort: string; page: number };
 const PER = 20;
 
 function Listing() {
@@ -18,7 +21,7 @@ function Listing() {
   const [top, sub] = slug;
   const t = categories.find((c) => c.id === top);
   const s = t?.subs.find((x) => x.id === sub);
-  const initial = (): F => ({ q: sp.get("q") ?? "", city: "", bmin: "", bmax: "", cond: [], attrs: {}, urgent: sp.get("acil") === "1", noOffers: sp.get("teklifsiz") === "1", buyer: (sp.get("buyer") as F["buyer"]) ?? "", sort: "new", page: 1 });
+  const initial = (): F => ({ veh: NO_VEH, q: sp.get("q") ?? "", city: "", bmin: "", bmax: "", cond: [], attrs: {}, urgent: sp.get("acil") === "1", noOffers: sp.get("teklifsiz") === "1", buyer: (sp.get("buyer") as F["buyer"]) ?? "", sort: "new", page: 1 });
   const [f, setF] = useState<F>(initial);
   const [data, setData] = useState<{ total: number; items: RequestItem[] } | null>(null);
   const [openFilters, setOpenFilters] = useState(false);
@@ -38,6 +41,13 @@ function Listing() {
     if (f.urgent) p.set("urgent", "1");
     if (f.noOffers) p.set("no_offers", "1");
     if (f.buyer) p.set("buyer", f.buyer);
+    const v = f.veh;
+    if (v.marka) p.set("arac_marka", v.marka);
+    if (v.marka && v.model) p.set("arac_model", v.model);
+    if (v.yil) p.set("arac_yil", v.yil);
+    if (v.km) p.set("arac_km", v.km);
+    if (v.yakit) p.set("arac_yakit", v.yakit);
+    if (v.vites) p.set("arac_vites", v.vites);
     p.set("sort", f.sort);
     p.set("page", String(f.page));
     p.set("per", String(PER));
@@ -60,6 +70,9 @@ function Listing() {
   const title = s ? `${s.name} Alım Talepleri` : t ? `${t.name} Alım Talepleri` : f.q ? `"${f.q}" için talepler` : "Tüm Alım Talepleri";
   const pages = data ? Math.max(1, Math.ceil(data.total / PER)) : 1;
   const selAttrs = (t && ATTRS[t.id]?.filter((a) => a.t === "sel")) ?? [];
+  const cat = useVehicleCatalog();
+  const vehBrands = cat ? (sub === "motosiklet" ? cat.moto : cat.cars) : {};
+  const setVeh = (p: Partial<Veh>) => set({ veh: { ...f.veh, ...p } });
 
   const saveAlarm = async () => {
     if (!user) { toast("Alarm kurmak için giriş yapın."); return; }
@@ -87,6 +100,16 @@ function Listing() {
               </>
             ) : browseCategories.map((x) => <Link key={x.id} href={`/kategori/${x.id}`}><span>{x.name}</span><span className="n">{count(x.active_count)}</span></Link>)}
           </div>
+          {top === "vasita" && cat && (
+            <div className="flt-sec veh-flt">
+              <h4>Elimdeki araç</h4>
+              <p className="hint" style={{ marginTop: 0 }}>Satacağınız aracı girin, ona uyan talepleri görün.</p>
+              <select className="sel" aria-label="Aracın markası" value={f.veh.marka} onChange={(e) => setVeh({ marka: e.target.value, model: "" })}><option value="">Marka</option>{Object.keys(vehBrands).map((b) => <option key={b}>{b}</option>)}</select>
+              <select className="sel" aria-label="Aracın modeli" value={f.veh.model} disabled={!f.veh.marka} onChange={(e) => setVeh({ model: e.target.value })}><option value="">Model</option>{(vehBrands[f.veh.marka] ?? []).map((m) => <option key={m}>{m}</option>)}</select>
+              <div className="mm"><input className="inp" type="number" placeholder="Yılı" aria-label="Aracın yılı" value={f.veh.yil} onChange={(e) => setVeh({ yil: e.target.value })} /><input className="inp" type="number" placeholder="Km" aria-label="Aracın kilometresi" value={f.veh.km} onChange={(e) => setVeh({ km: e.target.value })} /></div>
+              <div className="mm"><select className="sel" aria-label="Aracın yakıtı" value={f.veh.yakit} onChange={(e) => setVeh({ yakit: e.target.value })}><option value="">Yakıt</option>{cat.fuels.map((x) => <option key={x}>{x}</option>)}</select><select className="sel" aria-label="Aracın vitesi" value={f.veh.vites} onChange={(e) => setVeh({ vites: e.target.value })}><option value="">Vites</option>{cat.gears.map((x) => <option key={x}>{x}</option>)}</select></div>
+            </div>
+          )}
           <div className="flt-sec"><h4>Kelime</h4><input className="inp" value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Talepte ara" /></div>
           <div className="flt-sec"><h4>Adres</h4><select className="sel" value={f.city} onChange={(e) => set({ city: e.target.value })} aria-label="İl"><option value="">Tüm iller</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
           <div className="flt-sec"><h4>Alıcının bütçesi (TL)</h4><div className="mm"><input className="inp" type="number" placeholder="en az" value={f.bmin} onChange={(e) => set({ bmin: e.target.value })} aria-label="Bütçe en az" /><input className="inp" type="number" placeholder="en çok" value={f.bmax} onChange={(e) => set({ bmax: e.target.value })} aria-label="Bütçe en çok" /></div></div>
