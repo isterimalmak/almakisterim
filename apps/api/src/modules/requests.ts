@@ -19,12 +19,12 @@ const LIST_COLUMNS = `
   (SELECT count(*)::int FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn') AS offer_count,
   (SELECT m.storage_key FROM media m WHERE m.request_id = r.id AND m.kind = 'image' ORDER BY m.position LIMIT 1) AS cover_key,
   (SELECT count(*)::int FROM media m WHERE m.request_id = r.id) AS media_count`;
-const FROM = `FROM requests r JOIN categories c ON c.id = r.category_id JOIN categories p ON p.id = c.parent_id JOIN users u ON u.id = r.buyer_id`;
+export const FROM = `FROM requests r JOIN categories c ON c.id = r.category_id JOIN categories p ON p.id = c.parent_id JOIN users u ON u.id = r.buyer_id`;
 
 type Row = Record<string, unknown> & { buyer_id: string; buyer_name: string };
 const publicRow = ({ buyer_id: _b, buyer_name, ...r }: Row) => ({ ...r, buyer_name: publicName(buyer_name) });
 
-const ListQuery = z.object({
+export const ListQuery = z.object({
   top: z.string().optional(), sub: z.string().optional(), q: z.string().max(100).optional(),
   city: z.string().optional(), district: z.string().max(60).optional(), neighbourhood: z.string().max(80).optional(), bmin: z.coerce.number().int().optional(), bmax: z.coerce.number().int().optional(),
   cond: z.string().optional(), urgent: z.enum(["1"]).optional(), no_offers: z.enum(["1"]).optional(), featured: z.enum(["1"]).optional(),
@@ -60,6 +60,53 @@ const CreateBody = z.object({
   contact_consent: z.literal(true, { error: "Talep vermek için numaranızın satıcılarla paylaşılmasını onaylamalısınız." }),
 });
 
+// Talep listesinin süzgeçleri (kategori, il/ilçe/mahalle, bütçe, durum, özellikler, araç…). Talep alarmları da aynı
+// süzgeçleri kullanır: alarm, kaydedilmiş bir aramadır.
+export function listFilters(raw: Record<string, unknown>) {
+  const q = ListQuery.parse(raw);
+  const vq = VehicleQuery.parse(raw);
+  const where = ["r.status = 'active'", "r.expires_at > now()", VISIBLE_CATEGORY_SQL];
+  const params: unknown[] = [];
+  const add = (sql: string, v: unknown) => { params.push(v); where.push(sql.replaceAll("$?", `$${params.length}`)); };
+  if (q.top) add("p.id = $?", q.top);
+  if (q.sub) add("c.id = $?", q.sub);
+  if (q.q) {
+    if (/^\d{7,}$/.test(q.q.trim())) add("r.id = $?", Number(q.q.trim()));
+    else add("(r.title ILIKE $? OR r.description ILIKE $?)", `%${q.q.replace(/[%_\\]/g, "\\$&")}%`);
+  }
+  if (q.city) add("r.city = $?", q.city);
+  // İlçe/mahalle: alıcı o ilçeyi seçmişse ya da ilçe "farketmez" demişse (boş) uyar.
+  if (q.city && q.district) add("(r.district = '' OR r.district = $?)", matchDistrict(q.city, q.district) ?? q.district);
+  if (q.city && q.district && q.neighbourhood) add("(r.neighbourhood = '' OR r.neighbourhood = $?)", q.neighbourhood);
+  if (q.bmin !== undefined) add("r.budget_max >= $?", q.bmin);
+  if (q.bmax !== undefined) add("r.budget_min <= $?", q.bmax);
+  if (q.cond) add("r.condition = ANY($?)", q.cond.split(","));
+  if (q.urgent) where.push("r.is_urgent");
+  if (q.featured) where.push("r.featured_until > now()");
+  if (q.no_offers) where.push("NOT EXISTS (SELECT 1 FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn')");
+  if (q.buyer === "kurumsal") where.push("r.is_corporate");
+  if (q.buyer === "bireysel") where.push("NOT r.is_corporate");
+  // Kategoriye özel özellik filtreleri: ?a_imar=Konut,Ticari. Alıcı o özelliği seçmemiş ya da "Farketmez" demişse de uyar.
+  for (const [k, v] of Object.entries(q)) {
+    if (/^a_[a-z0-9_]{1,20}$/.test(k) && typeof v === "string") {
+      const key = k.slice(2);
+      // Boş bırakılmış özellik yalnızca kategori seçiliyken "farketmez" sayılır (başka kategorinin talebi karışmasın).
+      const open = q.top || q.sub ? `coalesce(r.attrs->>'${key}', '') IN ('', 'Farketmez')` : `r.attrs->>'${key}' = 'Farketmez'`;
+      add(`(${open} OR r.attrs->>'${key}' = ANY($?))`, v.split(",").slice(0, 20));
+    }
+  }
+  vehicleFilters(vq, params, where);
+  return { where, params };
+}
+
+/** Bu talep, kaydedilmiş aramaya (alarm süzgeçlerine) uyuyor mu? */
+export async function requestMatches(pool: Deps["pool"], requestId: number, filters: Record<string, unknown>) {
+  const { where, params } = listFilters(filters);
+  params.push(requestId);
+  const r = await pool.query(`SELECT 1 ${FROM} WHERE ${where.join(" AND ")} AND r.id = $${params.length}`, params);
+  return !!r.rowCount;
+}
+
 export function requestRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, ai, storage } = deps;
   // Listede ilk fotoğraf kapak olarak gösterilir.
@@ -70,33 +117,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
 
   app.get("/requests", async (req) => {
     const q = ListQuery.parse(req.query);
-    const vq = VehicleQuery.parse(req.query);
-    const where = ["r.status = 'active'", "r.expires_at > now()", VISIBLE_CATEGORY_SQL];
-    const params: unknown[] = [];
-    const add = (sql: string, v: unknown) => { params.push(v); where.push(sql.replaceAll("$?", `$${params.length}`)); };
-    if (q.top) add("p.id = $?", q.top);
-    if (q.sub) add("c.id = $?", q.sub);
-    if (q.q) {
-      if (/^\d{7,}$/.test(q.q.trim())) add("r.id = $?", Number(q.q.trim()));
-      else add("(r.title ILIKE $? OR r.description ILIKE $?)", `%${q.q.replace(/[%_\\]/g, "\\$&")}%`);
-    }
-    if (q.city) add("r.city = $?", q.city);
-    // İlçe/mahalle: alıcı o ilçeyi seçmişse ya da ilçe "farketmez" demişse (boş) uyar.
-    if (q.city && q.district) add("(r.district = '' OR r.district = $?)", matchDistrict(q.city, q.district) ?? q.district);
-    if (q.city && q.district && q.neighbourhood) add("(r.neighbourhood = '' OR r.neighbourhood = $?)", q.neighbourhood);
-    if (q.bmin !== undefined) add("r.budget_max >= $?", q.bmin);
-    if (q.bmax !== undefined) add("r.budget_min <= $?", q.bmax);
-    if (q.cond) add("r.condition = ANY($?)", q.cond.split(","));
-    if (q.urgent) where.push("r.is_urgent");
-    if (q.featured) where.push("r.featured_until > now()");
-    if (q.no_offers) where.push("NOT EXISTS (SELECT 1 FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn')");
-    if (q.buyer === "kurumsal") where.push("r.is_corporate");
-    if (q.buyer === "bireysel") where.push("NOT r.is_corporate");
-    // Kategoriye özel özellik filtreleri: ?a_marka=Apple,Samsung
-    for (const [k, v] of Object.entries(q)) {
-      if (k.startsWith("a_") && /^a_[a-z0-9]{1,20}$/.test(k) && typeof v === "string") add(`r.attrs->>'${k.slice(2)}' = ANY($?)`, v.split(","));
-    }
-    vehicleFilters(vq, params, where);
+    const { where, params } = listFilters(req.query as Record<string, unknown>);
     const whereSql = where.join(" AND ");
     const total = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n ${FROM} WHERE ${whereSql}`, params)).rows[0]!.n;
     params.push(q.per, (q.page - 1) * q.per);

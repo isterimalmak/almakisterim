@@ -287,7 +287,7 @@ test("boş kategori gezinirken görünmez; açılırsa boş liste yerine yönlen
   await expect(page.locator(".subnav").getByText("Anne & Bebek")).toHaveCount(0);
   await page.goto("/kategori/bebek");
   await expect(page.getByText("için talepler yakında burada")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Talep gelince haber ver", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Talep gelince haber ver" })).toHaveAttribute("href", "/bana-ozel?s=alarm");
   await expect(page.getByText("0 talep bulundu")).toHaveCount(0);
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Anne & Bebek" })).toHaveCount(1);
@@ -453,9 +453,20 @@ test("talep formunda alt kategoriye göre seçenekler çıkar: arsada imar ve ta
   await expect(page.getByLabel("İmar durumu")).toHaveCount(0);
 });
 
-test("talep listesinde 'haber ver' düğmesi tek satırda durur", async ({ page }) => {
-  await page.goto("/kategori/vasita");
-  const btn = page.getByRole("button", { name: "Yeni talep gelince haber ver" });
-  await expect(btn).toBeVisible();
-  expect((await btn.boundingBox())!.height).toBeLessThanOrEqual(34);
+test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütçe aralığı", async ({ page }) => {
+  await loginSms(page, `0539${rnd().slice(0, 7)}`, "Arsa Satıcısı");
+  await page.goto("/bana-ozel?s=alarm");
+  await page.getByLabel("Kategori *").selectOption("arsa");
+  await page.getByLabel("İl", { exact: true }).selectOption("İzmir");
+  await page.getByLabel("İlçe", { exact: true }).selectOption("Urla");
+  await page.getByLabel("Alıcı bütçesi en az (TL)").fill("1000000");
+  await page.getByLabel("Alıcı bütçesi en fazla (TL)").fill("5000000");
+  await page.getByRole("button", { name: "Konut", exact: true }).click();
+  await page.getByRole("button", { name: "Alarm kur" }).click();
+  await expect(page.getByText("Alarm kuruldu.", { exact: false })).toBeVisible();
+  const row = page.locator(".tbl tbody tr", { hasText: "Emlak › Arsa" });
+  await expect(row.getByText("İzmir / Urla")).toBeVisible();
+  await expect(row.getByText("1.000.000 – 5.000.000 TL")).toBeVisible();
+  await expect(row.getByText("İmar durumu: Konut")).toBeVisible();
+
 });

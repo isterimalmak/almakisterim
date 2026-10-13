@@ -6,6 +6,8 @@ import { CITIES } from "../services/ai.js";
 import { unreadMessages } from "./messages.js";
 import { VISIBLE_CATEGORY_SQL } from "./categories.js";
 import { freeUnlocksUsed, unlockSettings } from "./contacts.js";
+import { ALARM_SELECT, alarmQuery, cleanAlarmFilters, type AlarmRow } from "./alarms.js";
+import { FROM, listFilters } from "./requests.js";
 
 export function meRoutes(app: FastifyInstance, { pool }: Deps) {
   app.get("/me", async (req) => {
@@ -42,43 +44,49 @@ export function meRoutes(app: FastifyInstance, { pool }: Deps) {
     return { items: rows };
   });
 
-  // Satıcıya uygun talepler: alarm kurduğu kategoriler ve iller.
+  // Satıcıya uygun talepler: alarmlarının (kaydedilmiş aramalarının) herhangi birine uyan açık talepler.
   app.get("/me/matches", async (req) => {
     const user = requireUser(req);
+    const alarms = (await pool.query<AlarmRow>(ALARM_SELECT + " WHERE a.user_id = $1", [user.id])).rows;
+    const ids = new Set<number>();
+    for (const a of alarms) {
+      const { where, params } = listFilters(alarmQuery(a));
+      params.push(user.id);
+      const r = await pool.query<{ id: number }>(`SELECT r.id ${FROM} WHERE ${where.join(" AND ")} AND r.buyer_id <> $${params.length} ORDER BY r.id DESC LIMIT 100`, params);
+      r.rows.forEach((x) => ids.add(Number(x.id)));
+    }
+    if (!ids.size) return { items: [] };
     const { rows } = await pool.query(
-      `SELECT DISTINCT ON (r.id) r.id, r.title, r.budget_min, r.budget_max, r.city, r.created_at, c.name AS category_name,
+      `SELECT r.id, r.title, r.budget_min, r.budget_max, r.city, r.created_at, c.name AS category_name,
               (SELECT count(*)::int FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn') AS offer_count,
-              EXISTS (SELECT 1 FROM offers o WHERE o.request_id = r.id AND o.seller_id = $1) AS already_offered
-         FROM alarms a
-         JOIN categories c ON (c.id = a.category_id OR c.parent_id = a.category_id)
-         LEFT JOIN categories p ON p.id = c.parent_id
-         JOIN requests r ON r.category_id = c.id
-        WHERE a.user_id = $1 AND r.buyer_id <> $1 AND r.status = 'active' AND r.expires_at > now()
-          AND (a.city = '' OR a.city = r.city) AND r.budget_max >= a.min_budget AND ${VISIBLE_CATEGORY_SQL}
-        ORDER BY r.id DESC LIMIT 100`, [user.id]);
+              EXISTS (SELECT 1 FROM offers o WHERE o.request_id = r.id AND o.seller_id = $2) AS already_offered
+         FROM requests r JOIN categories c ON c.id = r.category_id WHERE r.id = ANY($1::bigint[]) ORDER BY r.id DESC LIMIT 100`, [[...ids], user.id]);
     return { items: rows };
   });
 
   app.get("/me/alarms", async (req) => {
     const user = requireUser(req);
     const { rows } = await pool.query(
-      `SELECT a.id, a.category_id, c.name AS category_name, a.city, a.min_budget, a.created_at
-         FROM alarms a JOIN categories c ON c.id = a.category_id WHERE a.user_id = $1 ORDER BY a.created_at DESC`, [user.id]);
+      `SELECT a.id, a.category_id, c.name AS category_name, p.name AS top_name, a.filters, a.created_at
+         FROM alarms a JOIN categories c ON c.id = a.category_id LEFT JOIN categories p ON p.id = c.parent_id
+        WHERE a.user_id = $1 ORDER BY a.created_at DESC`, [user.id]);
     return { items: rows };
   });
 
+  // Alarm kur: kategori + talep listesindeki süzgeçlerin aynısı (eski istemciler için city/min_budget de kabul edilir).
   app.post("/me/alarms", async (req, reply) => {
     const user = requireUser(req);
     const b = z.object({
-      category_id: z.string(), city: z.string().default("").refine((c) => c === "" || CITIES.includes(c), "Geçerli bir il seçin."),
-      min_budget: z.number().int().min(0).default(0),
+      category_id: z.string(), city: z.string().optional(), min_budget: z.number().int().min(0).optional(),
+      filters: z.record(z.string().max(30), z.union([z.string().max(300), z.number()])).default({}),
     }).parse(req.body);
+    const filters = cleanAlarmFilters({ ...(b.city ? { city: b.city } : {}), ...(b.min_budget ? { bmin: String(b.min_budget) } : {}), ...b.filters });
     const count = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM alarms WHERE user_id = $1", [user.id])).rows[0]!.n;
     if (count >= 20) throw new HttpError(400, "alarm_siniri", "En fazla 20 alarm kurabilirsiniz.");
     const cat = await pool.query("SELECT 1 FROM categories WHERE id = $1", [b.category_id]);
     if (!cat.rowCount) throw new HttpError(400, "kategori_gecersiz", "Kategori bulunamadı.");
-    const { rows } = await pool.query<{ id: number }>("INSERT INTO alarms (user_id, category_id, city, min_budget) VALUES ($1,$2,$3,$4) RETURNING id",
-      [user.id, b.category_id, b.city, b.min_budget]);
+    const { rows } = await pool.query<{ id: number }>("INSERT INTO alarms (user_id, category_id, city, min_budget, filters) VALUES ($1,$2,$3,$4,$5) RETURNING id",
+      [user.id, b.category_id, filters.city ?? "", Number(filters.bmin) || 0, filters]);
     reply.code(201);
     return { id: rows[0]!.id };
   });

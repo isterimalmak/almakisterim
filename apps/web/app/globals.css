@@ -186,7 +186,6 @@ input,select,textarea{font:inherit;color:inherit}
 .pager button{min-width:32px;height:32px;border:1px solid var(--line);background:#fff;border-radius:3px;font-size:13px}
 .pager button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted);background:#fff}
-.save-alarm{font-size:12.5px;display:flex;align-items:center;gap:5px}
 .flt-toggle{display:none}
 
 /* detay */
@@ -588,8 +587,6 @@ button.link{padding:0;font-size:inherit}
 .fchip span{display:grid;place-items:center;width:16px;height:16px;border-radius:50%;background:rgba(19,35,91,.12);font-size:12px;line-height:1}
 .fchip:hover span{background:var(--navy);color:#fff}
 .res-tools{padding:0!important}
-.save-alarm{height:30px;padding:0 12px;border-radius:15px;border:1px solid #F7C9A9;background:var(--orange-soft);color:var(--orange-d);font-weight:700}
-.save-alarm:hover{background:var(--orange);color:#fff;border-color:var(--orange)}
 .flt-toggle .badge{margin-left:6px}
 @media (max-width:860px){.res-bar{flex-direction:column}.res-tools{width:100%;justify-content:space-between}}
 
@@ -732,7 +729,3 @@ button.link{padding:0;font-size:inherit}
 .ap-int small{color:#8592A6;font-size:12px}
 .ap-dot{width:10px;height:10px;border-radius:50%;background:#C9D2E0;flex:none}
 .ap-int.on .ap-dot{background:#16A34A;box-shadow:0 0 0 3px #E7F7EC}
-/* "Haber ver" (aramayı alarm olarak kaydet): tek satır, telefonda kısa yazı */
-.save-alarm{white-space:nowrap;flex:none}
-.save-alarm .sa-s{display:none}
-@media (max-width:860px){.save-alarm .sa-l{display:none}.save-alarm .sa-s{display:inline}.res-tools .sel{flex:0 1 auto;max-width:55%}}

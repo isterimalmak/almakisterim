@@ -4,16 +4,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { PhoneVerify } from "@/components/PhoneVerify";
+import { AlarmForm, alarmSummary, type Alarm } from "@/components/AlarmForm";
 import { useSession } from "@/components/Session";
 import { api } from "@/lib/api";
-import { CITIES } from "@/lib/catalog";
-import { ago, budgetTxt, dateTr, fmt, initials } from "@/lib/format";
+import { ago, budgetTxt, dateTr, initials } from "@/lib/format";
 
 type Row = { id: number; title: string; status?: string; budget_min: number; budget_max: number; city?: string; created_at: string; category_name?: string; offer_count?: number; already_offered?: boolean };
 type Conv = { request_id: number; title: string; role: "alici" | "satici"; other_name: string; last_body: string; last_at: string; unread: number };
 type Unlock = { id: number; request_id: number; title: string; status: string; phone: string | null; phone_note: string | null; credits: number; is_free: boolean; created_at: string; refunded: boolean; report_status: string | null };
 type Notif = { id: number; text: string; link: string; read_at: string | null; created_at: string };
-type Alarm = { id: number; category_id: string; category_name: string; city: string; min_budget: number };
 
 const STATUS: Record<string, [string, string]> = {
   active: ["Yayında", "l-gr"], pending_review: ["İncelemede", "l-am"], closed: ["Kapandı", "l-gy"], expired: ["Süresi doldu", "l-gy"], rejected: ["Reddedildi", "l-acil"],
@@ -30,7 +29,6 @@ function Account() {
   const [alarms, setAlarms] = useState<Alarm[] | null>(null);
   const [unlocks, setUnlocks] = useState<Unlock[] | null>(null);
   const [notifs, setNotifs] = useState<Notif[] | null>(null);
-  const [na, setNa] = useState({ category_id: "", city: "", min_budget: "" });
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -70,11 +68,6 @@ function Account() {
     </tbody></table>
   ) : <div className="empty">{alarms?.length ? "Alarmlarınıza uyan açık talep şu an yok." : <>Size uygun talepleri görmek için <Link className="link" href="/bana-ozel?s=alarm">talep alarmı kurun</Link>: hangi kategoride ve ilde satış yaptığınızı seçin.</>}</div>;
 
-  const addAlarm = async () => {
-    if (!na.category_id) return toast("Kategori seçin.");
-    try { await api("/me/alarms", { body: { category_id: na.category_id, city: na.city, min_budget: Number(na.min_budget) || 0 } }); toast("Alarm kuruldu."); setNa({ category_id: "", city: "", min_budget: "" }); void load(); }
-    catch (e) { toast((e as Error).message); }
-  };
 
   let content: React.ReactNode = <div className="loading">Yükleniyor…</div>;
   if (s === "ozet") content = (
@@ -123,21 +116,14 @@ function Account() {
     <>
       <div className="box" style={{ marginBottom: 14 }}><div className="box-h"><h2>Talep Alarmları</h2></div>
         {!alarms ? content : alarms.length ? (
-          <table className="tbl"><thead><tr><th>Kategori</th><th>İl</th><th>Bütçe</th><th></th></tr></thead><tbody>
-            {alarms.map((a) => <tr key={a.id}><td>{a.category_name}</td><td data-m="İl">{a.city || "Tüm iller"}</td><td data-m="Bütçe">{a.min_budget ? `${fmt(a.min_budget)} TL ve üstü` : "Farketmez"}</td>
+          <table className="tbl"><thead><tr><th>Kategori</th><th>Ayrıntılar</th><th></th></tr></thead><tbody>
+            {alarms.map((a) => <tr key={a.id}><td><b>{a.top_name ? `${a.top_name} › ${a.category_name}` : a.category_name}</b></td>
+              <td data-m="Ayrıntılar"><div className="chips">{alarmSummary(a, categories.find((t) => t.id === a.category_id || t.subs.some((x) => x.id === a.category_id))?.id).map((x) => <span key={x} className="chip">{x}</span>)}</div></td>
               <td className="r act-cell"><button className="btn btn-gh btn-sm" onClick={async () => { await api(`/me/alarms/${a.id}`, { method: "DELETE" }); void load(); }}>Sil</button></td></tr>)}
           </tbody></table>
         ) : <div className="empty">Alarm yok.</div>}
       </div>
-      <div className="box"><div className="box-h"><h3>Yeni alarm</h3></div><div className="box-b">
-        <div className="form-grid">
-          <div className="fg"><label htmlFor="al-top">Kategori</label><select className="sel" id="al-top" value={na.category_id} onChange={(e) => setNa({ ...na, category_id: e.target.value })}><option value="">Seçin</option>{categories.map((t) => <optgroup key={t.id} label={t.name}><option value={t.id}>{t.name} (tümü)</option>{t.subs.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</optgroup>)}</select></div>
-          <div className="fg"><label htmlFor="al-c">İl</label><select className="sel" id="al-c" value={na.city} onChange={(e) => setNa({ ...na, city: e.target.value })}><option value="">Tüm iller</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
-          <div className="fg"><label htmlFor="al-max">Alıcı bütçesi en az (TL)</label><input className="inp" id="al-max" type="number" value={na.min_budget} onChange={(e) => setNa({ ...na, min_budget: e.target.value })} /></div>
-          <div className="fg"><label>&nbsp;</label><button className="btn btn-bl" onClick={addAlarm}>Alarm kur</button></div>
-        </div>
-        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Uygun yeni talep geldiğinde SMS veya e-posta ile bildirim alırsınız.</p>
-      </div></div>
+      <AlarmForm onSaved={() => void load()} />
     </>
   );
   if (s === "kredi") content = (

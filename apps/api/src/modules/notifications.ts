@@ -1,4 +1,5 @@
 import type { Deps } from "../context.js";
+import { alarmOwnersFor } from "./alarms.js";
 
 type Contact = { email: string | null; phone: string | null };
 
@@ -8,20 +9,18 @@ export async function notifyUser({ sms, mailer }: Pick<Deps, "sms" | "mailer">, 
   else if (to.email) await mailer.send(to.email, subject, text);
 }
 
-// Yeni talep yayına girince alarmı uyan satıcılara haber verilir.
+// Yeni talep yayına girince alarmı (kaydedilmiş araması) uyan satıcılara haber verilir.
 export async function notifyAlarmMatches(deps: Deps, requestId: number) {
   const { pool, config } = deps;
-  const { rows } = await pool.query<Contact & { title: string; budget_max: number }>(
-    `SELECT DISTINCT ON (u.id) u.email, u.phone, r.title, r.budget_max
-       FROM requests r
-       JOIN categories c ON c.id = r.category_id
-       JOIN alarms a ON (a.category_id = c.id OR a.category_id = c.parent_id)
-       JOIN users u ON u.id = a.user_id
-      WHERE r.id = $1 AND u.id <> r.buyer_id
-        AND (a.city = '' OR a.city = r.city) AND r.budget_max >= a.min_budget
-      LIMIT 500`, [requestId]);
+  const owners = await alarmOwnersFor(pool, requestId);
+  if (!owners.length) return;
+  const r = (await pool.query<{ title: string; budget_max: number }>("SELECT title, budget_max FROM requests WHERE id = $1", [requestId])).rows[0];
+  if (!r) return;
+  const { rows } = await pool.query<Contact & { id: string }>("SELECT id, email, phone FROM users WHERE id = ANY($1::uuid[])", [owners]);
+  const text = `almakisterim: alarmınıza uyan yeni talep: "${r.title}" (bütçe ${r.budget_max.toLocaleString("tr-TR")} TL). ${config.APP_URL}/talep/${requestId}`;
   for (const m of rows) {
-    const text = `almakisterim: alarmınıza uyan yeni talep: "${m.title}" (bütçe ${m.budget_max.toLocaleString("tr-TR")} TL). ${config.APP_URL}/talep/${requestId}`;
+    // Site içi bildirim her zaman; SMS/e-posta bağlıysa ayrıca.
+    await pool.query("INSERT INTO notifications (user_id, text, link) VALUES ($1, $2, $3)", [m.id, `Alarmınıza uyan yeni talep: "${r.title}"`, `/talep/${requestId}`]).catch(() => {});
     await notifyUser(deps, m, "Size uygun yeni bir talep var", text).catch(() => {});
   }
 }
