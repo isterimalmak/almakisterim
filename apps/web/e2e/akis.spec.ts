@@ -273,6 +273,8 @@ test("site uygulama gibi yüklenebilir; telefonda alt menü çalışır", async 
   const bar = page.getByRole("navigation", { name: "Uygulama menüsü" });
   if (info.project.name !== "telefon") { await expect(bar).toBeHidden(); return; }
   await expect(bar).toBeVisible();
+  // Üstteki şeritte "Ana Sayfa" tekrar edilmez; alt menüde var.
+  await expect(page.locator(".subnav .sn-home")).toBeHidden();
   await bar.getByRole("link", { name: "Talepler" }).click();
   await page.waitForURL(/\/kategori/);
   await bar.getByRole("link", { name: "Talep Ver" }).click();

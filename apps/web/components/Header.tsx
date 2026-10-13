@@ -45,9 +45,10 @@ export function Header() {
         </div>
         <div className="mob-search"><SearchForm compact /></div>
       </header>
-      <nav className="subnav" aria-label="Kategoriler">
+      {/* Telefonda "Ana Sayfa" alt menüde var; başka bağlantı yoksa bu şerit hiç gösterilmez. */}
+      <nav className={"subnav" + (browseCategories.length || user?.role === "admin" ? "" : " sn-empty")} aria-label="Kategoriler">
         <div className="wrap subnav-in">
-          <Link href="/" className={path === "/" ? "on" : ""}>Ana Sayfa</Link>
+          <Link href="/" className={"sn-home" + (path === "/" ? " on" : "")}>Ana Sayfa</Link>
           {browseCategories.map((t) => <Link key={t.id} href={`/kategori/${t.id}`} className={path.startsWith(`/kategori/${t.id}`) ? "on" : ""}>{t.name}</Link>)}
           {user?.role === "admin" && <Link href="/yonetim" className={path === "/yonetim" ? "on" : ""}>Yönetim Paneli</Link>}
         </div>
