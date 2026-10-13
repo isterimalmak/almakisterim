@@ -91,6 +91,18 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(1);
 
+  // Acil talepler vitrini yönetimden açılıp kapanır.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ayarlar" }).click();
+  const box = page.getByLabel(/Acil Alım Talepleri" vitrini/);
+  await box.check();
+  await page.getByRole("button", { name: "Kaydet" }).click();
+  await expect(page.getByText("Ayarlar kaydedildi.")).toBeVisible();
+  expect((await (await page.request.get(`${API}/api/categories`)).json()).home_urgent_box).toBe(true);
+  await box.uncheck();
+  await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/settings") && r.request().method() === "PUT"), page.getByRole("button", { name: "Kaydet" }).click()]);
+  expect((await (await page.request.get(`${API}/api/categories`)).json()).home_urgent_box).toBe(false);
+
   // Reklam alanı: resim yüklenir, başlık ve bağlantı verilir, ana sayfada soldaki kategorilerin altında görünür.
   const ad = `Galeri reklamı ${rnd()}`;
   await page.goto("/yonetim");
@@ -301,4 +313,22 @@ test("alıcı il/ilçe/mahalle seçer; satıcı İstanbul → Kadıköy diye ara
   await seller.getByLabel("İlçe", { exact: true }).selectOption("Üsküdar");
   await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
   await ctx.close();
+});
+
+test("acil talepler solda kategorilerin üstünde bağlantı olarak durur; ortadaki vitrin varsayılan kapalı", async ({ page }, info) => {
+  const title = `Acil laptop ${rnd()}`;
+  await loginSms(page, `0538${rnd().slice(0, 7)}`, "Okan Er");
+  await page.goto(`/talep-ver?metin=${encodeURIComponent(`${title} acil lazım, bütçem 30 bin TL, İzmir`)}`);
+  await expect(page.getByLabel("Talep başlığı *")).toHaveValue(new RegExp(title));
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.getByLabel(/kurallarını/).check();
+  await page.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(title);
+  await page.goto("/");
+  const link = info.project.name === "telefon" ? page.locator(".cat-tiles .ct-acil-tile") : page.locator(".ctree .ct-quick a");
+  await expect(link).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Acil Alım Talepleri" })).toHaveCount(0);
+  await link.click();
+  await page.waitForURL(/acil=1/);
+  await expect(page.locator(".tbl-wrap").getByRole("link", { name: new RegExp(title) })).toBeVisible();
 });

@@ -16,11 +16,12 @@ type Ctx = {
   count: (n: number | undefined | null) => number | null;
   launchMode: boolean;
   phoneRequired: boolean;
+  homeUrgentBox: boolean;
   refresh: () => Promise<void>;
   toast: (msg: string) => void;
 };
 
-const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, refresh: async () => {}, toast: () => {} });
+const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, homeUrgentBox: false, refresh: async () => {}, toast: () => {} });
 export const useSession = () => useContext(SessionCtx);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -30,18 +31,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [browse, setBrowse] = useState<Browse>({ min_requests: 1, show_counts_min: 0 });
   const [launchMode, setLaunchMode] = useState(false);
   const [phoneRequired, setPhoneRequired] = useState(false);
+  const [homeUrgentBox, setHomeUrgentBox] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
 
   const refresh = useCallback(async () => {
     const [me, cats] = await Promise.all([
       api<{ user: User | null }>("/me").catch(() => ({ user: null })),
-      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false })),
+      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; home_urgent_box?: boolean }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, home_urgent_box: false })),
     ]);
     setUser(me.user);
     setCategories(cats.categories);
     if (cats.browse) setBrowse(cats.browse);
     setLaunchMode(!!cats.launch_mode);
     setPhoneRequired(!!cats.phone_required);
+    setHomeUrgentBox(!!cats.home_urgent_box);
     setReady(true);
   }, []);
 
@@ -59,7 +62,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const count = useCallback((n: number | undefined | null) => (n != null && n >= browse.show_counts_min ? n : null), [browse.show_counts_min]);
 
   return (
-    <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, refresh, toast }}>
+    <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, homeUrgentBox, refresh, toast }}>
       {children}
       <div className="toasts" aria-live="polite">{toasts.map((t) => <div key={t.id} className="toast">{t.msg}</div>)}</div>
     </SessionCtx.Provider>
