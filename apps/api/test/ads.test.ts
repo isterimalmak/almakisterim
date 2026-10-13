@@ -39,8 +39,24 @@ describe("reklam alanları", () => {
     expect((await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim/order", headers: { cookie: admin }, payload: { ids: [c.id, b.id, a.id] } })).statusCode).toBe(200);
     expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${c.id}`, headers: { cookie: admin }, payload: { is_active: true } })).json().is_active).toBe(true);
     expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${a.id}`, headers: { cookie: admin }, payload: { link_url: "" } })).json().link_url).toBeNull();
+    // "www…" diye yazılan adresin başına https:// eklenir.
+    const patchLink = (link_url: string) => ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${a.id}`, headers: { cookie: admin }, payload: { link_url } });
+    expect((await patchLink("www.ornek.com/kampanya")).json().link_url).toBe("https://www.ornek.com/kampanya");
+    expect((await patchLink("instagram.com/almakisterim")).json().link_url).toBe("https://instagram.com/almakisterim");
+    expect((await patchLink("/kategori/vasita")).json().link_url).toBe("/kategori/vasita");
     pub = (await ctx.app.inject({ url: "/api/tanitim" })).json().items;
     expect(pub.map((x: { title: string }) => x.title)).toEqual(["Kapalı", "Video reklam", "Oto galeri"]);
+
+    // Karşılama: tek reklam işaretlenir; yenisi işaretlenince eskisi kalkar, kapatılınca karşılama olmaz.
+    const welcome = (id: number, is_welcome: boolean) => ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${id}`, headers: { cookie: admin }, payload: { is_welcome } });
+    expect((await ctx.app.inject({ url: "/api/tanitim" })).json().welcome).toBeNull();
+    expect((await welcome(b.id, true)).json().is_welcome).toBe(true);
+    expect((await ctx.app.inject({ url: "/api/tanitim" })).json().welcome).toMatchObject({ id: b.id, media: { kind: "video" } });
+    await welcome(c.id, true);
+    const adm = (await ctx.app.inject({ url: "/api/admin/tanitim", headers: { cookie: admin } })).json().items;
+    expect(adm.filter((x: { is_welcome: boolean }) => x.is_welcome).map((x: { id: number }) => x.id)).toEqual([c.id]);
+    await welcome(c.id, false);
+    expect((await ctx.app.inject({ url: "/api/tanitim" })).json().welcome).toBeNull();
 
     // Silinen reklamın dosyası da silinir.
     expect((await ctx.app.inject({ method: "DELETE", url: `/api/admin/tanitim/${b.id}`, headers: { cookie: admin } })).statusCode).toBe(200);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker } from "@/components/Media";
 import { CatIcon } from "@/components/RequestTable";
@@ -68,6 +68,13 @@ function Create() {
     if (m && !started.current && categories.length) { started.current = true; set({ raw: m }); void runAi(m); }
   }, [sp, categories.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Hazır görseller, listede seçilip henüz eklenmemiş aracı da hesaba katar (Bentley seçince Bentley görselleri gelsin).
+  const [draftCar, setDraftCar] = useState<{ marka: string; model: string | null } | null>(null);
+  const stockAttrs = useMemo(() => {
+    const list = Array.isArray(d.attrs.araclar) ? d.attrs.araclar as { marka: string; model: string | null }[] : [];
+    if (!draftCar || list.some((x) => x.marka === draftCar.marka && x.model === draftCar.model)) return d.attrs;
+    return { ...d.attrs, araclar: [draftCar, ...list] };
+  }, [d.attrs, draftCar]);
   const top = categories.find((t) => t.id === d.top);
   const sub = top?.subs.find((s) => s.id === d.sub);
   const vehicle = isVehicleSub(d.sub);
@@ -140,7 +147,7 @@ function Create() {
               <div className="fg"><label htmlFor="f-d">İlçe</label><select className="sel" id="f-d" value={d.district} disabled={!d.city} onChange={(e) => set({ district: e.target.value, hood: "" })}><option value="">{d.city ? "İlçe farketmez" : "Önce il seçin"}</option>{(districts.includes(d.district) || !d.district ? districts : [d.district, ...districts]).map((x) => <option key={x}>{x}</option>)}</select></div>
               {d.district && <div className="fg"><label htmlFor="f-m">Mahalle</label><select className="sel" id="f-m" value={d.hood} onChange={(e) => set({ hood: e.target.value })}><option value="">Mahalle farketmez</option>{hoods.map((x) => <option key={x}>{x}</option>)}</select></div>}
               {condsFor(d.top).length > 1 && <div className="fg full"><label>Ürün durumu</label><div className="radio-row">{condsFor(d.top).map((c) => <label key={c}><input type="radio" name="k" checked={d.condition === c} onChange={() => set({ condition: c })} />{c}</label>)}</div></div>}
-              {vehicle && <VehicleFields sub={d.sub} value={d.attrs as VehicleAttrs} onChange={(attrs) => setD((x) => ({ ...x, attrs }))} />}
+              {vehicle && <VehicleFields sub={d.sub} value={d.attrs as VehicleAttrs} onChange={(attrs) => setD((x) => ({ ...x, attrs }))} onDraft={setDraftCar} />}
               {sch.map((a) => (
                 <div className="fg" key={a.k}><label htmlFor={`fa-${a.k}`}>{a.l}</label>
                   {a.t === "sel"
@@ -150,7 +157,7 @@ function Create() {
               ))}
               <div className="fg full"><label>Fotoğraf / video {photoRequired ? "*" : <span className="muted">(isteğe bağlı)</span>}</label>
                 {user
-                  ? <MediaPicker value={d.media} onChange={(media) => setD((x) => ({ ...x, media }))} onError={toast} stock={d.sub ? { category: d.sub, attrs: d.attrs } : undefined} />
+                  ? <MediaPicker value={d.media} onChange={(media) => setD((x) => ({ ...x, media }))} onError={toast} stock={d.sub ? { category: d.sub, attrs: stockAttrs } : undefined} />
                   : <span className="hint">Örnek fotoğraf eklemek için <Link className="link" href="/giris?sonra=/talep-ver" onClick={() => { try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ } }}>giriş yapın</Link>.{photoRequired ? " Talep vermek için en az bir fotoğraf gerekir; giriş yapınca kendi fotoğrafınızı yükleyebilir ya da hazır görsellerden seçebilirsiniz." : " Fotoğrafsız da talep verebilirsiniz."}</span>}
               </div>
               <div className="fg"><label htmlFor="f-days">Talebin yayında kalma süresi</label><select className="sel" id="f-days" value={d.days} onChange={(e) => set({ days: Number(e.target.value) as D["days"] })}>{[7, 14, 30].map((n) => <option key={n} value={n}>{n} gün</option>)}</select></div>

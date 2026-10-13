@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Ads } from "@/components/Ads";
+import { Welcome } from "@/components/Welcome";
 import { CatIcon, RequestTable, VitrinCard, VitrinTile } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
@@ -29,6 +30,7 @@ export default function Home() {
 
   return (
     <div className="wrap home">
+      <Welcome />
       <div className="home-left">
       <aside className="ctree" aria-label="Kategoriler">
         {/* sahibinden'deki gibi: acil talepler kategorilerin üstünde ayrı bir bağlantı */}

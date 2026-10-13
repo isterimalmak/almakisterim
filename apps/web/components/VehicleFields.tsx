@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { brandsOf, useVehicleCatalog, vehicleName, vehicleNames, yearTxt, type VehicleAttrs } from "@/lib/vehicles";
 
 const YEARS = Array.from({ length: new Date().getFullYear() + 2 - 1990 }, (_, i) => new Date().getFullYear() + 1 - i);
 
 // Alıcının araç talebi: birden fazla marka/model eklenebilir, diğer alanlar birden fazla seçimli.
-export function VehicleFields({ sub, value, onChange }: { sub: string; value: VehicleAttrs; onChange: (v: VehicleAttrs) => void }) {
+// onDraft: listede seçili ama henüz "Ekle"ye basılmamış marka/model (hazır görseller buna göre değişsin diye).
+export function VehicleFields({ sub, value, onChange, onDraft }: { sub: string; value: VehicleAttrs; onChange: (v: VehicleAttrs) => void; onDraft?: (d: { marka: string; model: string | null } | null) => void }) {
   const cat = useVehicleCatalog();
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
+  useEffect(() => { onDraft?.(brand ? { marka: brand, model: model || null } : null); }, [brand, model]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!cat) return <div className="fg full"><span className="muted">Araç listesi yükleniyor…</span></div>;
   const brands = brandsOf(cat, sub);
   const list = value.araclar ?? [];
