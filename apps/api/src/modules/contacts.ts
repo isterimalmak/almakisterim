@@ -99,7 +99,7 @@ export function contactRoutes(app: FastifyInstance, deps: Deps) {
       await c.query("INSERT INTO contact_unlocks (request_id, seller_id, credits, is_free) VALUES ($1,$2,$3,$4)", [id, user.id, charged, free]);
       if (charged) await c.query("INSERT INTO credit_ledger (user_id, delta, reason, ref) VALUES ($1, $2, 'numara', $3)", [user.id, -charged, `request:${id}`]);
       // Alıcı, arayan satıcıya şaşırmasın diye site içinde bilgilendirilir.
-      await notify(c, r.buyer_id, r.phone ? `Bir satıcı "${r.title}" talebiniz için numaranızı gördü; sizi arayabilir.` : `Bir satıcı "${r.title}" talebinizle ilgileniyor; teklifini bekleyin.`, `/talep/${id}`);
+      await notify(c, r.buyer_id, r.phone ? `Bir satıcı "${r.title}" talebiniz için numaranızı gördü; sizi arayabilir veya mesaj yazabilir.` : `Bir satıcı "${r.title}" talebinizle ilgileniyor; mesajını bekleyin.`, `/talep/${id}`);
       return { phone: r.phone, charged, free, already: false };
     });
     if (!out.already) reply.code(201);

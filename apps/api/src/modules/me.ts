@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser, type Deps } from "../context.js";
 import { HttpError, idParam } from "../lib/util.js";
 import { CITIES } from "../services/ai.js";
+import { unreadMessages } from "./messages.js";
 import { VISIBLE_CATEGORY_SQL } from "./categories.js";
 import { freeUnlocksUsed, unlockSettings } from "./contacts.js";
 
@@ -12,7 +13,8 @@ export function meRoutes(app: FastifyInstance, { pool }: Deps) {
     const s = await unlockSettings(pool);
     const used = await freeUnlocksUsed(pool, req.user.id);
     const unread = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND read_at IS NULL", [req.user.id])).rows[0]!.n;
-    return { user: { ...req.user, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread } };
+    const unreadMsg = await unreadMessages(pool, req.user.id);
+    return { user: { ...req.user, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg } };
   });
 
   app.patch("/me", async (req) => {

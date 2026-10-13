@@ -37,7 +37,7 @@ export function AppShell() {
     { href: "/", label: "Ana Sayfa", icon: "home", on: path === "/" },
     { href: "/kategori", label: "Talepler", icon: "list", on: path.startsWith("/kategori") },
     { href: "/talep-ver", label: "Talep Ver", icon: "plus", on: path.startsWith("/talep-ver"), main: true },
-    { href: user ? "/bana-ozel?s=bildirim" : "/giris", label: "Bildirimler", icon: "bell", on: false, badge: user?.unread_notifications ?? 0 },
+    { href: user ? "/bana-ozel?s=mesaj" : "/giris", label: "Mesajlar", icon: "chat", on: false, badge: user?.unread_messages ?? 0 },
     { href: user ? "/bana-ozel" : "/giris", label: user ? "Hesabım" : "Giriş", icon: "user", on: path.startsWith("/bana-ozel") || path.startsWith("/giris") },
   ];
 

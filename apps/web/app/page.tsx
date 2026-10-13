@@ -12,27 +12,31 @@ import { api, type RequestItem } from "@/lib/api";
 type List = { total: number; items: RequestItem[] };
 
 export default function Home() {
-  const { categories, browseCategories, count, launchMode } = useSession();
+  const { categories, browseCategories, count, launchMode, homeUrgentBox } = useSession();
   const router = useRouter();
   const [q, setQ] = useState("");
   const [urgent, setUrgent] = useState<List | null>(null);
   const [latest, setLatest] = useState<List | null>(null);
   const [vitrin, setVitrin] = useState<List | null>(null);
   const [corp, setCorp] = useState<List | null>(null);
-  const [noOffer, setNoOffer] = useState<number | null>(null);
 
   useEffect(() => {
     void api<List>("/requests?urgent=1&per=8").then(setUrgent).catch(() => setUrgent({ total: 0, items: [] }));
     void api<List>("/requests?sort=vitrin&per=20").then(setVitrin).catch(() => setVitrin({ total: 0, items: [] }));
     void api<List>("/requests?per=10").then(setLatest).catch(() => setLatest({ total: 0, items: [] }));
     void api<List>("/requests?buyer=kurumsal&per=5").then(setCorp).catch(() => setCorp({ total: 0, items: [] }));
-    void api<List>("/requests?no_offers=1&per=1").then((r) => setNoOffer(r.total)).catch(() => setNoOffer(0));
   }, []);
 
   return (
     <div className="wrap home">
       <div className="home-left">
       <aside className="ctree" aria-label="Kategoriler">
+        {/* sahibinden'deki gibi: acil talepler kategorilerin üstünde ayrı bir bağlantı */}
+        {!!urgent?.total && (
+          <div className="ct-group ct-quick">
+            <Link className="ct-top" href="/kategori?acil=1"><span className="ct-ic ct-acil" aria-hidden="true">!!</span>Acil Talepler {count(urgent.total) !== null && <span className="n">({urgent.total})</span>}</Link>
+          </div>
+        )}
         {browseCategories.length ? browseCategories.map((t) => (
           <div className="ct-group" key={t.id}>
             <Link className="ct-top" href={`/kategori/${t.id}`}><CatIcon top={t.id} cls="ct-ic" />{t.name} {count(t.active_count) !== null && <span className="n">({t.active_count})</span>}</Link>
@@ -54,8 +58,8 @@ export default function Home() {
       <div>
         <section className="concept">
           <div>
-            <h1>Burada ilanı alıcı verir, satıcılar teklif verir.</h1>
-            <p>Ne almak istediğinizi ve bütçenizi yazın. Uygun satıcılar size teklif göndersin, siz en iyisini seçin. Talep vermek ücretsizdir.</p>
+            <h1>Burada ilanı alıcı verir, satıcı alıcıyı bulur.</h1>
+            <p>Ne almak istediğinizi ve bütçenizi yazın; elinde uygun ürün olan satıcılar sizi arasın veya mesaj atsın. Satmak istiyorsanız alıcıları listeleyin, ulaşın. Talep vermek ücretsizdir.</p>
             <form className="quick" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
               <div className="quick-in">
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Örn. 2. el iPhone 13 almak istiyorum, bütçem 20.000 TL" aria-label="Ne almak istiyorsunuz?" />
@@ -63,10 +67,10 @@ export default function Home() {
               </div>
             </form>
           </div>
-          <Link className="btn btn-wh" href="/bana-ozel?s=eslesme">Satıcıyım, talepleri gör</Link>
+          <Link className="btn btn-wh" href="/kategori">Satmak istiyorum, alıcıları gör</Link>
         </section>
 
-        {!!urgent?.items.length && (
+        {homeUrgentBox && !!urgent?.items.length && (
           <section className="box" style={{ marginBottom: 14 }}>
             <div className="box-h"><h2>Acil Alım Talepleri</h2><Link className="link" href="/kategori?acil=1">Tüm acil talepler{count(urgent.total) !== null && ` (${urgent.total})`} »</Link></div>
             <div className="box-b"><div className="vitrin">{urgent.items.map((r) => <VitrinCard key={r.id} r={r} />)}</div></div>
@@ -75,6 +79,7 @@ export default function Home() {
 
         {/* Telefonda soldaki liste gizli; kategoriler renkli kutucuklar olarak burada. */}
         <section className="cat-tiles" aria-label="Kategoriler">
+          {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ic ct-acil" aria-hidden="true">!!</span><span>Acil Talepler</span></Link>}
           {(browseCategories.length ? browseCategories : categories).map((t) => (
             <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span></Link>
           ))}
@@ -115,18 +120,10 @@ export default function Home() {
             <Link className="btn btn-or btn-block" href="/bana-ozel?s=alarm">Talep gelince haber ver</Link>
           </div></div>
         )}
-        {!!noOffer && (
-          <div className="box seller-cta"><div className="box-b">
-            <div className="big">{noOffer}</div>
-            <div style={{ fontWeight: 700, margin: "4px 0 2px" }}>talep henüz satıcı bekliyor</div>
-            <p className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>Alıcıya ilk ulaşan satıcı dikkatini ilk çeken olur.</p>
-            <Link className="btn btn-or btn-block" href="/kategori?teklifsiz=1">Teklif bekleyen talepler</Link>
-          </div></div>
-        )}
         <div className="box"><div className="box-h"><h3>Nasıl çalışır?</h3></div><div className="box-b"><ol className="steps">
           <li><div><b>Talebinizi yazın</b><span className="muted">Ne aradığınızı ve bütçenizi bir cümleyle yazın.</span></div></li>
-          <li><div><b>Satıcılar size ulaşsın</b><span className="muted">Uygun satıcılara bildirim gider; sizi arar veya teklif gönderirler.</span></div></li>
-          <li><div><b>Karşılaştırın, seçin</b><span className="muted">Fiyata ve satıcıya bakıp birini kabul edin.</span></div></li>
+          <li><div><b>Satıcılar size ulaşsın</b><span className="muted">Elinde uygun ürün olan satıcılar sizi arar veya mesaj atar.</span></div></li>
+          <li><div><b>Anlaşın</b><span className="muted">Satıcıyla konuşun, ürünü görün; aldığınızda talebinizi kapatın.</span></div></li>
         </ol></div></div>
         <div className="box"><div className="box-h"><h3>Güvenli alışveriş</h3></div><div className="box-b" style={{ fontSize: 12.5 }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 8 }}><Icon name="lock" size={16} sw={2} /><span>Numaranız herkese açık değildir; yalnızca talebinizle ilgilenen sınırlı sayıda satıcı görür. İstediğiniz an gizleyebilirsiniz.</span></div>

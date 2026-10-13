@@ -31,7 +31,7 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
   if (!items.length) return <div className="empty">{empty}</div>;
   return (
     <table className="tbl">
-      <thead><tr><th>Talep</th><th>Bütçe</th><th className="r">Teklif</th><th>Kalan Süre</th><th>Talep Tarihi</th><th>İl / İlçe</th></tr></thead>
+      <thead><tr><th>Talep</th><th>Bütçe</th><th>Kalan Süre</th><th>Talep Tarihi</th><th>İl / İlçe</th></tr></thead>
       <tbody>
         {items.map((r) => (
           <tr key={r.id} className={"row" + (r.is_urgent ? " urgent" : "")} onClick={() => router.push(`/talep/${r.id}`)}>
@@ -46,7 +46,6 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
               </div>
             </td>
             <td className="budget-cell"><div className="budget">{budgetTxt(r.budget_min, r.budget_max)}<small>bütçe</small></div></td>
-            <td data-m="Teklif" className="r"><span className={"oc" + (r.offer_count ? "" : " z")}>{r.offer_count}</span></td>
             <td data-m="Kalan" className="nowrap">{leftTxt(r.expires_at)}</td>
             <td data-m="Tarih" className="nowrap muted">{dateTr(r.created_at)}</td>
             <td data-m="Konum" className="nowrap">{r.city}{r.district && <span className="muted" style={{ fontSize: 12, marginLeft: 4 }}>{r.district}{r.neighbourhood && ` / ${r.neighbourhood}`}</span>}</td>
@@ -67,7 +66,7 @@ export function VitrinCard({ r }: { r: RequestItem }) {
       <div className="vc-b">
         <div className="vc-t">{r.title}</div>
         <div className="vc-p">{fmt(r.budget_max)} TL&apos;ye kadar</div>
-        <div className="vc-m"><span>{r.city}</span><span>{r.offer_count} teklif</span></div>
+        <div className="vc-m"><span>{r.city}{r.district && ` / ${r.district}`}</span></div>
       </div>
     </Link>
   );

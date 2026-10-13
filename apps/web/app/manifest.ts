@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "almakisterim.com",
     short_name: "almakisterim",
-    description: "Ne almak istediğinizi yazın, satıcılar size teklif versin.",
+    description: "Ne almak istediğinizi yazın, satıcılar size ulaşsın.",
     lang: "tr",
     start_url: "/?kaynak=uygulama",
     scope: "/",

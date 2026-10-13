@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "almakisterim.com", template: "%s · almakisterim.com" },
-  description: "Ne almak istediğinizi yazın, satıcılar size teklif versin. Alıcıların ilan verdiği tersine pazaryeri.",
+  description: "Ne almak istediğinizi yazın, satıcılar size ulaşsın. Alıcıların ilan verdiği tersine pazaryeri.",
   applicationName: "almakisterim",
   appleWebApp: { capable: true, title: "almakisterim", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },

@@ -28,7 +28,7 @@ async function loginEmail(page: Page, email: string) {
   await page.waitForURL((u) => !u.pathname.startsWith("/giris"));
 }
 
-test("alıcı talep verir, satıcı teklif verir, alıcı kabul eder", async ({ browser }) => {
+test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevaplar", async ({ browser }) => {
   const buyerCtx = await browser.newContext();
   const buyer = await buyerCtx.newPage();
   const title = `PS5 almak istiyorum ${rnd()}`;
@@ -52,25 +52,24 @@ test("alıcı talep verir, satıcı teklif verir, alıcı kabul eder", async ({ 
   await seller.goto(url);
   await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
   await expect(seller.locator(".phone-open")).toBeVisible();
-  await seller.getByLabel("Teklif fiyatınız (TL)").fill("14250");
-  await seller.getByLabel("Alıcıya mesajınız").fill("Kutulu, 2 kol. Beni 0544 111 22 33'ten arayın.");
-  await seller.getByRole("button", { name: "Teklifi Gönder" }).click();
-  await expect(seller.getByText("Teklifiniz:")).toBeVisible();
-
+  await seller.getByLabel("Alıcıya mesajınız").fill("Merhaba, kutulu PS5 var, 2 kol. 14.250 TL.");
+  await seller.getByRole("button", { name: "Gönder", exact: true }).click();
+  await expect(seller.locator(".bub.me", { hasText: "kutulu PS5 var" })).toBeVisible();
   await expect(seller.getByRole("link", { name: "WhatsApp'tan yaz" })).toBeVisible();
 
   await buyer.reload();
   await expect(buyer.locator(".phone-hidden")).toContainText("1 / 10 satıcı gördü");
   await expect(buyer.getByRole("button", { name: "Rahatsız etti" })).toBeVisible();
-  await expect(buyer.locator(".hdr .badge")).toHaveText("1");
-  await expect(buyer.getByText("14.250 TL").first()).toBeVisible();
-  await expect(buyer.getByText("[numara gizlendi]")).toBeVisible();
-  buyer.once("dialog", (d) => d.accept());
-  await buyer.getByRole("button", { name: "Kabul et" }).click();
-  await expect(buyer.locator(".lbl.l-soft", { hasText: "Kabul edildi" })).toBeVisible();
+  await expect(buyer.locator(".tabbar .badge, .hdr .badge").first()).toBeVisible();
+  await expect(buyer.locator(".bub", { hasText: "kutulu PS5 var" })).toBeVisible();
+  await buyer.getByLabel(/satıcısına cevap/).fill("Kollar orijinal mi?");
+  await buyer.getByRole("button", { name: "Gönder", exact: true }).click();
+  await expect(buyer.locator(".bub.me", { hasText: "Kollar orijinal mi?" })).toBeVisible();
 
   await seller.reload();
-  await expect(seller.getByText("Kabul edildi 🎉")).toBeVisible();
+  await expect(seller.locator(".bub:not(.me)", { hasText: "Kollar orijinal mi?" })).toBeVisible();
+  await seller.goto("/bana-ozel?s=mesaj");
+  await expect(seller.getByText("Kollar orijinal mi?")).toBeVisible();
   await seller.goto("/bana-ozel?s=numaralar");
   await expect(seller.getByText(title)).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
@@ -91,6 +90,18 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByRole("switch", { name: "Moda & Giyim" }).click();
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(1);
+
+  // Acil talepler vitrini yönetimden açılıp kapanır.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ayarlar" }).click();
+  const box = page.getByLabel(/Acil Alım Talepleri" vitrini/);
+  await box.check();
+  await page.getByRole("button", { name: "Kaydet" }).click();
+  await expect(page.getByText("Ayarlar kaydedildi.")).toBeVisible();
+  expect((await (await page.request.get(`${API}/api/categories`)).json()).home_urgent_box).toBe(true);
+  await box.uncheck();
+  await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/settings") && r.request().method() === "PUT"), page.getByRole("button", { name: "Kaydet" }).click()]);
+  expect((await (await page.request.get(`${API}/api/categories`)).json()).home_urgent_box).toBe(false);
 
   // Reklam alanı: resim yüklenir, başlık ve bağlantı verilir, ana sayfada soldaki kategorilerin altında görünür.
   const ad = `Galeri reklamı ${rnd()}`;
@@ -149,7 +160,7 @@ test("sayfalar yana taşmıyor", async ({ page }) => {
 // 1x1 piksel PNG: gerçek bir resim dosyası gibi yüklenir.
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
-test("alıcı ve satıcı fotoğraf ekler, alıcı teklifteki fotoğrafı görür", async ({ browser }) => {
+test("alıcı fotoğraf ekler; satıcı talepte fotoğrafı görür, iletişimi açar", async ({ browser }) => {
   const buyerCtx = await browser.newContext();
   const buyer = await buyerCtx.newPage();
   const title = `Bisiklet almak istiyorum ${rnd()}`;
@@ -173,20 +184,9 @@ test("alıcı ve satıcı fotoğraf ekler, alıcı teklifteki fotoğrafı görü
   const seller = await sellerCtx.newPage();
   await loginSms(seller, `0535${rnd().slice(0, 7)}`, "Can Yıldız");
   await seller.goto(url);
+  await expect(seller.getByAltText("Talep fotoğrafı")).toBeVisible();
   await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
   await expect(seller.locator(".phone-open")).toBeVisible();
-  await seller.getByLabel("Teklif fiyatınız (TL)").fill("7500");
-  await seller.getByLabel("Fotoğraf / video ekle").setInputFiles([
-    { name: "urun.png", mimeType: "image/png", buffer: PNG },
-    { name: "belge.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF") },
-  ]);
-  await expect(seller.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
-  await expect(seller.getByText(/"belge\.pdf" desteklenmiyor/)).toBeVisible();
-  await seller.getByRole("button", { name: "Teklifi Gönder" }).click();
-  await expect(seller.getByText("Teklifiniz:")).toBeVisible();
-
-  await buyer.reload();
-  await expect(buyer.getByRole("link", { name: "Teklif fotoğrafı 1" })).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
 });
 
@@ -241,7 +241,7 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await ctx.close();
 });
 
-test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir; satıcı teklif yoluyla ulaşır", async ({ browser }) => {
+test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir; satıcı mesajla ulaşır", async ({ browser }) => {
   const buyerCtx = await browser.newContext();
   const buyer = await buyerCtx.newPage();
   const title = `Telefonsuz talep ${rnd()}`;
@@ -261,6 +261,11 @@ test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir;
   await seller.goto(url);
   await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
   await expect(seller.getByText("Alıcı telefon numarası eklememiş.", { exact: false })).toBeVisible();
+  await seller.getByLabel("Alıcıya mesajınız").fill("Merhaba, elimde uygun ürün var.");
+  await seller.getByRole("button", { name: "Gönder", exact: true }).click();
+  await expect(seller.locator(".bub.me", { hasText: "elimde uygun ürün var" })).toBeVisible();
+  await buyer.goto("/bana-ozel?s=mesaj");
+  await expect(buyer.getByText("elimde uygun ürün var")).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
 });
 
@@ -308,4 +313,22 @@ test("alıcı il/ilçe/mahalle seçer; satıcı İstanbul → Kadıköy diye ara
   await seller.getByLabel("İlçe", { exact: true }).selectOption("Üsküdar");
   await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
   await ctx.close();
+});
+
+test("acil talepler solda kategorilerin üstünde bağlantı olarak durur; ortadaki vitrin varsayılan kapalı", async ({ page }, info) => {
+  const title = `Acil laptop ${rnd()}`;
+  await loginSms(page, `0538${rnd().slice(0, 7)}`, "Okan Er");
+  await page.goto(`/talep-ver?metin=${encodeURIComponent(`${title} acil lazım, bütçem 30 bin TL, İzmir`)}`);
+  await expect(page.getByLabel("Talep başlığı *")).toHaveValue(new RegExp(title));
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.getByLabel(/kurallarını/).check();
+  await page.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(title);
+  await page.goto("/");
+  const link = info.project.name === "telefon" ? page.locator(".cat-tiles .ct-acil-tile") : page.locator(".ctree .ct-quick a");
+  await expect(link).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Acil Alım Talepleri" })).toHaveCount(0);
+  await link.click();
+  await page.waitForURL(/acil=1/);
+  await expect(page.locator(".tbl-wrap").getByRole("link", { name: new RegExp(title) })).toBeVisible();
 });

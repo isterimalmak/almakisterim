@@ -135,7 +135,6 @@ function Listing() {
           ))}
           <div className="flt-sec">
             <label className="chk"><input type="checkbox" checked={f.urgent} onChange={(e) => set({ urgent: e.target.checked })} />Sadece acil talepler</label>
-            <label className="chk"><input type="checkbox" checked={f.noOffers} onChange={(e) => set({ noOffers: e.target.checked })} />Henüz teklif almamış</label>
             <button className="btn btn-wh btn-sm" style={{ marginTop: 8 }} onClick={() => setF({ ...initial(), q: "", urgent: false, noOffers: false, buyer: "" })}>Filtreleri temizle</button>
           </div>
         </aside>
@@ -149,7 +148,7 @@ function Listing() {
               <select className="sel" value={f.sort} onChange={(e) => set({ sort: e.target.value })} aria-label="Sıralama">
                 <option value="new">Tarih (önce en yeni)</option><option value="old">Tarih (önce en eski)</option>
                 <option value="budget_desc">Bütçe (yüksekten düşüğe)</option><option value="budget_asc">Bütçe (düşükten yükseğe)</option>
-                <option value="few_offers">Teklif sayısı (önce en az)</option><option value="ending">Bitişe kalan süre</option>
+                <option value="ending">Bitişe kalan süre</option>
               </select>
             </div>
           </div>
@@ -160,7 +159,7 @@ function Listing() {
                 <h2>{s?.name ?? t?.name ?? "Bu arama"} için talepler yakında burada</h2>
                 <div className="soon-grid">
                   <div><b>Satıcı mısınız?</b><p>Bu bölüme ilk alım talebi geldiği anda size SMS ile haber verelim; ilk ulaşan siz olun.</p><button className="btn btn-or" onClick={saveAlarm}>Talep gelince haber ver</button></div>
-                  <div><b>Bunu mu almak istiyorsunuz?</b><p>Talebinizi ücretsiz verin; satıcılar sizi arasın veya teklif göndersin.</p><Link className="btn btn-bl" href={`/talep-ver${f.q ? `?metin=${encodeURIComponent(f.q)}` : ""}`}>Ücretsiz talep ver</Link></div>
+                  <div><b>Bunu mu almak istiyorsunuz?</b><p>Talebinizi ücretsiz verin; satıcılar sizi arasın veya mesaj atsın.</p><Link className="btn btn-bl" href={`/talep-ver${f.q ? `?metin=${encodeURIComponent(f.q)}` : ""}`}>Ücretsiz talep ver</Link></div>
                 </div>
               </div>
             )}
