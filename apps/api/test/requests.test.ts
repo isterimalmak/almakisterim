@@ -83,8 +83,8 @@ describe("talepler", () => {
   it("filtreler ve sıralama çalışır", async () => {
     const cookie = await login(ctx, "05321112233");
     await createRequest(ctx, cookie);
-    await createRequest(ctx, cookie, { category_id: "otomobil", title: "Otomatik dizel Passat", budget_min: 1000000, budget_max: 1400000, city: "Ankara", is_urgent: false, attrs: { marka: "Volkswagen" } });
-    await createRequest(ctx, cookie, { category_id: "kiralik", title: "Bornova 1+1 kiralık", budget_min: 12000, budget_max: 16000, city: "İzmir", condition: "Farketmez", attrs: {} });
+    await createRequest(ctx, cookie, { category_id: "otomobil", title: "Otomatik dizel Passat", budget_min: 1000000, budget_max: 1400000, city: "Ankara", district: "Çankaya", is_urgent: false, attrs: { marka: "Volkswagen" } });
+    await createRequest(ctx, cookie, { category_id: "kiralik", title: "Bornova 1+1 kiralık", budget_min: 12000, budget_max: 16000, city: "İzmir", district: "Bornova", condition: "Farketmez", attrs: {} });
     const get = async (qs: string) => (await ctx.app.inject({ url: `/api/requests?${qs}` })).json();
     expect((await get("top=vasita")).total).toBe(1);
     expect((await get("sub=kiralik")).items[0].title).toBe("Bornova 1+1 kiralık");

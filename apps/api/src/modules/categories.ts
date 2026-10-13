@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { Deps } from "../context.js";
 import type { Pool } from "../db.js";
+import { z } from "zod";
+import { LOCATIONS, matchDistrict } from "../data/locations.js";
+import { HttpError } from "../lib/util.js";
 
 export type CategoryRow = { id: string; parent_id: string | null; name: string; icon: string; sort: number; is_visible: boolean; active_count: number };
 
@@ -34,6 +37,18 @@ export async function visibleSubcategory(pool: Pool, id: string) {
 }
 
 export function categoryRoutes(app: FastifyInstance, { pool }: Deps) {
+  // İl seçilince ilçeler, ilçe seçilince mahalleler (PTT listesi). Değişmediği için uzun süre önbelleğe alınır.
+  app.get("/locations", async (req, reply) => {
+    const q = z.object({ il: z.string().max(40), ilce: z.string().max(60).optional() }).parse(req.query);
+    const city = LOCATIONS[q.il];
+    if (!city) throw new HttpError(404, "il_yok", "İl bulunamadı.");
+    reply.header("cache-control", "public, max-age=86400");
+    if (!q.ilce) return { districts: Object.keys(city) };
+    const d = matchDistrict(q.il, q.ilce);
+    if (!d) throw new HttpError(404, "ilce_yok", "İlçe bulunamadı.");
+    return { neighbourhoods: city[d] };
+  });
+
   app.get("/categories", async () => {
     const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required')");
     const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));

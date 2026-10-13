@@ -49,7 +49,7 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
             <td data-m="Teklif" className="r"><span className={"oc" + (r.offer_count ? "" : " z")}>{r.offer_count}</span></td>
             <td data-m="Kalan" className="nowrap">{leftTxt(r.expires_at)}</td>
             <td data-m="Tarih" className="nowrap muted">{dateTr(r.created_at)}</td>
-            <td data-m="Konum" className="nowrap">{r.city}{r.district && <span className="muted" style={{ fontSize: 12, marginLeft: 4 }}>{r.district}</span>}</td>
+            <td data-m="Konum" className="nowrap">{r.city}{r.district && <span className="muted" style={{ fontSize: 12, marginLeft: 4 }}>{r.district}{r.neighbourhood && ` / ${r.neighbourhood}`}</span>}</td>
           </tr>
         ))}
       </tbody>

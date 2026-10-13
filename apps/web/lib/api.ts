@@ -24,7 +24,7 @@ export type CategoryTop = Category & { subs: Category[] };
 
 export type RequestItem = {
   id: number; title: string; description: string; category_id: string; category_name: string; top_id: string; top_name: string;
-  budget_min: number; budget_max: number; city: string; district: string; condition: string; attrs: Record<string, unknown>;
+  budget_min: number; budget_max: number; city: string; district: string; neighbourhood?: string; condition: string; attrs: Record<string, unknown>;
   is_urgent: boolean; is_corporate: boolean; status: string; created_at: string; expires_at: string; buyer_name: string; offer_count: number;
   cover_url: string | null; media_count: number; is_featured?: boolean;
 };
@@ -48,7 +48,7 @@ export type Contact = {
 };
 
 export type Draft = {
-  category_id: string | null; title: string; budget_min: number | null; budget_max: number | null; city: string | null;
+  category_id: string | null; title: string; budget_min: number | null; budget_max: number | null; city: string | null; district?: string;
   condition: string; is_urgent: boolean; attrs: Record<string, unknown>; description: string;
 };
 

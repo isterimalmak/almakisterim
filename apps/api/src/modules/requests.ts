@@ -7,12 +7,13 @@ import { listCategories, VISIBLE_CATEGORY_SQL, visibleSubcategory } from "./cate
 import { tx } from "../db.js";
 import { priceFor, unlockSettings } from "./contacts.js";
 import { attachMedia, imageUrls, MediaIds, mediaFor } from "./media.js";
+import { findDistrictInText, LOCATIONS, matchDistrict, matchNeighbourhood } from "../data/locations.js";
 import { cleanVehicleDraft, isVehicleSub, parseVehicleAttrs, VehicleQuery, vehicleFilters } from "./vehicles.js";
 import { notifyAlarmMatches } from "./notifications.js";
 
 const LIST_COLUMNS = `
   r.id, r.title, r.description, r.category_id, c.name AS category_name, p.id AS top_id, p.name AS top_name,
-  r.budget_min, r.budget_max, r.city, r.district, r.condition, r.attrs, r.is_urgent, r.is_corporate,
+  r.budget_min, r.budget_max, r.city, r.district, r.neighbourhood, r.condition, r.attrs, r.is_urgent, r.is_corporate,
   r.status, r.created_at, r.expires_at, r.buyer_id, coalesce(r.featured_until > now(), false) AS is_featured,
   u.name AS buyer_name, u.is_corporate AS buyer_is_corporate,
   (SELECT count(*)::int FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn') AS offer_count,
@@ -25,7 +26,7 @@ const publicRow = ({ buyer_id: _b, buyer_name, ...r }: Row) => ({ ...r, buyer_na
 
 const ListQuery = z.object({
   top: z.string().optional(), sub: z.string().optional(), q: z.string().max(100).optional(),
-  city: z.string().optional(), bmin: z.coerce.number().int().optional(), bmax: z.coerce.number().int().optional(),
+  city: z.string().optional(), district: z.string().max(60).optional(), neighbourhood: z.string().max(80).optional(), bmin: z.coerce.number().int().optional(), bmax: z.coerce.number().int().optional(),
   cond: z.string().optional(), urgent: z.enum(["1"]).optional(), no_offers: z.enum(["1"]).optional(), featured: z.enum(["1"]).optional(),
   buyer: z.enum(["bireysel", "kurumsal"]).optional(),
   sort: z.enum(["new", "old", "budget_desc", "budget_asc", "few_offers", "ending", "vitrin"]).default("new"),
@@ -47,6 +48,7 @@ const CreateBody = z.object({
   budget_max: z.number().int().min(1).max(2_000_000_000),
   city: z.string().refine((c) => CITIES.includes(c), "Geçerli bir il seçin."),
   district: z.string().trim().max(60).default(""),
+  neighbourhood: z.string().trim().max(80).default(""),
   condition: z.enum(CONDITIONS),
   // Araç kategorilerinde ayrıntılı alanlar (birden fazla marka/model, yıl aralığı...) ayrıca doğrulanır.
   attrs: z.record(z.string().max(30), z.unknown()).default({}),
@@ -79,6 +81,9 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
       else add("(r.title ILIKE $? OR r.description ILIKE $?)", `%${q.q.replace(/[%_\\]/g, "\\$&")}%`);
     }
     if (q.city) add("r.city = $?", q.city);
+    // İlçe/mahalle: alıcı o ilçeyi seçmişse ya da ilçe "farketmez" demişse (boş) uyar.
+    if (q.city && q.district) add("(r.district = '' OR r.district = $?)", matchDistrict(q.city, q.district) ?? q.district);
+    if (q.city && q.district && q.neighbourhood) add("(r.neighbourhood = '' OR r.neighbourhood = $?)", q.neighbourhood);
     if (q.bmin !== undefined) add("r.budget_max >= $?", q.bmin);
     if (q.bmax !== undefined) add("r.budget_min <= $?", q.bmax);
     if (q.cond) add("r.condition = ANY($?)", q.cond.split(","));
@@ -167,12 +172,26 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const draft = { ...rawDraft, attrs: rawDraft.category_id && isVehicleSub(rawDraft.category_id)
       ? cleanVehicleDraft(rawDraft.category_id, rawDraft.attrs)
       : Object.fromEntries(Object.entries(rawDraft.attrs).filter(([, v]) => typeof v === "string" || typeof v === "number")) };
-    return { draft: { ...draft, title: maskContacts(draft.title).text, description: masked.text }, moderation, contacts_masked: masked.masked };
+    // "Kadıköy'de 3+1 ev" → il İstanbul, ilçe Kadıköy.
+    const loc = findDistrictInText(text, draft.city);
+    const located = { ...draft, city: loc?.city ?? draft.city, district: loc?.district ?? "" };
+    return { draft: { ...located, title: maskContacts(draft.title).text, description: masked.text }, moderation, contacts_masked: masked.masked };
   });
 
   app.post("/requests", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
     const b = CreateBody.parse(req.body);
+    // İlçe ve mahalle resmî listedeki yazıma çevrilir; satıcı aramasında birebir eşleşsin.
+    if (b.district) {
+      const d = matchDistrict(b.city, b.district);
+      if (!d) throw new HttpError(400, "ilce_gecersiz", `${b.city} için "${b.district}" ilçesini bulamadık. Listeden seçin.`);
+      b.district = d;
+    }
+    if (b.neighbourhood) {
+      const m = b.district ? matchNeighbourhood(b.city, b.district, b.neighbourhood) : null;
+      if (!m) throw new HttpError(400, "mahalle_gecersiz", "Mahalleyi listeden seçin.");
+      b.neighbourhood = m;
+    }
     // Sahte taleplerle satıcıları kendine aratmayı önlemek için kişi başı açık talep sınırı.
     const { maxActive, phoneRequired } = await unlockSettings(pool);
     if (!user.phone && phoneRequired) throw new HttpError(409, "telefon_gerekli", "Talep vermek için önce telefon numaranızı doğrulayın.");
@@ -192,10 +211,10 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const status = mod.verdict === "ok" ? "active" : "pending_review";
     const id = await tx(pool, async (c) => {
       const { rows } = await c.query<{ id: number }>(
-        `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, condition, attrs,
+        `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, neighbourhood, condition, attrs,
                                is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now() + make_interval(days => $15), now()) RETURNING id`,
-        [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.condition, attrs,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now() + make_interval(days => $16), now()) RETURNING id`,
+        [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.neighbourhood, b.condition, attrs,
           b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days]);
       await attachMedia(c, user.id, b.media_ids, { request_id: rows[0]!.id });
       return rows[0]!.id;

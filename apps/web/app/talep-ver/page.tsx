@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker } from "@/components/Media";
 import { CatIcon } from "@/components/RequestTable";
 import { PhoneVerify } from "@/components/PhoneVerify";
+import { placeTxt, useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useSession } from "@/components/Session";
 import { VehicleFields, VehicleRows } from "@/components/VehicleFields";
 import { api, type Draft, type Media } from "@/lib/api";
@@ -14,8 +15,8 @@ import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
 import { budgetTxt } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
-type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; condition: string; attrs: Record<string, unknown>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[] };
-const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [] };
+type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; hood: string; condition: string; attrs: Record<string, unknown>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[] };
+const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", hood: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [] };
 const KEY = "ak_taslak";
 
 function Create() {
@@ -23,6 +24,8 @@ function Create() {
   const router = useRouter();
   const sp = useSearchParams();
   const [d, setD] = useState<D>(EMPTY);
+  const districts = useDistricts(d.city);
+  const hoods = useNeighbourhoods(d.city, d.district);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiMsg, setAiMsg] = useState("");
   const [mod, setMod] = useState<{ verdict: string; reason: string } | null>(null);
@@ -45,7 +48,7 @@ function Create() {
       setD((x) => ({
         ...x, raw: text, title: draft.title, description: draft.description, condition: draft.condition,
         b1: draft.budget_max ? String(draft.budget_max) : x.b1, b0: draft.budget_min ? String(draft.budget_min) : x.b0,
-        city: draft.city ?? x.city, urgent: draft.is_urgent, attrs: draft.attrs,
+        city: draft.city ?? x.city, district: draft.district || (draft.city && draft.city !== x.city ? "" : x.district), hood: draft.city && draft.city !== x.city ? "" : x.hood, urgent: draft.is_urgent, attrs: draft.attrs,
         ...(top ? { top: top.id, sub: draft.category_id!, step: 2 as const } : {}),
       }));
       if (top) toast("Alanlar dolduruldu, lütfen kontrol edin.");
@@ -85,7 +88,7 @@ function Create() {
     try {
       const res = await api<{ id: number; status: string; moderation: { reason: string } | null }>("/requests", { body: {
         category_id: d.sub, title: d.title, description: d.description, budget_min: d.b0 ? Number(d.b0) : null, budget_max: Number(d.b1),
-        city: d.city, district: d.district, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "" && v !== undefined)),
+        city: d.city, district: d.district, neighbourhood: d.hood, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "" && v !== undefined)),
         is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, media_ids: d.media.map((m) => m.id), contact_consent: true,
       } });
       toast(res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi." : "Talebiniz incelemeye alındı. Onaylanınca yayınlanacak.");
@@ -127,8 +130,9 @@ function Create() {
               <div className="fg full"><label htmlFor="f-x">Açıklama</label><textarea className="txa" id="f-x" rows={4} maxLength={4000} value={d.description} onChange={(e) => set({ description: e.target.value })} placeholder="Olmazsa olmazlarınız, tercih ettiğiniz marka/model, teslimat şekli..." /></div>
               <div className="fg"><label htmlFor="f-b0">En az bütçe (TL)</label><input className="inp" id="f-b0" type="number" inputMode="numeric" value={d.b0} onChange={(e) => set({ b0: e.target.value })} /></div>
               <div className="fg"><label htmlFor="f-b1">En fazla bütçe (TL) *</label><input className="inp" id="f-b1" type="number" inputMode="numeric" value={d.b1} onChange={(e) => set({ b1: e.target.value })} /></div>
-              <div className="fg"><label htmlFor="f-c">İl *</label><select className="sel" id="f-c" value={d.city} onChange={(e) => set({ city: e.target.value })}><option value="">Seçin</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
-              <div className="fg"><label htmlFor="f-d">İlçe</label><input className="inp" id="f-d" maxLength={60} value={d.district} onChange={(e) => set({ district: e.target.value })} placeholder="Örn. Kadıköy" /></div>
+              <div className="fg"><label htmlFor="f-c">İl *</label><select className="sel" id="f-c" value={d.city} onChange={(e) => set({ city: e.target.value, district: "", hood: "" })}><option value="">Seçin</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
+              <div className="fg"><label htmlFor="f-d">İlçe</label><select className="sel" id="f-d" value={d.district} disabled={!d.city} onChange={(e) => set({ district: e.target.value, hood: "" })}><option value="">{d.city ? "İlçe farketmez" : "Önce il seçin"}</option>{(districts.includes(d.district) || !d.district ? districts : [d.district, ...districts]).map((x) => <option key={x}>{x}</option>)}</select></div>
+              {d.district && <div className="fg"><label htmlFor="f-m">Mahalle</label><select className="sel" id="f-m" value={d.hood} onChange={(e) => set({ hood: e.target.value })}><option value="">Mahalle farketmez</option>{hoods.map((x) => <option key={x}>{x}</option>)}</select></div>}
               <div className="fg full"><label>Ürün durumu</label><div className="radio-row">{CONDS.map((c) => <label key={c}><input type="radio" name="k" checked={d.condition === c} onChange={() => set({ condition: c })} />{c}</label>)}</div></div>
               {vehicle && <VehicleFields sub={d.sub} value={d.attrs as VehicleAttrs} onChange={(attrs) => setD((x) => ({ ...x, attrs }))} />}
               {sch.map((a) => (
@@ -161,7 +165,7 @@ function Create() {
             <tr><th>Ürün durumu</th><td>{d.condition}</td></tr>
             {sch.filter((a) => d.attrs[a.k] !== undefined && d.attrs[a.k] !== "").map((a) => <tr key={a.k}><th>{a.l}</th><td>{String(d.attrs[a.k])}</td></tr>)}
             {vehicle && <VehicleRows a={d.attrs as VehicleAttrs} />}
-            <tr><th>Konum</th><td>{d.city}{d.district && ` / ${d.district}`}</td></tr>
+            <tr><th>Konum</th><td>{placeTxt({ city: d.city, district: d.district || "İlçe farketmez", neighbourhood: d.hood })}</td></tr>
             <tr><th>Teklif toplama süresi</th><td>{d.days} gün</td></tr>
           </tbody></table>
           {d.description && <div className="desc" style={{ marginTop: 12 }}>{d.description}</div>}
