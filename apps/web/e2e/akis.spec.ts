@@ -99,6 +99,8 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(0);
   await page.goto("/yonetim");
   await page.getByRole("switch", { name: "Moda & Giyim" }).click();
+  // Kayıt bitmeden sayfadan çıkılmasın.
+  await expect(page.getByRole("switch", { name: "Moda & Giyim" })).toHaveAttribute("aria-checked", "true");
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(1);
 
