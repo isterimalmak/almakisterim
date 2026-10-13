@@ -30,7 +30,7 @@ jobs:
           KIM: ${{ github.triggering_actor }}
           DAL: ${{ github.ref }}
         run: |
-          [[ "$KIM" == "isterimalmak" ]] || { echo "::error::Yalnızca isterimalmak yayın başlatabilir."; exit 1; }
+          [[ "$KIM" == "isterimalmak" || "$KIM" == "coskungulerlokalusta" ]] || { echo "::error::Bu hesap yayın başlatamaz: $KIM"; exit 1; }
           [[ "$DAL" == "refs/heads/main" ]] || { echo "::error::Yayın yalnızca main dalından yapılır."; exit 1; }
           [[ "$ONAY" == "CANLIYA AL" ]] || { echo "::error::Onay kutusuna CANLIYA AL yazılmadı."; exit 1; }
 
