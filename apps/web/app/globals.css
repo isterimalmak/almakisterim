@@ -90,7 +90,7 @@ input,select,textarea{font:inherit;color:inherit}
 .ct-subs a:hover{color:var(--blue);text-decoration:underline}
 .ct-subs .n{color:var(--muted)}
 .concept{background:linear-gradient(135deg,#13235B 0%,#1B3480 100%);color:#fff;border-radius:6px;padding:20px;margin-bottom:14px}
-.concept h1{font-size:21px;font-weight:700;line-height:1.25;margin-bottom:14px}
+.concept h1{font-size:21px;font-weight:700;line-height:1.25}
 .concept p{color:#C8D0EA;font-size:13.5px;margin-top:5px}
 .concept .btn-wh{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}
 .concept .btn-wh:hover{background:rgba(255,255,255,.08)}
@@ -356,7 +356,6 @@ footer{background:#fff;border-top:1px solid var(--line);padding:24px 0;font-size
   .home{grid-template-columns:1fr;padding:12px}
   .ctree{display:none}
   .home .side{grid-template-columns:1fr}
-  .hero-2{grid-template-columns:minmax(0,1fr)!important}
   .vitrin{grid-template-columns:repeat(2,1fr)}
   .listing,.det,.det-top,.acc{grid-template-columns:1fr}
   .acc{padding:12px 12px 40px}
@@ -571,15 +570,10 @@ button.link{padding:0;font-size:inherit}
 .ct-quick .ct-top{color:#C62828}
 .ct-acil-tile span:last-child{color:#C62828}
 
-/* ana sayfa üst bölüm: almak / satmak iki eşit kart */
-.hero-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
-.hero-c{min-width:0;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px}
-.hero-k{display:flex;gap:10px;align-items:flex-start}
-.hero-k b{display:block;font-size:15px}
-.hero-k span:not(.hero-ic){display:block;color:#C8D0EA;font-size:12.5px;line-height:1.4;margin-top:2px}
-.hero-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--orange);color:#fff}
-.hero-c.sell .hero-ic{background:#fff;color:var(--navy)}
-.hero-c .quick{margin-top:auto}
-.btn-sell{margin-top:auto;height:40px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--navy);font-weight:700;border-radius:4px;font-size:14px}
+/* ana sayfa üst bölüm: tek satırda "talep oluştur" ve "alıcıları gör" */
+.hero-row{display:flex;align-items:center;gap:10px;margin-top:14px}
+.hero-row .quick{flex:1;min-width:0;margin:0}
+.hero-or{color:#9FAAD1;font-size:12.5px;flex:none}
+.btn-sell{flex:none;height:40px;padding:0 16px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--navy);font-weight:700;border-radius:4px;font-size:14px;white-space:nowrap}
 .btn-sell:hover{background:#EAF0FC}
-.hero-n{color:#9FAAD1;font-size:11.5px}
+@media (max-width:860px){.hero-row{flex-direction:column;align-items:stretch;gap:8px}.hero-or{text-align:center}}
