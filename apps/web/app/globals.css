@@ -182,7 +182,8 @@ input,select,textarea{font:inherit;color:inherit}
 .res-tools{display:flex;align-items:center;gap:10px;padding:6px 0}
 .res-tools .sel{height:30px;width:auto;font-size:12.5px}
 .tbl-wrap{border:1px solid var(--line);border-radius:0 0 4px 4px;overflow:hidden}
-.pager{display:flex;gap:4px;justify-content:center;padding:14px 0}
+.pager{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;align-items:center;padding:14px 0}
+.pg-gap{min-width:20px;text-align:center;color:var(--muted)}
 .pager button{min-width:32px;height:32px;border:1px solid var(--line);background:#fff;border-radius:3px;font-size:13px}
 .pager button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted);background:#fff}

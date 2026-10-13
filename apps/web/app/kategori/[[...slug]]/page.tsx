@@ -17,6 +17,13 @@ const NO_VEH: Veh = { marka: "", model: "", yil: "", km: "", yakit: "", vites: "
 type F = { veh: Veh; q: string; city: string; district: string; hood: string; bmin: string; bmax: string; cond: string[]; attrs: Record<string, string[]>; urgent: boolean; noOffers: boolean; buyer: "" | "bireysel" | "kurumsal"; sort: string; page: number };
 const PER = 20;
 
+// Sayfa numaraları kısaltılır: 1 … 4 5 6 … 12 (0 = üç nokta). Telefonda sığsın diye en fazla 7 öğe.
+function pageList(cur: number, total: number): number[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const from = Math.max(2, Math.min(cur - 1, total - 4)), to = Math.min(total - 1, Math.max(cur + 1, 5));
+  return [1, ...(from > 2 ? [0] : []), ...Array.from({ length: to - from + 1 }, (_, i) => from + i), ...(to < total - 1 ? [0] : []), total];
+}
+
 function Listing() {
   const { slug = [] } = useParams<{ slug?: string[] }>();
   const sp = useSearchParams();
@@ -80,6 +87,7 @@ function Listing() {
   const toggle = (arr: string[], v: string) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const title = s ? `${s.name} Alım Talepleri` : t ? `${t.name} Alım Talepleri` : f.q ? `"${f.q}" için talepler` : "Tüm Alım Talepleri";
   const pages = data ? Math.max(1, Math.ceil(data.total / PER)) : 1;
+  const go = (n: number) => { setF((x) => ({ ...x, page: n })); window.scrollTo(0, 0); };
   const selAttrs = t ? attrsFor(t.id, s?.id).filter((a) => a.t === "sel") : [];
   const cat = useVehicleCatalog();
   const vehBrands = cat ? (sub === "motosiklet" ? cat.moto : cat.cars) : {};
@@ -177,7 +185,12 @@ function Listing() {
             )}
           </div>
           {data?.total === 0 && !!others?.length && <div className="box" style={{ marginTop: 14 }}><div className="box-h"><h2>Diğer güncel talepler</h2><Link className="link" href="/kategori">Tümü »</Link></div><RequestTable items={others} /></div>}
-          {pages > 1 && <div className="pager">{Array.from({ length: Math.min(pages, 20) }, (_, i) => <button key={i} className={f.page === i + 1 ? "on" : ""} onClick={() => { setF((x) => ({ ...x, page: i + 1 })); window.scrollTo(0, 0); }}>{i + 1}</button>)}</div>}
+          {pages > 1 && <nav className="pager" aria-label="Sayfalar">
+            {f.page > 1 && <button aria-label="Önceki sayfa" onClick={() => go(f.page - 1)}>‹</button>}
+            {pageList(f.page, pages).map((n, i) => n === 0 ? <span key={`e${i}`} className="pg-gap">…</span>
+              : <button key={n} className={f.page === n ? "on" : ""} aria-current={f.page === n ? "page" : undefined} onClick={() => go(n)}>{n}</button>)}
+            {f.page < pages && <button aria-label="Sonraki sayfa" onClick={() => go(f.page + 1)}>›</button>}
+          </nav>}
         </div>
       </div>
     </div>
