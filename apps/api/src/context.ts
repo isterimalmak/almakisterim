@@ -5,6 +5,7 @@ import { HttpError, sha256 } from "./lib/util.js";
 import type { AiService } from "./services/ai.js";
 import type { GoogleAuth } from "./services/google.js";
 import type { Mailer, Sms } from "./services/notify.js";
+import type { Pexels } from "./services/pexels.js";
 import type { MediaStorage } from "./services/storage.js";
 
 export type Deps = {
@@ -15,6 +16,8 @@ export type Deps = {
   sms: Sms;
   google: GoogleAuth;
   storage: MediaStorage;
+  // Stok fotoğraf araması; verilmezse yapılandırmadaki anahtarla oluşturulur.
+  pexels?: Pexels;
 };
 
 export type SessionUser = {

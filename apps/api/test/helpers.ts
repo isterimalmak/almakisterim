@@ -1,3 +1,4 @@
+import type { Pexels } from "../src/services/pexels.js";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
@@ -9,7 +10,7 @@ import { MemoryStorage, type MediaStorage } from "../src/services/storage.js";
 
 export type TestCtx = { app: FastifyInstance; pool: Pool; outbox: MemoryOutbox; storage: MediaStorage };
 
-export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; storage?: MediaStorage; env?: Record<string, string> } = {}): Promise<TestCtx> {
+export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; storage?: MediaStorage; pexels?: Pexels; env?: Record<string, string> } = {}): Promise<TestCtx> {
   const config = loadConfig({
     NODE_ENV: "test",
     DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgres://postgres@localhost:5432/almakisterim_test",
@@ -21,7 +22,7 @@ export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; stora
   const pool = createPool(config.DATABASE_URL);
   const outbox = new MemoryOutbox();
   const storage = over.storage ?? new MemoryStorage();
-  const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle, storage });
+  const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle, storage, pexels: over.pexels });
   return { app, pool, outbox, storage };
 }
 

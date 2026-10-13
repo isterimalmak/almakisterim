@@ -12,6 +12,8 @@ export interface MediaStorage {
   head(key: string): Promise<{ size: number; contentType: string } | null>;
   remove(key: string): Promise<void>;
   publicUrl(key: string): string;
+  // Sunucunun kendisinin yüklediği dosyalar (ör. stok fotoğraf kopyası).
+  put(key: string, contentType: string, body: Buffer): Promise<void>;
 }
 
 /* ---------------- AWS Signature V4 (R2 bunu kullanır) ---------------- */
@@ -101,6 +103,12 @@ export class R2Storage implements MediaStorage {
   }
 
   publicUrl(key: string) { return `${this.o.publicBase.replace(/\/$/, "")}/${key}`; }
+
+  async put(key: string, contentType: string, body: Buffer) {
+    const t = this.presignPut(key, contentType, body.length);
+    const res = await fetch(t.url, { method: "PUT", headers: t.headers, body: new Uint8Array(body) });
+    if (!res.ok) throw new Error(`R2 PUT hata kodu ${res.status}`);
+  }
 }
 
 // Geliştirme ve testlerde dosyalar bellekte tutulur ve API üzerinden sunulur.
@@ -130,6 +138,7 @@ export class MemoryStorage implements MediaStorage {
   }
   async remove(key: string) { this.files.delete(key); }
   publicUrl(key: string) { return `/api/__media/file/${key}`; }
+  async put(key: string, contentType: string, body: Buffer) { this.files.set(key, { body, contentType }); }
 }
 
 export const disabledStorage: MediaStorage = {
@@ -138,6 +147,7 @@ export const disabledStorage: MediaStorage = {
   async head() { return null; },
   async remove() {},
   publicUrl(key: string) { return key; },
+  async put() { throw new HttpError(503, "yukleme_kapali", "Fotoğraf ve video yükleme şu anda kullanılamıyor."); },
 };
 
 export function createStorage(config: Config): MediaStorage {
