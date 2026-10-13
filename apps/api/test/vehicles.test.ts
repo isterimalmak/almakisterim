@@ -80,3 +80,25 @@ describe("araç talepleri", () => {
     expect(parseVehicleText("toyota bakıyorum").araclar).toEqual([{ marka: "Toyota", model: null }]);
   });
 });
+
+describe("araç kataloğu", () => {
+  it("Türkiye'deki markaların tamamına yakını ve 'Diğer' seçeneği vardır", async () => {
+    const c = (await ctx.app.inject({ url: "/api/catalog/vehicles" })).json();
+    for (const b of ["Tofaş", "Lada", "Daewoo", "Ferrari", "Porsche", "Geely", "Chery", "Togg", "Smart", "Isuzu", "Diğer"]) expect(c.cars).toHaveProperty([b]);
+    expect(Object.keys(c.cars).length).toBeGreaterThan(75);
+    expect(c.cars["Tofaş"]).toContain("Şahin");
+    expect(c.moto).toHaveProperty(["Diğer"]);
+  });
+
+  it("'Diğer' marka ve takma adlarla yazılan markalar kabul edilir", async () => {
+    const u = await login(ctx, "05321112233");
+    const id = await createRequest(ctx, u, car({ araclar: [{ marka: "diğer", model: null }, { marka: "ssangyong", model: "Korando" }, { marka: "Haval", model: null }] }));
+    const r = (await ctx.app.inject({ url: `/api/requests/${id}` })).json().request;
+    expect(r.attrs.araclar).toEqual([{ marka: "Diğer", model: null }, { marka: "KGM / SsangYong", model: "Korando" }, { marka: "GWM / Haval", model: null }]);
+  });
+
+  it("metin ayrıştırıcı yeni markaları tanır, günlük sözcükleri marka saymaz", () => {
+    expect(parseVehicleText("tofaş şahin veya lada niva arıyorum").araclar).toEqual([{ marka: "Tofaş", model: "Şahin" }, { marka: "Lada", model: "Niva" }]);
+    expect(parseVehicleText("8 gb ram akıllı telefon, smart saat").araclar).toEqual([]);
+  });
+});

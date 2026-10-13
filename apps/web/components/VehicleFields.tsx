@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { brandsOf, useVehicleCatalog, vehicleNames, yearTxt, type VehicleAttrs } from "@/lib/vehicles";
+import { brandsOf, useVehicleCatalog, vehicleName, vehicleNames, yearTxt, type VehicleAttrs } from "@/lib/vehicles";
 
 const YEARS = Array.from({ length: new Date().getFullYear() + 2 - 1990 }, (_, i) => new Date().getFullYear() + 1 - i);
 
@@ -40,7 +40,7 @@ export function VehicleFields({ sub, value, onChange }: { sub: string; value: Ve
         <label>İstediğiniz araçlar <span className="muted">(en fazla {cat.max}; boş bırakırsanız marka farketmez)</span></label>
         {!!list.length && (
           <div className="chips">{list.map((x, i) => (
-            <span key={`${x.marka}-${x.model}`} className="chip on">{x.model ? `${x.marka} ${x.model}` : `${x.marka} (tüm modeller)`}
+            <span key={`${x.marka}-${x.model}`} className="chip on">{vehicleName(x)}
               <button type="button" aria-label={`${x.marka} ${x.model ?? ""} kaldır`} onClick={() => set({ araclar: list.filter((_, k) => k !== i) })}>×</button></span>
           ))}</div>
         )}
@@ -50,7 +50,7 @@ export function VehicleFields({ sub, value, onChange }: { sub: string; value: Ve
               <option value="">Marka seçin</option>{Object.keys(brands).map((b) => <option key={b}>{b}</option>)}
             </select>
             <select className="sel" aria-label="Model" value={model} onChange={(e) => setModel(e.target.value)} disabled={!brand}>
-              <option value="">Tüm modeller</option>{(brands[brand] ?? []).map((m) => <option key={m}>{m}</option>)}
+              <option value="">{brand === "Diğer" ? "Markayı açıklamaya yazın" : "Tüm modeller"}</option>{(brands[brand] ?? []).map((m) => <option key={m}>{m}</option>)}
             </select>
             <button type="button" className="btn btn-bl" disabled={!brand} onClick={add}>+ Ekle</button>
           </div>

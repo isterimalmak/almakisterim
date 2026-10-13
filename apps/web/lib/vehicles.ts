@@ -31,8 +31,11 @@ export const VEHICLE_SUBS = ["otomobil", "suv", "elektrikli", "ticari", "motosik
 export const isVehicleSub = (sub: string | undefined) => !!sub && VEHICLE_SUBS.includes(sub);
 export const brandsOf = (c: VehicleCatalog, sub: string) => (c.subs[sub] === "moto" ? c.moto : c.cars);
 
+export const vehicleName = (x: { marka: string; model: string | null }) =>
+  x.model ? `${x.marka} ${x.model}` : x.marka === "Diğer" ? "Diğer marka (açıklamada)" : `${x.marka} (tüm modeller)`;
+
 export function vehicleNames(a: VehicleAttrs) {
-  return (a.araclar ?? []).map((x) => (x.model ? `${x.marka} ${x.model}` : `${x.marka} (tüm modeller)`));
+  return (a.araclar ?? []).map(vehicleName);
 }
 
 export function yearTxt(a: VehicleAttrs) {

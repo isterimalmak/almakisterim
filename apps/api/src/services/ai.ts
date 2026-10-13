@@ -49,8 +49,11 @@ const word = (x: string) => new RegExp(`(^|[^a-z0-9ığüşöç])${esc(x)}(?=[^a
 
 // "BMW 3 serisi veya Audi A4, 2018 sonrası, en fazla 100 bin km, dizel otomatik" → yapılandırılmış araç alanları.
 export function parseVehicleText(t: string) {
-  const aliases: [string, string][] = Object.keys(CAR_BRANDS).map((b) => [b.toLocaleLowerCase("tr"), b]);
-  aliases.push(["mercedes", "Mercedes-Benz"], ["vw", "Volkswagen"], ["range rover", "Land Rover"]);
+  // Günlük sözcüklerle karışabilen marka adları ("8 GB ram", "smart saat") metinden marka sayılmaz.
+  const skip = new Set(["Diğer", "RAM", "Smart", "Tata", "GWM / Haval", "KGM / SsangYong", "Lynk & Co"]);
+  const aliases: [string, string][] = Object.keys(CAR_BRANDS).filter((b) => !skip.has(b)).map((b) => [b.toLocaleLowerCase("tr"), b]);
+  aliases.push(["mercedes", "Mercedes-Benz"], ["vw", "Volkswagen"], ["range rover", "Land Rover"],
+    ["haval", "GWM / Haval"], ["ssangyong", "KGM / SsangYong"], ["lynk", "Lynk & Co"]);
   const hits = aliases.flatMap(([a, b]) => {
     const m = word(a).exec(t);
     return m ? [{ i: m.index + m[1]!.length, len: a.length, brand: b }] : [];
