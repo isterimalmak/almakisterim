@@ -22,7 +22,7 @@ describe("reklam alanları", () => {
   it("yönetici istediği kadar resim/video reklam ekler; ana sayfada sırayla, yalnızca açık olanlar görünür", async () => {
     const admin = await login(ctx, "yonetici@almakisterim.com");
     const add = async (payload: Record<string, unknown>) => {
-      const r = await ctx.app.inject({ method: "POST", url: "/api/admin/ads", headers: { cookie: admin }, payload });
+      const r = await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload });
       expect(r.statusCode, r.body).toBe(201);
       return r.json() as { id: number; media: { kind: string; url: string } };
     };
@@ -31,20 +31,20 @@ describe("reklam alanları", () => {
     const c = await add({ media_id: (await upload(admin)).id, title: "Kapalı", is_active: false });
     expect(b.media.kind).toBe("video");
 
-    let pub = (await ctx.app.inject({ url: "/api/ads" })).json().items;
+    let pub = (await ctx.app.inject({ url: "/api/tanitim" })).json().items;
     expect(pub.map((x: { title: string }) => x.title)).toEqual(["Oto galeri", "Video reklam"]);
     expect(pub[0]).toMatchObject({ link_url: "https://ornek.com", media: { kind: "image" } });
 
     // Sırayı değiştir, kapalıyı aç, bağlantıyı kaldır.
-    expect((await ctx.app.inject({ method: "POST", url: "/api/admin/ads/order", headers: { cookie: admin }, payload: { ids: [c.id, b.id, a.id] } })).statusCode).toBe(200);
-    expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/ads/${c.id}`, headers: { cookie: admin }, payload: { is_active: true } })).json().is_active).toBe(true);
-    expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/ads/${a.id}`, headers: { cookie: admin }, payload: { link_url: "" } })).json().link_url).toBeNull();
-    pub = (await ctx.app.inject({ url: "/api/ads" })).json().items;
+    expect((await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim/order", headers: { cookie: admin }, payload: { ids: [c.id, b.id, a.id] } })).statusCode).toBe(200);
+    expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${c.id}`, headers: { cookie: admin }, payload: { is_active: true } })).json().is_active).toBe(true);
+    expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${a.id}`, headers: { cookie: admin }, payload: { link_url: "" } })).json().link_url).toBeNull();
+    pub = (await ctx.app.inject({ url: "/api/tanitim" })).json().items;
     expect(pub.map((x: { title: string }) => x.title)).toEqual(["Kapalı", "Video reklam", "Oto galeri"]);
 
     // Silinen reklamın dosyası da silinir.
-    expect((await ctx.app.inject({ method: "DELETE", url: `/api/admin/ads/${b.id}`, headers: { cookie: admin } })).statusCode).toBe(200);
-    expect((await ctx.app.inject({ url: "/api/admin/ads", headers: { cookie: admin } })).json().items).toHaveLength(2);
+    expect((await ctx.app.inject({ method: "DELETE", url: `/api/admin/tanitim/${b.id}`, headers: { cookie: admin } })).statusCode).toBe(200);
+    expect((await ctx.app.inject({ url: "/api/admin/tanitim", headers: { cookie: admin } })).json().items).toHaveLength(2);
     expect((await ctx.pool.query("SELECT count(*)::int AS n FROM media")).rows[0].n).toBe(2);
   });
 
@@ -52,20 +52,20 @@ describe("reklam alanları", () => {
     const user = await login(ctx, "05321112233");
     const admin = await login(ctx, "yonetici@almakisterim.com");
     const mine = await upload(user);
-    expect((await ctx.app.inject({ method: "POST", url: "/api/admin/ads", headers: { cookie: user }, payload: { media_id: mine.id } })).statusCode).toBe(403);
-    expect((await ctx.app.inject({ method: "POST", url: "/api/admin/ads", headers: { cookie: admin }, payload: { media_id: mine.id } })).json().error).toBe("medya_gecersiz");
+    expect((await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: user }, payload: { media_id: mine.id } })).statusCode).toBe(403);
+    expect((await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload: { media_id: mine.id } })).json().error).toBe("medya_gecersiz");
     const m = await upload(admin);
-    expect((await ctx.app.inject({ method: "POST", url: "/api/admin/ads", headers: { cookie: admin }, payload: { media_id: m.id, link_url: "javascript:alert(1)" } })).statusCode).toBe(400);
+    expect((await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload: { media_id: m.id, link_url: "javascript:alert(1)" } })).statusCode).toBe(400);
   });
 
   it("reklam dosyaları günlük temizlikte silinmez ve talebe eklenemez", async () => {
     const admin = await login(ctx, "yonetici@almakisterim.com");
     const m = await upload(admin);
-    await ctx.app.inject({ method: "POST", url: "/api/admin/ads", headers: { cookie: admin }, payload: { media_id: m.id } });
+    await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload: { media_id: m.id } });
     await ctx.pool.query("UPDATE media SET created_at = now() - interval '3 days'");
     expect(await cleanupOrphans(ctx.pool, ctx.storage)).toBe(0);
     expect((await ctx.app.inject({ method: "DELETE", url: `/api/media/${m.id}`, headers: { cookie: admin } })).statusCode).toBe(404);
-    expect((await ctx.app.inject({ url: "/api/ads" })).json().items).toHaveLength(1);
+    expect((await ctx.app.inject({ url: "/api/tanitim" })).json().items).toHaveLength(1);
   });
 });
 
