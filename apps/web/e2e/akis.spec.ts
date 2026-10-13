@@ -463,12 +463,21 @@ test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütç
   await page.getByLabel("Alıcı bütçesi en az (TL)").fill("1000000");
   await page.getByLabel("Alıcı bütçesi en fazla (TL)").fill("5000000");
   await page.getByRole("button", { name: "Konut", exact: true }).click();
+  await page.getByLabel("Arsanızın m²'si").fill("600");
   await page.getByRole("button", { name: "Alarm kur" }).click();
   await expect(page.getByText("Alarm kuruldu.", { exact: false })).toBeVisible();
   const row = page.locator(".tbl tbody tr", { hasText: "Emlak › Arsa" });
   await expect(row.getByText("İzmir / Urla")).toBeVisible();
   await expect(row.getByText("1.000.000 – 5.000.000 TL")).toBeVisible();
   await expect(row.getByText("İmar durumu: Konut")).toBeVisible();
+  await expect(row.getByText("m²: 600")).toBeVisible();
+  // Talep listesinde de satıcı kendi arsasının m²'sini girip uyan talepleri görür.
+  await page.goto("/kategori/emlak");
+  const toggle = page.getByRole("button", { name: /^Filtrele/ });
+  if (await toggle.isVisible()) await toggle.click();
+  await page.getByLabel("Gayrimenkulünüzün m²'si").fill("600");
+  await expect(page.getByRole("button", { name: "m²: 600 filtresini kaldır" })).toBeVisible();
+  await page.goto("/bana-ozel?s=alarm");
 
   // Vasıta (tümü) seçilince de marka/model sorulur: yalnızca BMW 1 Serisi isteyen alıcılar için alarm.
   await page.getByLabel("Ana kategori *").selectOption("vasita");

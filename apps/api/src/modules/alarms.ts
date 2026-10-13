@@ -2,7 +2,7 @@ import type { Deps } from "../context.js";
 import { HttpError } from "../lib/util.js";
 import { CITIES } from "../services/ai.js";
 import { matchDistrict, matchNeighbourhood } from "../data/locations.js";
-import { ListQuery, requestMatches } from "./requests.js";
+import { ListQuery, NUM_MATCH, requestMatches } from "./requests.js";
 import { VehicleQuery } from "./vehicles.js";
 
 // Talep alarmı = kaydedilmiş arama. Süzgeçler talep listesindekilerle aynı adları taşır (city, bmin, a_imar, arac_marka…).
@@ -23,6 +23,11 @@ export function cleanAlarmFilters(input: Record<string, string | number>): Recor
     const v = String(raw).trim();
     if (!v || v === "Farketmez") continue;
     if (KEYS.includes(k) || /^a_[a-z0-9_]{1,20}$/.test(k)) out[k] = v.slice(0, 300);
+    else if (/^n_[a-z0-9_]{1,20}$/.test(k) && NUM_MATCH[k.slice(2)]) {
+      const n = Number(v.replace(",", "."));
+      if (!Number.isFinite(n) || n < 0 || n > 1e9) throw new HttpError(400, "sayi_gecersiz", "Sayı alanına geçerli bir değer yazın.");
+      out[k] = String(n);
+    }
   }
   if (out.city && !CITIES.includes(out.city)) throw new HttpError(400, "il_gecersiz", "Geçerli bir il seçin.");
   if (!out.city) { delete out.district; delete out.neighbourhood; }
