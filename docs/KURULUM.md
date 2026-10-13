@@ -11,7 +11,7 @@ Bütün hesaplar **isterimalmak@gmail.com** ile açılır. Hiçbir anahtar sohbe
 | 3 | Google Cloud kurulum betiği (`infra/gcp-kurulum.sh`) | ✅ |
 | 4 | GitHub değişkenleri | ✅ |
 | 5 | Neon veritabanı (Frankfurt) → `DATABASE_URL` | ✅ |
-| 6 | İlk "Canlıya al" (site run.app adresinde açılır) | ⏳ |
+| 6 | İlk "Canlıya al" (site run.app adresinde açılır) | ✅ |
 | 7 | Anthropic (yapay zekâ) → `ANTHROPIC_API_KEY` | ⏳ |
 | 8 | Resend (e-posta) → `RESEND_API_KEY` | ⏳ (alan adı gerekir) |
 | 9 | Netgsm (SMS) → `NETGSM_USERCODE`, `NETGSM_PASSWORD`, başlık | ⏳ |
