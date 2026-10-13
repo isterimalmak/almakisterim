@@ -66,7 +66,7 @@ export function Footer() {
           <div><b>Satıcılar İçin</b><Link href="/bana-ozel?s=eslesme">Size Uygun Talepler</Link><Link href="/bana-ozel?s=kredi">Kredi ve Mağaza</Link><Link href="/bana-ozel?s=alarm">Talep Alarmları</Link></div>
           <div><b>Gizlilik ve Kullanım</b><Link href="/sayfa/kullanim-kosullari">Kullanım Koşulları</Link><Link href="/sayfa/kvkk">KVKK Aydınlatma Metni</Link><Link href="/sayfa/cerez">Çerez Politikası</Link></div>
         </div>
-        <div className="ft-bottom"><span>© {new Date().getFullYear()} almakisterim.com</span><span>Telefon numaranız satıcılarla paylaşılmaz.</span></div>
+        <div className="ft-bottom"><span>© {new Date().getFullYear()} almakisterim.com</span><span>Numaranız yalnızca talebinizle ilgilenen sınırlı sayıda satıcıya açılır.</span></div>
       </div>
     </footer>
   );

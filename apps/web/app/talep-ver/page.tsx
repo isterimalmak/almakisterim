@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker } from "@/components/Media";
+import { CatIcon } from "@/components/RequestTable";
 import { PhoneVerify } from "@/components/PhoneVerify";
 import { useSession } from "@/components/Session";
 import { api, type Draft, type Media } from "@/lib/api";
@@ -105,7 +106,7 @@ function Create() {
           </div>
           <div className="box"><div className="box-h"><h2>Kategori seçin</h2></div><div className="box-b">
             <div className="cat-pick">
-              <div className="cat-col">{categories.map((t) => <button key={t.id} className={d.top === t.id ? "on" : ""} onClick={() => set({ top: t.id, sub: "" })}><Icon name={t.icon} size={20} />{t.name}<span className="ar">›</span></button>)}</div>
+              <div className="cat-col">{categories.map((t) => <button key={t.id} className={d.top === t.id ? "on" : ""} onClick={() => set({ top: t.id, sub: "" })}><CatIcon top={t.id} cls="ct-ic" />{t.name}<span className="ar">›</span></button>)}</div>
               <div className="cat-col">{top ? top.subs.map((s) => <button key={s.id} className={d.sub === s.id ? "on" : ""} onClick={() => set({ sub: s.id })}>{s.name}</button>) : <div className="empty" style={{ padding: "30px 12px" }}>Önce soldan bir ana kategori seçin.</div>}</div>
             </div>
             <div className="sel-path">{sub ? <>Seçilen kategori: <b>{top!.name} › {sub.name}</b></> : <span className="muted">Henüz kategori seçilmedi.</span>}</div>

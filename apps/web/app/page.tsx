@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
-import { RequestTable, VitrinCard } from "@/components/RequestTable";
+import { CatIcon, RequestTable, VitrinCard } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 
@@ -31,7 +31,7 @@ export default function Home() {
       <aside className="ctree" aria-label="Kategoriler">
         {browseCategories.length ? browseCategories.map((t) => (
           <div className="ct-group" key={t.id}>
-            <Link className="ct-top" href={`/kategori/${t.id}`}><span className="ct-ic"><Icon name={t.icon} /></span>{t.name} {count(t.active_count) !== null && <span className="n">({t.active_count})</span>}</Link>
+            <Link className="ct-top" href={`/kategori/${t.id}`}><CatIcon top={t.id} cls="ct-ic" />{t.name} {count(t.active_count) !== null && <span className="n">({t.active_count})</span>}</Link>
             <ul className="ct-subs">
               {t.subs.map((s) => <li key={s.id}><Link href={`/kategori/${t.id}/${s.id}`}><span>{s.name}</span><span className="n">{count(s.active_count)}</span></Link></li>)}
             </ul>
@@ -40,7 +40,7 @@ export default function Home() {
           // Henüz gezilecek talep yoksa kategoriler "ne almak istiyorsunuz?" kısayolu olur.
           <div className="ct-group">
             <div className="ct-top" style={{ cursor: "default" }}>Ne almak istiyorsunuz?</div>
-            <ul className="ct-subs ct-pick">{categories.map((t) => <li key={t.id}><Link href={`/talep-ver?kategori=${t.id}`}><span className="ct-ic"><Icon name={t.icon} /></span><span>{t.name}</span></Link></li>)}</ul>
+            <ul className="ct-subs ct-pick">{categories.map((t) => <li key={t.id}><Link href={`/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span><span className="ar">›</span></Link></li>)}</ul>
           </div>
         )}
       </aside>
@@ -66,6 +66,13 @@ export default function Home() {
             <div className="box-b"><div className="vitrin">{urgent.items.map((r) => <VitrinCard key={r.id} r={r} />)}</div></div>
           </section>
         )}
+
+        {/* Telefonda soldaki liste gizli; kategoriler renkli kutucuklar olarak burada. */}
+        <section className="cat-tiles" aria-label="Kategoriler">
+          {(browseCategories.length ? browseCategories : categories).map((t) => (
+            <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span></Link>
+          ))}
+        </section>
 
         <section className="box" style={{ marginBottom: 14 }}>
           <div className="box-h"><h2>Son Eklenen Talepler</h2>{!!latest?.total && <Link className="link" href="/kategori">Tüm talepler{count(latest.total) !== null && ` (${latest.total})`} »</Link>}</div>
