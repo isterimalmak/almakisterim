@@ -9,9 +9,9 @@ set -euo pipefail
 PROJECT_ID="$(gcloud config get-value project 2>/dev/null)"
 REGION="europe-west3"   # Frankfurt
 GITHUB_REPO="isterimalmak/almakisterim"
-GITHUB_OWNER="isterimalmak"
-# Google Cloud'a yalnızca sahibin elle başlattığı, main dalındaki "Canlıya al" iş akışı girebilir.
-WIF_CONDITION="assertion.repository=='$GITHUB_REPO' && assertion.event_name=='workflow_dispatch' && assertion.ref=='refs/heads/main' && assertion.actor=='$GITHUB_OWNER'"
+# Google Cloud'a yalnızca sahibin veya sahibin "canlıya al" demesiyle Claude Code hesabının elle başlattığı,
+# main dalındaki "Canlıya al" iş akışı girebilir.
+WIF_CONDITION="assertion.repository=='$GITHUB_REPO' && assertion.event_name=='workflow_dispatch' && assertion.ref=='refs/heads/main' && assertion.actor in ['isterimalmak', 'coskungulerlokalusta']"
 
 if [[ -z "$PROJECT_ID" || "$PROJECT_ID" == "(unset)" ]]; then
   echo "Önce projeyi seçin: gcloud config set project PROJE_KIMLIGI"; exit 1

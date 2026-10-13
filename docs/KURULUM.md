@@ -56,7 +56,8 @@ GitHub → depo → **Settings → Secrets and variables → Actions → Variabl
 Özel depolarda GitHub'ın ücretsiz planı "Environments / Required reviewers" özelliğini sunmaz. Onun yerine:
 
 - "Canlıya al" yalnızca elle başlatılır ve onay kutusuna `CANLIYA AL` yazılması gerekir.
-- Yalnızca `isterimalmak` hesabı başlatabilir ve yalnızca `main` dalından çalışır.
+- Yalnızca `isterimalmak` ve sahibin "canlıya al" demesiyle Claude Code hesabı (`coskungulerlokalusta`)
+  başlatabilir; yalnızca `main` dalından çalışır.
 - Google Cloud tarafında da aynı koşul var (Workload Identity koşulu): başka biri, başka bir dal veya
   otomatik tetiklenen bir iş akışı Google Cloud'a hiç giremez.
 
