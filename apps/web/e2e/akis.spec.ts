@@ -98,15 +98,15 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByRole("button", { name: "Reklam Alanları" }).click();
   await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: "reklam.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByText("Reklam eklendi; ana sayfada görünüyor.")).toBeVisible();
-  const n = await page.locator(".ad-row").count();
+  const n = await page.locator(".yk-satir").count();
   const titleBox = page.getByLabel(`${n}. reklam başlığı`);
   await titleBox.fill(ad);
   await page.getByLabel(`${n}. reklam bağlantısı`).fill("/kategori/vasita");
   await page.getByLabel(`${n}. reklam bağlantısı`).blur();
   await expect(page.getByLabel(`${n}. reklam bağlantısı`)).toHaveValue("/kategori/vasita");
-  await page.waitForResponse((r) => r.url().includes("/api/admin/ads") && r.request().method() === "GET");
+  await page.waitForResponse((r) => r.url().includes("/api/admin/tanitim") && r.request().method() === "GET");
   await page.goto("/");
-  const img = page.locator(".home-left .ads").getByAltText(ad);
+  const img = page.locator(".home-left .yk-list").getByAltText(ad);
   await expect(img).toBeVisible();
   await img.click();
   await page.waitForURL(/\/kategori\/vasita/);
@@ -114,7 +114,7 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   page.on("dialog", (d) => void d.accept());
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Reklam Alanları" }).click();
-  await page.locator(".ad-row").nth(n - 1).getByRole("button", { name: "Sil" }).click();
+  await page.locator(".yk-satir").nth(n - 1).getByRole("button", { name: "Sil" }).click();
   await expect(page.getByText("Reklam silindi.")).toBeVisible();
 });
 

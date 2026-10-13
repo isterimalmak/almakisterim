@@ -23,19 +23,19 @@ export function adRoutes(app: FastifyInstance, deps: Deps) {
     created_at: a.created_at, media: toPublic(storage, { id: a.media_id, kind: a.kind, content_type: a.content_type, storage_key: a.storage_key }) });
 
   // Önbelleğe alınmaz: yönetici eklediği reklamı hemen görsün.
-  app.get("/ads", async () => {
+  app.get("/tanitim", async () => {
     const { rows } = await pool.query<AdRow>(`${SELECT} WHERE a.is_active AND a.placement = 'sol' ORDER BY a.position, a.id`);
     return { items: rows.map(out).map(({ is_active: _a, position: _p, created_at: _c, ...x }) => x) };
   });
 
-  app.get("/admin/ads", async (req) => {
+  app.get("/admin/tanitim", async (req) => {
     requireAdmin(req);
     const { rows } = await pool.query<AdRow>(`${SELECT} ORDER BY a.position, a.id`);
     return { items: rows.map(out) };
   });
 
   // Yönetici önce dosyayı normal yükleme akışıyla yükler (/media/uploads → /complete), sonra reklam olarak ekler.
-  app.post("/admin/ads", async (req, reply) => {
+  app.post("/admin/tanitim", async (req, reply) => {
     const admin = requireAdmin(req);
     const b = z.object({ media_id: z.uuid(), title: Title, link_url: Link, is_active: z.boolean().default(true) }).parse(req.body);
     const id = await tx(pool, async (c) => {
@@ -52,7 +52,7 @@ export function adRoutes(app: FastifyInstance, deps: Deps) {
     return out(rows[0]!);
   });
 
-  app.patch("/admin/ads/:id", async (req) => {
+  app.patch("/admin/tanitim/:id", async (req) => {
     requireAdmin(req);
     const { id } = z.object({ id: z.coerce.number().int() }).parse(req.params);
     const b = z.object({ title: Title, link_url: Link, is_active: z.boolean().optional() }).parse(req.body);
@@ -70,14 +70,14 @@ export function adRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   // Sıralama: yönetici yukarı/aşağı oklarla değiştirir, tüm sıra gönderilir.
-  app.post("/admin/ads/order", async (req) => {
+  app.post("/admin/tanitim/order", async (req) => {
     requireAdmin(req);
     const { ids } = z.object({ ids: z.array(z.number().int()).max(500) }).parse(req.body);
     await pool.query("UPDATE ads a SET position = x.pos FROM unnest($1::bigint[]) WITH ORDINALITY AS x(id, pos) WHERE a.id = x.id", [ids]);
     return { ok: true };
   });
 
-  app.delete("/admin/ads/:id", async (req) => {
+  app.delete("/admin/tanitim/:id", async (req) => {
     requireAdmin(req);
     const { id } = z.object({ id: z.coerce.number().int() }).parse(req.params);
     const r = await pool.query<{ storage_key: string }>(

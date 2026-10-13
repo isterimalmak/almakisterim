@@ -13,7 +13,7 @@ export function AdsAdmin() {
   const [busy, setBusy] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => setItems((await api<{ items: Ad[] }>("/admin/ads")).items), []);
+  const load = useCallback(async () => setItems((await api<{ items: Ad[] }>("/admin/tanitim")).items), []);
   useEffect(() => { void load().catch((e) => toast((e as Error).message)); }, [load, toast]);
 
   const add = async (files: FileList | null) => {
@@ -24,7 +24,7 @@ export function AdsAdmin() {
       try {
         setBusy(`${f.name} yükleniyor… %0`);
         const m = await uploadFile(f, (pct) => setBusy(`${f.name} yükleniyor… %${pct}`));
-        await api("/admin/ads", { body: { media_id: m.id, title: f.name.replace(/\.[^.]+$/, "") } });
+        await api("/admin/tanitim", { body: { media_id: m.id, title: f.name.replace(/\.[^.]+$/, "") } });
         ok++;
       } catch (e) { toast((e as Error).message); }
     }
@@ -35,7 +35,7 @@ export function AdsAdmin() {
   };
 
   const patch = async (a: Ad, body: Partial<Pick<Ad, "title" | "link_url" | "is_active">>) => {
-    try { await api(`/admin/ads/${a.id}`, { method: "PATCH", body }); await load(); }
+    try { await api(`/admin/tanitim/${a.id}`, { method: "PATCH", body }); await load(); }
     catch (e) { toast((e as Error).message); }
   };
   const move = async (i: number, d: -1 | 1) => {
@@ -43,11 +43,11 @@ export function AdsAdmin() {
     const next = [...items];
     [next[i], next[i + d]] = [next[i + d]!, next[i]!];
     setItems(next);
-    await api("/admin/ads/order", { body: { ids: next.map((x) => x.id) } }).catch((e) => toast((e as Error).message));
+    await api("/admin/tanitim/order", { body: { ids: next.map((x) => x.id) } }).catch((e) => toast((e as Error).message));
   };
   const remove = async (a: Ad) => {
     if (!confirm("Bu reklam ve dosyası silinsin mi?")) return;
-    await api(`/admin/ads/${a.id}`, { method: "DELETE" }).catch((e) => toast((e as Error).message));
+    await api(`/admin/tanitim/${a.id}`, { method: "DELETE" }).catch((e) => toast((e as Error).message));
     toast("Reklam silindi.");
     await load();
   };
@@ -59,15 +59,15 @@ export function AdsAdmin() {
       <button className="btn btn-or" disabled={!!busy} onClick={() => input.current?.click()}>+ Resim veya video ekle</button>
       {busy && <span className="muted" style={{ marginLeft: 10 }}>{busy}</span>}
       {!items ? <div className="loading">Yükleniyor…</div> : !items.length ? <div className="empty">Henüz reklam yok.</div> : (
-        <div className="ad-list">
+        <div className="yk-yon">
           {items.map((a, i) => (
-            <div key={a.id} className={"ad-row" + (a.is_active ? "" : " off")}>
-              <div className="ad-prev">{a.media.kind === "video" ? <video src={a.media.url} muted playsInline preload="metadata" /> : <img src={a.media.url} alt="" />}</div>
-              <div className="ad-f">
+            <div key={a.id} className={"yk-satir" + (a.is_active ? "" : " off")}>
+              <div className="yk-on">{a.media.kind === "video" ? <video src={a.media.url} muted playsInline preload="metadata" /> : <img src={a.media.url} alt="" />}</div>
+              <div className="yk-alan">
                 <label>Başlık<input className="inp" defaultValue={a.title} aria-label={`${i + 1}. reklam başlığı`} onBlur={(e) => e.target.value !== a.title && void patch(a, { title: e.target.value })} /></label>
                 <label>Tıklayınca gideceği adres (isteğe bağlı)<input className="inp" defaultValue={a.link_url ?? ""} placeholder="https://… veya /kategori/vasita" aria-label={`${i + 1}. reklam bağlantısı`} onBlur={(e) => e.target.value !== (a.link_url ?? "") && void patch(a, { link_url: e.target.value })} /></label>
               </div>
-              <div className="ad-act">
+              <div className="yk-is">
                 <button className={"sw" + (a.is_active ? " on" : "")} role="switch" aria-checked={a.is_active} aria-label={`${i + 1}. reklam yayında`} onClick={() => void patch(a, { is_active: !a.is_active })} />
                 <span className="muted" style={{ fontSize: 12 }}>{a.is_active ? "Yayında" : "Kapalı"}</span>
                 <button className="btn btn-wh btn-sm" disabled={i === 0} aria-label="Yukarı taşı" onClick={() => void move(i, -1)}>↑</button>

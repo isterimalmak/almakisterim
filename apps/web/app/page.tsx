@@ -80,7 +80,7 @@ export default function Home() {
           ))}
         </section>
 
-        <Ads cls="ads-m" />
+        <Ads cls="yk-m" />
 
         {!!vitrin?.items.length && (
           <section className="box" style={{ marginBottom: 14 }}>
