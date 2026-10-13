@@ -11,7 +11,7 @@ Bütün hesaplar **isterimalmak@gmail.com** ile açılır. Hiçbir anahtar sohbe
 | 3 | Google Cloud kurulum betiği (`infra/gcp-kurulum.sh`) | ✅ |
 | 4 | GitHub değişkenleri | ✅ |
 | 5 | Neon veritabanı (Frankfurt) → `DATABASE_URL` | ✅ |
-| 6 | İlk "Canlıya al" (site run.app adresinde açılır) | ⏳ |
+| 6 | İlk "Canlıya al" (site run.app adresinde açılır) | ✅ |
 | 7 | Anthropic (yapay zekâ) → `ANTHROPIC_API_KEY` | ⏳ |
 | 8 | Resend (e-posta) → `RESEND_API_KEY` | ⏳ (alan adı gerekir) |
 | 9 | Netgsm (SMS) → `NETGSM_USERCODE`, `NETGSM_PASSWORD`, başlık | ⏳ |
@@ -56,7 +56,8 @@ GitHub → depo → **Settings → Secrets and variables → Actions → Variabl
 Özel depolarda GitHub'ın ücretsiz planı "Environments / Required reviewers" özelliğini sunmaz. Onun yerine:
 
 - "Canlıya al" yalnızca elle başlatılır ve onay kutusuna `CANLIYA AL` yazılması gerekir.
-- Yalnızca `isterimalmak` hesabı başlatabilir ve yalnızca `main` dalından çalışır.
+- Yalnızca `isterimalmak` ve sahibin "canlıya al" demesiyle Claude Code hesabı (`coskungulerlokalusta`)
+  başlatabilir; yalnızca `main` dalından çalışır.
 - Google Cloud tarafında da aynı koşul var (Workload Identity koşulu): başka biri, başka bir dal veya
   otomatik tetiklenen bir iş akışı Google Cloud'a hiç giremez.
 

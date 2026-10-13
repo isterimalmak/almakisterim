@@ -1,14 +1,8 @@
+import { vehicleLine, type VehicleAttrs } from "./vehicles";
 // Kategoriye özel özellikler (filtre ve talep formunda kullanılır) ve görsel ayarlar.
 export type Attr = { k: string; l: string; t: "sel" | "num"; o?: string[] };
 
 export const ATTRS: Record<string, Attr[]> = {
-  vasita: [
-    { k: "marka", l: "Marka", t: "sel", o: ["Volkswagen", "Fiat", "Renault", "Toyota", "Ford", "Honda", "Dacia", "Togg", "BMW", "Mercedes-Benz", "Hyundai", "Opel", "Peugeot"] },
-    { k: "yil", l: "Model yılı (en az)", t: "num" },
-    { k: "km", l: "Kilometre (en fazla)", t: "num" },
-    { k: "yakit", l: "Yakıt", t: "sel", o: ["Benzin", "Dizel", "LPG", "Hibrit", "Elektrik"] },
-    { k: "vites", l: "Vites", t: "sel", o: ["Manuel", "Otomatik"] },
-  ],
   emlak: [
     { k: "oda", l: "Oda sayısı", t: "sel", o: ["1+0", "1+1", "2+1", "3+1", "4+1 ve üzeri"] },
     { k: "m2", l: "m² (en az)", t: "num" },
@@ -41,7 +35,9 @@ export const DELIVERY: Record<string, string[]> = {
 
 export const CITIES = ["Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksaray", "Amasya", "Ankara", "Antalya", "Ardahan", "Artvin", "Aydın", "Balıkesir", "Bartın", "Batman", "Bayburt", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Düzce", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Iğdır", "Isparta", "İstanbul", "İzmir", "Kahramanmaraş", "Karabük", "Karaman", "Kars", "Kastamonu", "Kayseri", "Kilis", "Kırıkkale", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Mardin", "Mersin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Osmaniye", "Rize", "Sakarya", "Samsun", "Şanlıurfa", "Siirt", "Sinop", "Şırnak", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Uşak", "Van", "Yalova", "Yozgat", "Zonguldak"];
 
-export function attrLine(top: string, condition: string, attrs: Record<string, string | number>): string {
+export function attrLine(top: string, condition: string, attrs: Record<string, unknown>): string {
+  // Araç taleplerinde ayrıntılı özet (birden fazla marka/model, aralıklar).
+  if (Array.isArray(attrs.araclar) || "yil_min" in attrs || "km_max" in attrs || "yakit" in attrs) return `${condition} · ${vehicleLine(attrs as VehicleAttrs)}`;
   const parts = [condition];
   for (const a of ATTRS[top] ?? []) {
     const v = attrs[a.k];

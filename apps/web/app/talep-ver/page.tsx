@@ -8,11 +8,13 @@ import { Gallery, MediaPicker } from "@/components/Media";
 import { CatIcon } from "@/components/RequestTable";
 import { PhoneVerify } from "@/components/PhoneVerify";
 import { useSession } from "@/components/Session";
+import { VehicleFields, VehicleRows } from "@/components/VehicleFields";
 import { api, type Draft, type Media } from "@/lib/api";
 import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
 import { budgetTxt } from "@/lib/format";
+import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
-type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; condition: string; attrs: Record<string, string | number>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[] };
+type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; condition: string; attrs: Record<string, unknown>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[] };
 const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [] };
 const KEY = "ak_taslak";
 
@@ -60,7 +62,8 @@ function Create() {
 
   const top = categories.find((t) => t.id === d.top);
   const sub = top?.subs.find((s) => s.id === d.sub);
-  const sch = ATTRS[d.top] ?? [];
+  const vehicle = isVehicleSub(d.sub);
+  const sch = vehicle ? [] : ATTRS[d.top] ?? [];
 
   const validate = () => {
     if (d.title.trim().length < 3) return "Talep başlığı yazın.";
@@ -82,7 +85,7 @@ function Create() {
     try {
       const res = await api<{ id: number; status: string; moderation: { reason: string } | null }>("/requests", { body: {
         category_id: d.sub, title: d.title, description: d.description, budget_min: d.b0 ? Number(d.b0) : null, budget_max: Number(d.b1),
-        city: d.city, district: d.district, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "")),
+        city: d.city, district: d.district, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "" && v !== undefined)),
         is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, media_ids: d.media.map((m) => m.id), contact_consent: true,
       } });
       toast(res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi." : "Talebiniz incelemeye alındı. Onaylanınca yayınlanacak.");
@@ -127,6 +130,7 @@ function Create() {
               <div className="fg"><label htmlFor="f-c">İl *</label><select className="sel" id="f-c" value={d.city} onChange={(e) => set({ city: e.target.value })}><option value="">Seçin</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
               <div className="fg"><label htmlFor="f-d">İlçe</label><input className="inp" id="f-d" maxLength={60} value={d.district} onChange={(e) => set({ district: e.target.value })} placeholder="Örn. Kadıköy" /></div>
               <div className="fg full"><label>Ürün durumu</label><div className="radio-row">{CONDS.map((c) => <label key={c}><input type="radio" name="k" checked={d.condition === c} onChange={() => set({ condition: c })} />{c}</label>)}</div></div>
+              {vehicle && <VehicleFields sub={d.sub} value={d.attrs as VehicleAttrs} onChange={(attrs) => setD((x) => ({ ...x, attrs }))} />}
               {sch.map((a) => (
                 <div className="fg" key={a.k}><label htmlFor={`fa-${a.k}`}>{a.l}</label>
                   {a.t === "sel"
@@ -156,6 +160,7 @@ function Create() {
             <tr><th>Kategori</th><td>{top.name} › {sub.name}</td></tr>
             <tr><th>Ürün durumu</th><td>{d.condition}</td></tr>
             {sch.filter((a) => d.attrs[a.k] !== undefined && d.attrs[a.k] !== "").map((a) => <tr key={a.k}><th>{a.l}</th><td>{String(d.attrs[a.k])}</td></tr>)}
+            {vehicle && <VehicleRows a={d.attrs as VehicleAttrs} />}
             <tr><th>Konum</th><td>{d.city}{d.district && ` / ${d.district}`}</td></tr>
             <tr><th>Teklif toplama süresi</th><td>{d.days} gün</td></tr>
           </tbody></table>

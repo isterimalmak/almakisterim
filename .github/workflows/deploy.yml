@@ -1,8 +1,8 @@
 name: Canlıya al
 
 # Yalnızca elle başlatılır (Actions → "Canlıya al" → Run workflow) ve onay kutusuna
-# "CANLIYA AL" yazılması gerekir. Yalnızca depo sahibi (isterimalmak) başlatabilir;
-# Google Cloud tarafı da (Workload Identity koşulu) yalnızca sahibin elle başlattığı,
+# "CANLIYA AL" yazılması gerekir. Yalnızca isterimalmak veya (sahibin isteğiyle) coskungulerlokalusta başlatabilir;
+# Google Cloud tarafı da (Workload Identity koşulu) yalnızca bu hesapların elle başlattığı,
 # main dalından çalışan yayına izin verir. Önce bütün testler çalışır.
 on:
   workflow_dispatch:

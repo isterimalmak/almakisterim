@@ -9,5 +9,5 @@ routes = [
 ]
 
 [vars]
-API_ORIGIN = "https://almakisterim-api-XXXX.europe-west3.run.app"
-WEB_ORIGIN = "https://almakisterim-web-XXXX.europe-west3.run.app"
+API_ORIGIN = "https://almakisterim-api-n4hxtov3ia-ey.a.run.app"
+WEB_ORIGIN = "https://almakisterim-web-n4hxtov3ia-ey.a.run.app"
