@@ -14,7 +14,7 @@ const PER = 20;
 function Listing() {
   const { slug = [] } = useParams<{ slug?: string[] }>();
   const sp = useSearchParams();
-  const { categories, user, toast } = useSession();
+  const { categories, browseCategories, count, user, toast } = useSession();
   const [top, sub] = slug;
   const t = categories.find((c) => c.id === top);
   const s = t?.subs.find((x) => x.id === sub);
@@ -22,6 +22,7 @@ function Listing() {
   const [f, setF] = useState<F>(initial);
   const [data, setData] = useState<{ total: number; items: RequestItem[] } | null>(null);
   const [openFilters, setOpenFilters] = useState(false);
+  const [others, setOthers] = useState<RequestItem[] | null>(null);
   useEffect(() => setF(initial()), [top, sub, sp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const qs = useMemo(() => {
@@ -47,6 +48,12 @@ function Listing() {
     const h = setTimeout(() => { void api<{ total: number; items: RequestItem[] }>(`/requests?${qs}`).then(setData).catch(() => setData({ total: 0, items: [] })); }, 250);
     return () => clearTimeout(h);
   }, [qs]);
+
+  // Sonuç yoksa "boş" demek yerine diğer güncel talepler gösterilir.
+  useEffect(() => {
+    if (data?.total !== 0 || others) return;
+    void api<{ items: RequestItem[] }>("/requests?per=10").then((r) => setOthers(r.items)).catch(() => setOthers([]));
+  }, [data, others]);
 
   const set = (patch: Partial<F>) => setF((x) => ({ ...x, page: 1, ...patch }));
   const toggle = (arr: string[], v: string) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
@@ -75,10 +82,10 @@ function Listing() {
             {t ? (
               <>
                 <Link href="/kategori">« Tüm kategoriler</Link>
-                <Link href={`/kategori/${t.id}`} className={!sub ? "on" : ""}><span>{t.name}</span><span className="n">{t.active_count}</span></Link>
-                {t.subs.map((x) => <Link key={x.id} href={`/kategori/${t.id}/${x.id}`} className={sub === x.id ? "on" : ""} style={{ paddingLeft: 10 }}><span>{x.name}</span><span className="n">{x.active_count}</span></Link>)}
+                <Link href={`/kategori/${t.id}`} className={!sub ? "on" : ""}><span>{t.name}</span><span className="n">{count(t.active_count)}</span></Link>
+                {t.subs.filter((x) => x.id === sub || browseCategories.some((b) => b.subs.some((y) => y.id === x.id))).map((x) => <Link key={x.id} href={`/kategori/${t.id}/${x.id}`} className={sub === x.id ? "on" : ""} style={{ paddingLeft: 10 }}><span>{x.name}</span><span className="n">{count(x.active_count)}</span></Link>)}
               </>
-            ) : categories.map((x) => <Link key={x.id} href={`/kategori/${x.id}`}><span>{x.name}</span><span className="n">{x.active_count}</span></Link>)}
+            ) : browseCategories.map((x) => <Link key={x.id} href={`/kategori/${x.id}`}><span>{x.name}</span><span className="n">{count(x.active_count)}</span></Link>)}
           </div>
           <div className="flt-sec"><h4>Kelime</h4><input className="inp" value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Talepte ara" /></div>
           <div className="flt-sec"><h4>Adres</h4><select className="sel" value={f.city} onChange={(e) => set({ city: e.target.value })} aria-label="İl"><option value="">Tüm iller</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
@@ -110,9 +117,18 @@ function Listing() {
             </div>
           </div>
           <div className="tbl-wrap">
-            <div style={{ padding: "8px 10px", fontSize: 12.5, background: "#fff", borderBottom: "1px solid var(--line-2)" }}><b>{data?.total ?? "…"}</b> talep bulundu</div>
-            {!data ? <div className="loading">Yükleniyor…</div> : <RequestTable items={data.items} />}
+            {data && data.total > 0 && count(data.total) !== null && <div style={{ padding: "8px 10px", fontSize: 12.5, background: "#fff", borderBottom: "1px solid var(--line-2)" }}><b>{data.total}</b> talep bulundu</div>}
+            {!data ? <div className="loading">Yükleniyor…</div> : data.total > 0 ? <RequestTable items={data.items} /> : (
+              <div className="soon">
+                <h2>{s?.name ?? t?.name ?? "Bu arama"} için talepler yakında burada</h2>
+                <div className="soon-grid">
+                  <div><b>Satıcı mısınız?</b><p>Bu bölüme ilk alım talebi geldiği anda size SMS ile haber verelim; ilk ulaşan siz olun.</p><button className="btn btn-or" onClick={saveAlarm}>Talep gelince haber ver</button></div>
+                  <div><b>Bunu mu almak istiyorsunuz?</b><p>Talebinizi ücretsiz verin; satıcılar sizi arasın veya teklif göndersin.</p><Link className="btn btn-bl" href={`/talep-ver${f.q ? `?metin=${encodeURIComponent(f.q)}` : ""}`}>Ücretsiz talep ver</Link></div>
+                </div>
+              </div>
+            )}
           </div>
+          {data?.total === 0 && !!others?.length && <div className="box" style={{ marginTop: 14 }}><div className="box-h"><h2>Diğer güncel talepler</h2><Link className="link" href="/kategori">Tümü »</Link></div><RequestTable items={others} /></div>}
           {pages > 1 && <div className="pager">{Array.from({ length: Math.min(pages, 20) }, (_, i) => <button key={i} className={f.page === i + 1 ? "on" : ""} onClick={() => { setF((x) => ({ ...x, page: i + 1 })); window.scrollTo(0, 0); }}>{i + 1}</button>)}</div>}
         </div>
       </div>

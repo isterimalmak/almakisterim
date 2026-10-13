@@ -216,7 +216,7 @@ function OwnerContact({ r, c, onChange }: { r: RequestDetail; c: Contact; onChan
 }
 
 function UnlockBox({ r, c, onDone }: { r: RequestDetail; c: Contact; onDone: () => void }) {
-  const { user, toast } = useSession();
+  const { user, toast, launchMode } = useSession();
   const [busy, setBusy] = useState(false);
   const full = c.slots_left === 0;
   const free = (user?.free_unlocks_left ?? 0) > 0 || c.price === 0;
@@ -224,7 +224,7 @@ function UnlockBox({ r, c, onDone }: { r: RequestDetail; c: Contact; onDone: () 
     setBusy(true);
     try {
       const res = await api<{ charged_credits: number; free: boolean }>(`/requests/${r.id}/unlock`, { body: {} });
-      toast(res.charged_credits ? `Numara açıldı, ${res.charged_credits} kredi kullanıldı.` : "Numara açıldı (ücretsiz hakkınızdan).");
+      toast(res.charged_credits ? `Numara açıldı, ${res.charged_credits} kredi kullanıldı.` : res.free ? "Numara açıldı (ücretsiz hakkınızdan)." : "Numara açıldı.");
       onDone();
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
@@ -234,13 +234,13 @@ function UnlockBox({ r, c, onDone }: { r: RequestDetail; c: Contact; onDone: () 
       <ul className="unlock-l">
         <li>Numarayı açınca alıcıyı hemen arayabilir ve bu talebe teklif verebilirsiniz.</li>
         <li>Bu talepte numarayı en fazla <b>{c.limit || "sınırsız"}</b> satıcı görebilir{c.slots_left !== null && <>; <b>{c.slots_left}</b> hak kaldı</>}.</li>
-        <li>Ücret: <b>{c.price ? `${c.price} kredi` : "ücretsiz"}</b>{c.price > 0 && <> · Bu ay kalan ücretsiz hakkınız: <b>{user?.free_unlocks_left ?? 0}</b> · Krediniz: <b>{user?.credits ?? 0}</b></>}</li>
+        <li>Ücret: <b>{c.price ? `${c.price} kredi` : launchMode ? "ücretsiz (lansman dönemi)" : "ücretsiz"}</b>{c.price > 0 && <> · Bu ay kalan ücretsiz hakkınız: <b>{user?.free_unlocks_left ?? 0}</b> · Krediniz: <b>{user?.credits ?? 0}</b></>}</li>
       </ul>
       {!user?.phone
         ? <div className="note n-warn" style={{ display: "block" }}><b>Önce kendi numaranızı doğrulayın.</b> Alıcıların güvenliği için numara görmek isteyen satıcıların telefonu doğrulanmış olmalı.<div style={{ marginTop: 10 }}><PhoneVerify /></div></div>
         : full
         ? <div className="note n-info">Bu talepte numara görme hakları doldu.</div>
-        : <button className="btn btn-or btn-lg" disabled={busy} onClick={go}>{busy ? "Açılıyor…" : free ? "Numarayı Gör (ücretsiz hak)" : `Numarayı Gör (${c.price} kredi)`}</button>}
+        : <button className="btn btn-or btn-lg" disabled={busy} onClick={go}>{busy ? "Açılıyor…" : c.price === 0 ? "Numarayı Gör (ücretsiz)" : free ? "Numarayı Gör (ücretsiz hak)" : `Numarayı Gör (${c.price} kredi)`}</button>}
       {user?.phone && !full && !free && (user?.credits ?? 0) < c.price && <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Krediniz yetersiz. <Link className="link" href="/bana-ozel?s=kredi">Kredi yükleyin</Link>.</p>}
     </div>
   );

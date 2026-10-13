@@ -51,6 +51,8 @@ function Create() {
   };
 
   useEffect(() => {
+    const k = sp.get("kategori");
+    if (k && !started.current && categories.some((t) => t.id === k)) { started.current = true; set({ top: k, sub: "" }); }
     const m = sp.get("metin");
     if (m && !started.current && categories.length) { started.current = true; set({ raw: m }); void runAi(m); }
   }, [sp, categories.length]); // eslint-disable-line react-hooks/exhaustive-deps

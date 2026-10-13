@@ -237,3 +237,32 @@ describe("numara güvenliği", () => {
     expect((await ctx.app.inject({ method: "POST", url: `/api/unlocks/${u.id}/report`, headers: { cookie: seller }, payload: { reason: "sahte_talep" } })).json().error).toBe("sure_doldu");
   });
 });
+
+describe("başlangıç dönemi", () => {
+  it("lansman modunda numara ücretsizdir ve aylık ücretsiz hakkı harcamaz", async () => {
+    await setting("launch_mode", true);
+    await setting("free_unlocks_per_month", 1);
+    const buyer = await login(ctx, "05321112233");
+    const seller = await login(ctx, "05321112244");
+    const a = await createRequest(ctx, buyer), b = await createRequest(ctx, buyer);
+    expect((await detail(a)).contact.price).toBe(0);
+    expect((await unlock(seller, a)).json()).toMatchObject({ charged_credits: 0, free: false });
+    expect((await unlock(seller, b)).statusCode).toBe(201);
+    const me = (await ctx.app.inject({ url: "/api/me", headers: { cookie: seller } })).json().user;
+    expect(me).toMatchObject({ free_unlocks_left: 1, launch_mode: true, unlock_price: 0 });
+    await setting("launch_mode", false);
+    expect((await detail(a)).contact.price).toBe(3);
+  });
+
+  it("kategori listesi gezinme ayarlarını ve açık talep sayılarını verir", async () => {
+    const buyer = await login(ctx, "05321112233");
+    await createRequest(ctx, buyer);
+    const r = (await ctx.app.inject({ url: "/api/categories" })).json();
+    expect(r.browse).toEqual({ min_requests: 1, show_counts_min: 20 });
+    expect(r.launch_mode).toBe(false);
+    const el = r.categories.find((c: { id: string }) => c.id === "elektronik");
+    expect(el.active_count).toBe(1);
+    expect(el.subs.find((c: { id: string }) => c.id === "telefon").active_count).toBe(1);
+    expect(r.categories.find((c: { id: string }) => c.id === "emlak").active_count).toBe(0);
+  });
+});

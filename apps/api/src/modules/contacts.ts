@@ -6,14 +6,15 @@ import { HttpError, idParam } from "../lib/util.js";
 
 // Gelir modeli: satıcı, alıcının numarasını görmek için kredi harcar. Numarayı açan satıcı teklif de verebilir.
 export type PriceTier = { max_budget: number | null; credits: number };
-export type UnlockSettings = { free: number; price: number; priceByTop: Record<string, number>; tiers: PriceTier[]; limit: number; maxActive: number };
+export type UnlockSettings = { launch: boolean; free: number; price: number; priceByTop: Record<string, number>; tiers: PriceTier[]; limit: number; maxActive: number };
 
 export async function unlockSettings(db: Pool | Client): Promise<UnlockSettings> {
   const { rows } = await db.query<{ key: string; value: unknown }>(
     `SELECT key, value FROM settings WHERE key IN ('free_unlocks_per_month','unlock_price_credits','unlock_price_by_top',
-       'unlock_price_tiers','unlock_limit_per_request','max_active_requests_per_user')`);
+       'unlock_price_tiers','unlock_limit_per_request','max_active_requests_per_user','launch_mode')`);
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   return {
+    launch: s.launch_mode === true,
     free: Number(s.free_unlocks_per_month ?? 0),
     price: Number(s.unlock_price_credits ?? 1),
     priceByTop: (s.unlock_price_by_top as Record<string, number>) ?? {},
@@ -23,8 +24,9 @@ export async function unlockSettings(db: Pool | Client): Promise<UnlockSettings>
   };
 }
 
-// Fiyat sırası: kategoriye özel fiyat > bütçe kademesi > varsayılan fiyat.
+// Fiyat sırası: lansman dönemi (ücretsiz) > kategoriye özel fiyat > bütçe kademesi > varsayılan fiyat.
 export function priceFor(s: UnlockSettings, top: string, budgetMax: number) {
+  if (s.launch) return 0;
   if (s.priceByTop[top] !== undefined) return Number(s.priceByTop[top]);
   const tier = [...s.tiers].sort((a, b) => (a.max_budget ?? Infinity) - (b.max_budget ?? Infinity))
     .find((t) => t.max_budget === null || budgetMax <= t.max_budget);
@@ -85,7 +87,7 @@ export function contactRoutes(app: FastifyInstance, deps: Deps) {
       const price = priceFor(s, r.top_id, r.budget_max);
       let free = false, charged = 0;
       if (price === 0) {
-        free = true;
+        // Lansman dönemi veya ücretsiz kategori: aylık ücretsiz hakkı da harcamaz.
       } else if ((await freeUnlocksUsed(c, user.id)) < s.free) {
         free = true;
       } else {

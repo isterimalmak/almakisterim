@@ -19,7 +19,7 @@ function SearchForm({ compact }: { compact?: boolean }) {
 }
 
 export function Header() {
-  const { user, categories } = useSession();
+  const { user, browseCategories } = useSession();
   const path = usePathname();
   return (
     <>
@@ -48,7 +48,7 @@ export function Header() {
       <nav className="subnav" aria-label="Kategoriler">
         <div className="wrap subnav-in">
           <Link href="/" className={path === "/" ? "on" : ""}>Ana Sayfa</Link>
-          {categories.map((t) => <Link key={t.id} href={`/kategori/${t.id}`} className={path.startsWith(`/kategori/${t.id}`) ? "on" : ""}>{t.name}</Link>)}
+          {browseCategories.map((t) => <Link key={t.id} href={`/kategori/${t.id}`} className={path.startsWith(`/kategori/${t.id}`) ? "on" : ""}>{t.name}</Link>)}
           {user?.role === "admin" && <Link href="/yonetim" className={path === "/yonetim" ? "on" : ""}>Yönetim Paneli</Link>}
         </div>
       </nav>

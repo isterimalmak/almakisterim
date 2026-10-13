@@ -84,12 +84,13 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   const sw = page.getByRole("switch", { name: "Moda & Giyim" });
   await sw.click();
   await expect(sw).toHaveAttribute("aria-checked", "false");
-  await page.goto("/");
-  await expect(page.locator(".subnav").getByText("Moda & Giyim")).toHaveCount(0);
+  // Talep verirken bütün yayındaki kategoriler görünür; gizlenen görünmez.
+  await page.goto("/talep-ver");
+  await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(0);
   await page.goto("/yonetim");
   await page.getByRole("switch", { name: "Moda & Giyim" }).click();
-  await page.goto("/");
-  await expect(page.locator(".subnav").getByText("Moda & Giyim")).toHaveCount(1);
+  await page.goto("/talep-ver");
+  await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(1);
 });
 
 test("sayfalar yana taşmıyor", async ({ page }) => {
@@ -143,4 +144,16 @@ test("alıcı ve satıcı fotoğraf ekler, alıcı teklifteki fotoğrafı görü
   await buyer.reload();
   await expect(buyer.getByRole("link", { name: "Teklif fotoğrafı 1" })).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
+});
+
+test("boş kategori gezinirken görünmez; açılırsa boş liste yerine yönlendirme çıkar", async ({ page }) => {
+  await page.goto("/");
+  // Henüz talebi olmayan kategori menüde yok, talep verirken var.
+  await expect(page.locator(".subnav").getByText("Anne & Bebek")).toHaveCount(0);
+  await page.goto("/kategori/bebek");
+  await expect(page.getByText("için talepler yakında burada")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Talep gelince haber ver" })).toBeVisible();
+  await expect(page.getByText("0 talep bulundu")).toHaveCount(0);
+  await page.goto("/talep-ver");
+  await expect(page.locator(".cat-col").getByRole("button", { name: "Anne & Bebek" })).toHaveCount(1);
 });

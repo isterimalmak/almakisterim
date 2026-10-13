@@ -457,3 +457,14 @@ button.link{padding:0;font-size:inherit}
 .tiers .inp{height:30px;max-width:180px}
 .av-link{position:relative;display:inline-flex}
 .av-link .badge{position:absolute;top:-6px;right:-8px;margin:0}
+
+/* ---------- Başlangıç dönemi: boş bölüm yerine yönlendirme ---------- */
+.soon{background:#fff;padding:22px 18px}
+.soon h2{font-size:16px;color:var(--navy);margin-bottom:12px}
+.soon-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.soon-grid>div{border:1px solid var(--line-2);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.soon-grid p{font-size:12.5px;color:#4A5160;margin:0 0 6px}
+.launch .box-b{background:#FFF4EB;border-left:3px solid var(--orange)}
+.launch p{font-size:12.5px;margin:6px 0 10px;color:#4A5160}
+@media (max-width:520px){.soon-grid{grid-template-columns:1fr}}
+.ct-pick a{justify-content:flex-start !important;gap:8px}
