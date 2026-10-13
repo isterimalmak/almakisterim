@@ -287,7 +287,7 @@ test("boş kategori gezinirken görünmez; açılırsa boş liste yerine yönlen
   await expect(page.locator(".subnav").getByText("Anne & Bebek")).toHaveCount(0);
   await page.goto("/kategori/bebek");
   await expect(page.getByText("için talepler yakında burada")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Talep gelince haber ver" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Talep gelince haber ver", exact: true })).toBeVisible();
   await expect(page.getByText("0 talep bulundu")).toHaveCount(0);
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Anne & Bebek" })).toHaveCount(1);
