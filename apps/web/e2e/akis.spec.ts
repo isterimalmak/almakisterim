@@ -103,6 +103,23 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/settings") && r.request().method() === "PUT"), page.getByRole("button", { name: "Kaydet" }).click()]);
   expect((await (await page.request.get(`${API}/api/categories`)).json()).home_urgent_box).toBe(false);
 
+  // Hazır görsel galerisi: yönetici BMW 3 Serisi görseli ekler, talep veren bunu "Hazır görsellerden seç" ile ekler.
+  const gtag = rnd();
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Hazır Görseller" }).click();
+  await page.getByLabel("Kategori *").selectOption("otomobil");
+  await page.getByLabel("Marka", { exact: true }).selectOption("BMW");
+  await page.getByLabel("Model", { exact: true }).selectOption("3 Serisi");
+  await page.getByLabel("Başlık (isteğe bağlı)").fill(`Beyaz BMW ${gtag}`);
+  await page.getByLabel("Galeri görseli seç").setInputFiles({ name: "bmw.png", mimeType: "image/png", buffer: PNG });
+  await expect(page.getByText("1 görsel galeriye eklendi.")).toBeVisible();
+  await page.goto(`/talep-ver?metin=${encodeURIComponent("BMW 3 serisi almak istiyorum, bütçem 1 milyon TL, Ankara")}`);
+  await expect(page.locator(".chip.on", { hasText: "BMW 3 Serisi" })).toBeVisible();
+  await page.getByRole("button", { name: "Hazır görsellerden seç" }).click();
+  await expect(page.getByText("Talebinize uyanlar")).toBeVisible();
+  await page.getByRole("button", { name: `Beyaz BMW ${gtag} seç` }).click();
+  await expect(page.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
+
   // Reklam alanı: resim yüklenir, başlık ve bağlantı verilir, ana sayfada soldaki kategorilerin altında görünür.
   const ad = `Galeri reklamı ${rnd()}`;
   await page.goto("/yonetim");

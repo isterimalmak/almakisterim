@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { api, uploadFile, type Media } from "@/lib/api";
 import { Icon } from "./Icon";
+import { StockPicker } from "./StockPicker";
 
 // Sunucudaki sınırların aynısı; kullanıcı beklemeden uyarılsın diye tarayıcıda da kontrol edilir.
 const TYPES: Record<string, "image" | "video"> = {
@@ -14,9 +15,11 @@ const MAX_COUNT = { image: 8, video: 1 };
 
 type Pending = { key: string; name: string; pct: number };
 
-export function MediaPicker({ value, onChange, label = "Fotoğraf / video ekle", onError }: {
+export function MediaPicker({ value, onChange, label = "Fotoğraf / video ekle", onError, stock }: {
   value: Media[]; onChange: (m: Media[]) => void; label?: string; onError: (msg: string) => void;
+  stock?: { category: string; attrs: Record<string, unknown> };
 }) {
+  const [gallery, setGallery] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const current = useRef(value);
@@ -72,7 +75,13 @@ export function MediaPicker({ value, onChange, label = "Fotoğraf / video ekle",
         <button type="button" className="mp-add" onClick={() => input.current?.click()} disabled={images >= MAX_COUNT.image && value.some((m) => m.kind === "video")}>
           <Icon name="plus" size={20} /><span>{label}</span>
         </button>
+        {stock && (
+          <button type="button" className="mp-add mp-stock" onClick={() => setGallery(true)} disabled={value.filter((m) => m.kind === "image").length >= MAX_COUNT.image}>
+            <Icon name="camera" size={20} /><span>Hazır görsellerden seç</span>
+          </button>
+        )}
       </div>
+      {gallery && stock && <StockPicker category={stock.category} attrs={stock.attrs} onError={onError} onClose={() => setGallery(false)} onPick={(m) => onChange([...current.current, m])} />}
       <input ref={input} type="file" hidden multiple accept={Object.keys(TYPES).join(",")} aria-label={label} onChange={(e) => pick(e.target.files)} />
       <span className="hint">En fazla 8 fotoğraf (10 MB) ve 1 video (100 MB). İlk fotoğraf kapak olur. Fotoğraflarda telefon numarası veya adres görünmesin.</span>
     </div>

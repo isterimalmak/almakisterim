@@ -592,3 +592,21 @@ button.link{padding:0;font-size:inherit}
 .save-alarm:hover{background:var(--orange);color:#fff;border-color:var(--orange)}
 .flt-toggle .badge{margin-left:6px}
 @media (max-width:860px){.res-bar{flex-direction:column}.res-tools{width:100%;justify-content:space-between}}
+
+/* hazır görsel galerisi */
+.modal.stk{max-width:760px;padding:0 16px 16px}
+.modal.stk .modal-h{padding:14px 0;margin-bottom:10px}
+.modal.stk .app-x{display:block}
+.mp-stock{border-style:solid;background:var(--blue-soft);color:var(--blue)}
+.stk-h{font-size:12.5px;font-weight:700;color:var(--navy);margin:10px 0 6px}
+.stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.stk-i{position:relative;aspect-ratio:4/3;border-radius:6px;overflow:hidden;border:2px solid transparent;padding:0;background:#EEF0F4;cursor:pointer}
+.stk-i:hover{border-color:var(--orange)}
+.stk-i img{width:100%;height:100%;object-fit:cover;display:block}
+.stk-t{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 4px;font-size:11px;font-weight:600;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stk-busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(255,255,255,.6)}
+@media (max-width:520px){.stk-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stk-adm{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+.stk-adm.off{opacity:.5}
+.stk-adm img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.stk-adm-b{display:flex;flex-direction:column;gap:2px;padding:6px 8px;font-size:12px}

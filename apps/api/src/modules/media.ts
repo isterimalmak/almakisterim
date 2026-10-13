@@ -101,10 +101,13 @@ export function mediaRoutes(app: FastifyInstance, deps: Deps) {
   app.delete("/media/:id", async (req) => {
     const user = requireUser(req);
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
-    const r = await pool.query<{ storage_key: string }>(
-      "DELETE FROM media m WHERE id = $1 AND owner_id = $2 AND request_id IS NULL AND offer_id IS NULL AND NOT EXISTS (SELECT 1 FROM ads a WHERE a.media_id = m.id) RETURNING storage_key", [id, user.id]);
+    const r = await pool.query<{ storage_key: string; shared: boolean }>(
+      `DELETE FROM media m WHERE id = $1 AND owner_id = $2 AND request_id IS NULL AND offer_id IS NULL
+         AND NOT EXISTS (SELECT 1 FROM ads a WHERE a.media_id = m.id) AND NOT EXISTS (SELECT 1 FROM stock_images s WHERE s.media_id = m.id)
+       RETURNING storage_key, shared`, [id, user.id]);
     if (!r.rowCount) throw new HttpError(404, "bulunamadi", "Silinebilecek dosya bulunamadı.");
-    await storage.remove(r.rows[0]!.storage_key).catch((e) => req.log.warn({ err: (e as Error).message }, "dosya silinemedi"));
+    // Galeriden seçilen görselin asıl dosyası galeride kalır.
+    if (!r.rows[0]!.shared) await storage.remove(r.rows[0]!.storage_key).catch((e) => req.log.warn({ err: (e as Error).message }, "dosya silinemedi"));
     return { ok: true };
   });
 
@@ -130,8 +133,10 @@ export function mediaRoutes(app: FastifyInstance, deps: Deps) {
 
 // Bir günden eski, hiçbir yere eklenmemiş dosyaları temizler (zamanlanmış görevden çağrılır).
 export async function cleanupOrphans(pool: Pool, storage: MediaStorage) {
-  const { rows } = await pool.query<{ storage_key: string }>(
-    "DELETE FROM media m WHERE request_id IS NULL AND offer_id IS NULL AND created_at < now() - interval '1 day' AND NOT EXISTS (SELECT 1 FROM ads a WHERE a.media_id = m.id) RETURNING storage_key");
-  for (const r of rows) await storage.remove(r.storage_key).catch(() => {});
+  const { rows } = await pool.query<{ storage_key: string; shared: boolean }>(
+    `DELETE FROM media m WHERE request_id IS NULL AND offer_id IS NULL AND created_at < now() - interval '1 day'
+       AND NOT EXISTS (SELECT 1 FROM ads a WHERE a.media_id = m.id) AND NOT EXISTS (SELECT 1 FROM stock_images s WHERE s.media_id = m.id)
+     RETURNING storage_key, shared`);
+  for (const r of rows) if (!r.shared) await storage.remove(r.storage_key).catch(() => {});
   return rows.length;
 }

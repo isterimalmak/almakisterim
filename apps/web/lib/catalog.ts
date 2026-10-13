@@ -16,6 +16,14 @@ export const ATTRS: Record<string, Attr[]> = {
 };
 
 export const CONDS = ["Sıfır", "İkinci El", "Farketmez", "Hizmet"];
+// Kategoriye göre anlamlı ürün durumları: hizmet ve ders taleplerinde "Hizmet", emlakta seçim yok.
+export const SERVICE_TOPS = ["hizmet", "ders"];
+export function condsFor(top: string | undefined): string[] {
+  if (!top) return ["Sıfır", "İkinci El", "Farketmez"];
+  if (SERVICE_TOPS.includes(top)) return ["Hizmet"];
+  if (top === "emlak") return ["Farketmez"];
+  return ["Sıfır", "İkinci El", "Farketmez"];
+}
 
 export const THEME: Record<string, { c: string; fc: string }> = {
   vasita: { c: "#E8EDFA", fc: "#1C3178" }, emlak: { c: "#E6F4EC", fc: "#18794E" }, elektronik: { c: "#EEE9FB", fc: "#5A3DB8" },
