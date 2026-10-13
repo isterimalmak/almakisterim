@@ -11,6 +11,7 @@ import { HttpError } from "./lib/util.js";
 import { adminRoutes } from "./modules/admin.js";
 import { authRoutes } from "./modules/auth.js";
 import { categoryRoutes } from "./modules/categories.js";
+import { contactRoutes } from "./modules/contacts.js";
 import { mediaRoutes } from "./modules/media.js";
 import { meRoutes } from "./modules/me.js";
 import { offerRoutes } from "./modules/offers.js";
@@ -65,6 +66,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     categoryRoutes(api, deps);
     requestRoutes(api, deps);
     offerRoutes(api, deps);
+    contactRoutes(api, deps);
     mediaRoutes(api, deps);
     meRoutes(api, deps);
     adminRoutes(api, deps);

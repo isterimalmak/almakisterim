@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker } from "@/components/Media";
+import { CatIcon } from "@/components/RequestTable";
+import { PhoneVerify } from "@/components/PhoneVerify";
 import { useSession } from "@/components/Session";
 import { api, type Draft, type Media } from "@/lib/api";
 import { ATTRS, CITIES, CONDS } from "@/lib/catalog";
@@ -50,6 +52,8 @@ function Create() {
   };
 
   useEffect(() => {
+    const k = sp.get("kategori");
+    if (k && !started.current && categories.some((t) => t.id === k)) { started.current = true; set({ top: k, sub: "" }); }
     const m = sp.get("metin");
     if (m && !started.current && categories.length) { started.current = true; set({ raw: m }); void runAi(m); }
   }, [sp, categories.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -67,7 +71,8 @@ function Create() {
   };
 
   const publish = async () => {
-    if (!d.agree) return toast("Yayınlamak için kuralları kabul edin.");
+    if (!d.agree) return toast("Yayınlamak için kuralları ve numara paylaşımını onaylayın.");
+    if (user && !user.phone) return toast("Yayınlamadan önce telefon numaranızı doğrulayın.");
     if (!user) {
       try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ }
       router.push("/giris?sonra=/talep-ver");
@@ -78,7 +83,7 @@ function Create() {
       const res = await api<{ id: number; status: string; moderation: { reason: string } | null }>("/requests", { body: {
         category_id: d.sub, title: d.title, description: d.description, budget_min: d.b0 ? Number(d.b0) : null, budget_max: Number(d.b1),
         city: d.city, district: d.district, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "")),
-        is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, media_ids: d.media.map((m) => m.id),
+        is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, media_ids: d.media.map((m) => m.id), contact_consent: true,
       } });
       toast(res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi." : "Talebiniz incelemeye alındı. Onaylanınca yayınlanacak.");
       router.push(`/talep/${res.id}`);
@@ -101,7 +106,7 @@ function Create() {
           </div>
           <div className="box"><div className="box-h"><h2>Kategori seçin</h2></div><div className="box-b">
             <div className="cat-pick">
-              <div className="cat-col">{categories.map((t) => <button key={t.id} className={d.top === t.id ? "on" : ""} onClick={() => set({ top: t.id, sub: "" })}><Icon name={t.icon} size={20} />{t.name}<span className="ar">›</span></button>)}</div>
+              <div className="cat-col">{categories.map((t) => <button key={t.id} className={d.top === t.id ? "on" : ""} onClick={() => set({ top: t.id, sub: "" })}><CatIcon top={t.id} cls="ct-ic" />{t.name}<span className="ar">›</span></button>)}</div>
               <div className="cat-col">{top ? top.subs.map((s) => <button key={s.id} className={d.sub === s.id ? "on" : ""} onClick={() => set({ sub: s.id })}>{s.name}</button>) : <div className="empty" style={{ padding: "30px 12px" }}>Önce soldan bir ana kategori seçin.</div>}</div>
             </div>
             <div className="sel-path">{sub ? <>Seçilen kategori: <b>{top!.name} › {sub.name}</b></> : <span className="muted">Henüz kategori seçilmedi.</span>}</div>
@@ -155,8 +160,14 @@ function Create() {
             <tr><th>Teklif toplama süresi</th><td>{d.days} gün</td></tr>
           </tbody></table>
           {d.description && <div className="desc" style={{ marginTop: 12 }}>{d.description}</div>}
-          <div className="note n-info" style={{ marginTop: 14 }}><span>Telefon numaranız ve e-postanız satıcılara gösterilmez. Metindeki iletişim bilgileri otomatik gizlenir.</span></div>
-          <label className="chk" style={{ marginTop: 12 }}><input type="checkbox" checked={d.agree} onChange={(e) => set({ agree: e.target.checked })} /><span><Link className="link" href="/sayfa/kullanim-kosullari" target="_blank">Talep verme kurallarını</Link> okudum, kabul ediyorum.</span></label>
+          <div className="note n-info" style={{ marginTop: 14 }}><span>Telefon numaranız herkese açık gösterilmez. Talebinize uygun ürünü olan ve ücret ödeyen <b>sınırlı sayıda satıcı</b> numaranızı görüp sizi arayabilir veya teklif gönderebilir. Numaranızı kimlerin gördüğünü talep sayfanızdan takip edersiniz; talebi kapatınca numaranız gizlenir. E-postanız hiçbir satıcıyla paylaşılmaz.</span></div>
+          {user && !user.phone && (
+            <div className="note n-warn" style={{ marginTop: 12, display: "block" }}>
+              <b>Telefon numaranızı doğrulayın.</b> Satıcıların size ulaşabilmesi için talep vermeden önce numaranızı SMS koduyla doğrulamanız gerekiyor.
+              <div style={{ marginTop: 10 }}><PhoneVerify /></div>
+            </div>
+          )}
+          <label className="chk" style={{ marginTop: 12 }}><input type="checkbox" checked={d.agree} onChange={(e) => set({ agree: e.target.checked })} /><span><Link className="link" href="/sayfa/kullanim-kosullari" target="_blank">Talep verme kurallarını</Link> ve <Link className="link" href="/sayfa/kvkk" target="_blank">aydınlatma metnini</Link> okudum; telefon numaramın ücret ödeyen satıcılarla paylaşılmasını onaylıyorum.</span></label>
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}><button className="btn btn-wh btn-lg" onClick={() => set({ step: 2 })}>Geri</button><button className="btn btn-or btn-lg" disabled={busy} onClick={publish}>{busy ? "Yayınlanıyor…" : user ? "Talebi Yayınla" : "Giriş yap ve yayınla"}</button></div>
         </div></div>
       )}

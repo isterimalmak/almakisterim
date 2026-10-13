@@ -19,7 +19,7 @@ function SearchForm({ compact }: { compact?: boolean }) {
 }
 
 export function Header() {
-  const { user, categories } = useSession();
+  const { user, browseCategories } = useSession();
   const path = usePathname();
   return (
     <>
@@ -31,8 +31,8 @@ export function Header() {
             {user ? (
               <>
                 <Link className="t" href="/bana-ozel">Bana Özel</Link>
-                <span className="credit">{user.free_offers_left} ücretsiz · {user.credits} kredi</span>
-                <Link href="/bana-ozel" title="Bana Özel"><span className="av">{initials(user.name || "Üye")}</span></Link>
+                <span className="credit">{user.free_unlocks_left} ücretsiz numara · {user.credits} kredi</span>
+                <Link href={user.unread_notifications > 0 ? "/bana-ozel?s=bildirim" : "/bana-ozel"} title="Bana Özel" className="av-link"><span className="av">{initials(user.name || "Üye")}</span>{user.unread_notifications > 0 && <span className="badge" aria-label={`${user.unread_notifications} okunmamış bildirim`}>{user.unread_notifications}</span>}</Link>
               </>
             ) : (
               <>
@@ -48,7 +48,7 @@ export function Header() {
       <nav className="subnav" aria-label="Kategoriler">
         <div className="wrap subnav-in">
           <Link href="/" className={path === "/" ? "on" : ""}>Ana Sayfa</Link>
-          {categories.map((t) => <Link key={t.id} href={`/kategori/${t.id}`} className={path.startsWith(`/kategori/${t.id}`) ? "on" : ""}>{t.name}</Link>)}
+          {browseCategories.map((t) => <Link key={t.id} href={`/kategori/${t.id}`} className={path.startsWith(`/kategori/${t.id}`) ? "on" : ""}>{t.name}</Link>)}
           {user?.role === "admin" && <Link href="/yonetim" className={path === "/yonetim" ? "on" : ""}>Yönetim Paneli</Link>}
         </div>
       </nav>
@@ -66,7 +66,7 @@ export function Footer() {
           <div><b>Satıcılar İçin</b><Link href="/bana-ozel?s=eslesme">Size Uygun Talepler</Link><Link href="/bana-ozel?s=kredi">Kredi ve Mağaza</Link><Link href="/bana-ozel?s=alarm">Talep Alarmları</Link></div>
           <div><b>Gizlilik ve Kullanım</b><Link href="/sayfa/kullanim-kosullari">Kullanım Koşulları</Link><Link href="/sayfa/kvkk">KVKK Aydınlatma Metni</Link><Link href="/sayfa/cerez">Çerez Politikası</Link></div>
         </div>
-        <div className="ft-bottom"><span>© {new Date().getFullYear()} almakisterim.com</span><span>Telefon numaranız satıcılarla paylaşılmaz.</span></div>
+        <div className="ft-bottom"><span>© {new Date().getFullYear()} almakisterim.com</span><span>Numaranız yalnızca talebinizle ilgilenen sınırlı sayıda satıcıya açılır.</span></div>
       </div>
     </footer>
   );

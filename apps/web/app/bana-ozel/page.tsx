@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { PhoneVerify } from "@/components/PhoneVerify";
 import { useSession } from "@/components/Session";
 import { api } from "@/lib/api";
 import { CITIES } from "@/lib/catalog";
@@ -10,6 +11,8 @@ import { ago, budgetTxt, dateTr, fmt, initials } from "@/lib/format";
 
 type Row = { id: number; title: string; status?: string; budget_min: number; budget_max: number; city?: string; created_at: string; category_name?: string; offer_count?: number; already_offered?: boolean };
 type MyOffer = { id: number; price: number; status: string; created_at: string; request_id: number; title: string };
+type Unlock = { id: number; request_id: number; title: string; status: string; phone: string | null; phone_note: string | null; credits: number; is_free: boolean; created_at: string; refunded: boolean; report_status: string | null };
+type Notif = { id: number; text: string; link: string; read_at: string | null; created_at: string };
 type Alarm = { id: number; category_id: string; category_name: string; city: string; min_budget: number };
 
 const STATUS: Record<string, [string, string]> = {
@@ -25,6 +28,8 @@ function Account() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [offers, setOffers] = useState<MyOffer[] | null>(null);
   const [alarms, setAlarms] = useState<Alarm[] | null>(null);
+  const [unlocks, setUnlocks] = useState<Unlock[] | null>(null);
+  const [notifs, setNotifs] = useState<Notif[] | null>(null);
   const [na, setNa] = useState({ category_id: "", city: "", min_budget: "" });
 
   const load = useCallback(async () => {
@@ -35,7 +40,13 @@ function Account() {
     if (s === "ozet" || s === "eslesme") setRows((await api<{ items: Row[] }>("/me/matches")).items);
     if (s === "tekliflerim" || s === "ozet") setOffers((await api<{ items: MyOffer[] }>("/me/offers")).items);
     if (s === "alarm" || s === "ozet" || s === "eslesme") setAlarms((await api<{ items: Alarm[] }>("/me/alarms")).items);
-  }, [s, user]);
+    if (s === "numaralar") setUnlocks((await api<{ items: Unlock[] }>("/me/unlocks")).items);
+    if (s === "bildirim") {
+      setNotifs((await api<{ items: Notif[] }>("/me/notifications")).items);
+      await api("/me/notifications/read", { body: {} });
+      void refresh();
+    }
+  }, [s, user]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void load().catch((e) => toast(e.message)); }, [load, toast]);
 
   if (!ready) return <div className="loading">Yükleniyor…</div>;
@@ -70,8 +81,8 @@ function Account() {
   if (s === "ozet") content = (
     <>
       <div className="kpis">
-        <div className="kpi"><small>Bu ay ücretsiz teklif</small><b>{user.free_offers_left}</b></div>
-        <div className="kpi"><small>Teklif krediniz</small><b>{user.credits}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=kredi">Kredi yükle</Link></div>
+        <div className="kpi"><small>Bu ay ücretsiz numara</small><b>{user.free_unlocks_left}</b></div>
+        <div className="kpi"><small>Krediniz</small><b>{user.credits}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=kredi">Kredi yükle</Link></div>
         <div className="kpi"><small>Verdiğiniz teklif</small><b>{offers?.length ?? "–"}</b></div>
         <div className="kpi"><small>Kabul edilen</small><b>{offers?.filter((o) => o.status === "accepted").length ?? "–"}</b></div>
       </div>
@@ -129,16 +140,37 @@ function Account() {
   );
   if (s === "kredi") content = (
     <>
-      <div className="note n-info" style={{ marginBottom: 12 }}><span>Her ay belirli sayıda teklif ücretsizdir; bu ay kalan hakkınız <b>{user.free_offers_left}</b>, krediniz <b>{user.credits}</b>. Her ek teklif 1 kredi kullanır.</span></div>
+      <div className="note n-info" style={{ marginBottom: 12 }}><span>Alıcının numarasını görmek kredi ile olur; numarayı açtığınız talebe ücretsiz teklif verirsiniz. Her ay birkaç numara ücretsizdir: bu ay kalan hakkınız <b>{user.free_unlocks_left}</b>, krediniz <b>{user.credits}</b>. Bir numara genelde {user.unlock_price} kredidir (bazı kategorilerde farklı olabilir).</span></div>
       <div className="box"><div className="box-b">
         <b>Kredi satın alma yakında açılıyor.</b>
         <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>Ödeme altyapısı kurulana kadar kredi veya mağaza üyeliği için bizimle iletişime geçin; kredi hesabınıza elle tanımlanır.</p>
       </div></div>
     </>
   );
-  if (s === "hesap") content = <ProfileForm />;
+  if (s === "numaralar") content = <div className="box"><div className="box-h"><h2>Numarasını Açtıklarım</h2></div>{unlocks ? (unlocks.length ? (
+    <table className="tbl"><thead><tr><th>Talep</th><th>Numara</th><th>Ücret</th><th>Tarih</th></tr></thead><tbody>
+      {unlocks.map((u) => <tr key={u.id} className="row" onClick={() => router.push(`/talep/${u.request_id}`)}>
+        <td><div className="ti-t">{u.title}</div><div className="ti-s"><St s={u.status} />{u.report_status && <> <span className="lbl l-am">{u.report_status === "open" ? "Bildirim inceleniyor" : u.report_status === "refunded" ? "İade edildi" : "Bildirim sonuçlandı"}</span></>}</div></td>
+        <td data-m="Numara">{u.phone ? <a className="link" href={`tel:+${u.phone}`} onClick={(e) => e.stopPropagation()}><b>{u.phone.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4")}</b></a> : <span className="muted" style={{ fontSize: 12 }}>{u.phone_note}</span>}</td>
+        <td data-m="Ücret" className="nowrap">{u.is_free ? "Ücretsiz hak" : `${u.credits} kredi`}</td>
+        <td data-m="Tarih" className="nowrap muted">{ago(u.created_at)}</td>
+      </tr>)}
+    </tbody></table>
+  ) : <div className="empty">Henüz numarasını açtığınız bir talep yok. <Link className="link" href="/bana-ozel?s=eslesme">Size uygun taleplere</Link> göz atın.</div>) : content}</div>;
+  if (s === "bildirim") content = <div className="box"><div className="box-h"><h2>Bildirimler</h2></div>{notifs ? (notifs.length ? (
+    <ul className="notifs">{notifs.map((n) => <li key={n.id} className={n.read_at ? "" : "new"}>{n.link ? <Link href={n.link}>{n.text}</Link> : n.text}<span className="muted">{ago(n.created_at)}</span></li>)}</ul>
+  ) : <div className="empty">Bildiriminiz yok.</div>) : content}</div>;
+  if (s === "hesap") content = (
+    <>
+      <ProfileForm />
+      <div className="box" style={{ marginTop: 14 }}><div className="box-h"><h2>Telefon numarası</h2></div><div className="box-b">
+        {user.phone ? <p>Doğrulanmış numaranız: <b>{user.phone.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4")}</b></p>
+          : <><p className="muted" style={{ marginBottom: 10, fontSize: 13 }}>Talep vermek için doğrulanmış bir telefon numarası gerekir.</p><PhoneVerify /></>}
+      </div></div>
+    </>
+  );
 
-  const menu: [string, string, number?][] = [["taleplerim", "Taleplerim"], ["favori", "Favori Talepler"], ["ozet", "Satıcı Özeti"], ["eslesme", "Size Uygun Talepler"], ["tekliflerim", "Verdiğim Teklifler"], ["alarm", "Talep Alarmları"], ["kredi", "Kredi ve Mağaza"], ["hesap", "Hesap Bilgileri"]];
+  const menu: [string, string, number?][] = [["taleplerim", "Taleplerim"], ["favori", "Favori Talepler"], ["ozet", "Satıcı Özeti"], ["eslesme", "Size Uygun Talepler"], ["tekliflerim", "Verdiğim Teklifler"], ["alarm", "Talep Alarmları"], ["numaralar", "Numarasını Açtıklarım"], ["kredi", "Kredi ve Mağaza"], ["bildirim", `Bildirimler${user.unread_notifications ? ` (${user.unread_notifications})` : ""}`], ["hesap", "Hesap Bilgileri"]];
   return (
     <div className="wrap acc">
       <nav className="acc-menu">
@@ -146,9 +178,9 @@ function Account() {
         <div className="grp">Alıcı</div>
         {menu.slice(0, 2).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
         <div className="grp">Satıcı</div>
-        {menu.slice(2, 7).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
+        {menu.slice(2, 8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
         <div className="grp">Hesap</div>
-        {menu.slice(7).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
+        {menu.slice(8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
       </nav>
       <div>{content}</div>
     </div>

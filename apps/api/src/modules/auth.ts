@@ -1,6 +1,6 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { SESSION_COOKIE, SESSION_DAYS, setSessionCookie, type Deps } from "../context.js";
+import { requireUser, SESSION_COOKIE, SESSION_DAYS, setSessionCookie, type Deps } from "../context.js";
 import type { Client, Pool } from "../db.js";
 import { HttpError, maskTarget, normalizeEmail, normalizePhone, randomToken, safeEqual, sha256, sixDigitCode } from "../lib/util.js";
 
@@ -30,15 +30,13 @@ export function authRoutes(app: FastifyInstance, { config, pool, mailer, sms, go
   const roleFor = (email: string | null, phone: string | null) =>
     (email && config.adminEmails.has(email)) || (phone && config.adminPhones.has(phone)) ? "admin" : "user";
 
-  // 1) Kod iste: SMS veya e-posta ile 6 haneli kod gönderilir.
-  app.post("/auth/code", { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } }, async (req) => {
-    const body = z.object({ channel: Channel, target: z.string().max(254) }).parse(req.body);
-    const target = normalize(body.channel, body.target);
+  // Kod üretir, gönderir; aynı hedefe dakikada 1, saatte 5 kod.
+  async function issueCode(req: FastifyRequest, channel: "email" | "sms", target: string, purpose: string) {
     const recent = await pool.query<{ last_min: number; hour_count: number }>(
       `SELECT COALESCE(EXTRACT(EPOCH FROM now() - max(created_at)) / 60, 999)::float AS last_min,
               count(*) FILTER (WHERE created_at > now() - interval '1 hour')::int AS hour_count
          FROM auth_codes WHERE channel = $1 AND target = $2`,
-      [body.channel, target],
+      [channel, target],
     );
     const r = recent.rows[0]!;
     if (r.last_min < 1) throw new HttpError(429, "cok_sik", "Yeni kod istemek için 1 dakika bekleyin.");
@@ -47,40 +45,51 @@ export function authRoutes(app: FastifyInstance, { config, pool, mailer, sms, go
     const code = sixDigitCode();
     const ins = await pool.query<{ id: string }>(
       `INSERT INTO auth_codes (channel, target, code_hash, expires_at) VALUES ($1, $2, $3, now() + make_interval(mins => $4)) RETURNING id`,
-      [body.channel, target, hashCode(target, code), CODE_TTL_MIN],
+      [channel, target, hashCode(target, code), CODE_TTL_MIN],
     );
-    const text = `almakisterim giriş kodunuz: ${code}. Kod ${CODE_TTL_MIN} dakika geçerlidir, kimseyle paylaşmayın.`;
+    const text = `almakisterim ${purpose} kodunuz: ${code}. Kod ${CODE_TTL_MIN} dakika geçerlidir, kimseyle paylaşmayın.`;
     try {
-      if (body.channel === "sms") await sms.send(target, text);
-      else await mailer.send(target, "almakisterim giriş kodunuz", text);
+      if (channel === "sms") await sms.send(target, text);
+      else await mailer.send(target, `almakisterim ${purpose} kodunuz`, text);
     } catch (e) {
       // Gönderilemeyen kod geçersiz sayılır; kullanıcı beklemeden tekrar deneyebilir.
       await pool.query("DELETE FROM auth_codes WHERE id = $1", [ins.rows[0]!.id]);
       if (e instanceof HttpError) throw e;
-      req.log.error({ err: (e as Error).message, channel: body.channel }, "kod gönderilemedi");
+      req.log.error({ err: (e as Error).message, channel }, "kod gönderilemedi");
       throw new HttpError(502, "gonderilemedi", "Kod gönderilemedi, lütfen biraz sonra tekrar deneyin.");
     }
-    return { ok: true, sent_to: maskTarget(body.channel, target) };
+    return { ok: true, sent_to: maskTarget(channel, target) };
+  }
+
+  // Kodu kontrol eder ve tüketir; hatalıysa deneme sayısını artırır.
+  async function consumeCode(channel: "email" | "sms", target: string, code: string) {
+    const { rows } = await pool.query<{ id: string; code_hash: string; attempts: number }>(
+      `SELECT id, code_hash, attempts FROM auth_codes
+        WHERE channel = $1 AND target = $2 AND consumed_at IS NULL AND expires_at > now()
+        ORDER BY created_at DESC LIMIT 1`,
+      [channel, target],
+    );
+    const row = rows[0];
+    const fail = new HttpError(400, "kod_hatali", "Kod hatalı veya süresi dolmuş.");
+    if (!row || row.attempts >= MAX_ATTEMPTS) throw fail;
+    if (!safeEqual(row.code_hash, hashCode(target, code))) {
+      await pool.query("UPDATE auth_codes SET attempts = attempts + 1 WHERE id = $1", [row.id]);
+      throw fail;
+    }
+    await pool.query("UPDATE auth_codes SET consumed_at = now() WHERE id = $1", [row.id]);
+  }
+
+  // 1) Kod iste: SMS veya e-posta ile 6 haneli kod gönderilir.
+  app.post("/auth/code", { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } }, async (req) => {
+    const body = z.object({ channel: Channel, target: z.string().max(254) }).parse(req.body);
+    return issueCode(req, body.channel, normalize(body.channel, body.target), "giriş");
   });
 
   // 2) Kodu doğrula: doğruysa kullanıcı bulunur ya da açılır ve oturum başlar.
   app.post("/auth/verify", { config: { rateLimit: { max: 20, timeWindow: "10 minutes" } } }, async (req, reply) => {
     const body = z.object({ channel: Channel, target: z.string().max(254), code: z.string().regex(/^\d{6}$/), name: z.string().max(80).optional() }).parse(req.body);
     const target = normalize(body.channel, body.target);
-    const { rows } = await pool.query<{ id: string; code_hash: string; attempts: number }>(
-      `SELECT id, code_hash, attempts FROM auth_codes
-        WHERE channel = $1 AND target = $2 AND consumed_at IS NULL AND expires_at > now()
-        ORDER BY created_at DESC LIMIT 1`,
-      [body.channel, target],
-    );
-    const row = rows[0];
-    const fail = new HttpError(400, "kod_hatali", "Kod hatalı veya süresi dolmuş.");
-    if (!row || row.attempts >= MAX_ATTEMPTS) throw fail;
-    if (!safeEqual(row.code_hash, hashCode(target, body.code))) {
-      await pool.query("UPDATE auth_codes SET attempts = attempts + 1 WHERE id = $1", [row.id]);
-      throw fail;
-    }
-    await pool.query("UPDATE auth_codes SET consumed_at = now() WHERE id = $1", [row.id]);
+    await consumeCode(body.channel, target, body.code);
 
     const col = body.channel === "sms" ? "phone" : "email";
     const email = body.channel === "email" ? target : null, phone = body.channel === "sms" ? target : null;
@@ -94,6 +103,28 @@ export function authRoutes(app: FastifyInstance, { config, pool, mailer, sms, go
     const token = await createSession(pool, user.rows[0]!.id);
     setSessionCookie(reply, token, config.isProd);
     return { ok: true };
+  });
+
+  // Hesaba telefon ekleme (Google veya e-posta ile girenler için): talep vermek için doğrulanmış numara gerekir.
+  const phoneOf = (raw: string) => normalize("sms", raw);
+  async function phoneTaken(phone: string, userId: string) {
+    return !!(await pool.query("SELECT 1 FROM users WHERE phone = $1 AND id <> $2", [phone, userId])).rowCount;
+  }
+  app.post("/me/phone/code", { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } }, async (req) => {
+    const user = requireUser(req);
+    const phone = phoneOf(z.object({ phone: z.string().max(30) }).parse(req.body).phone);
+    if (await phoneTaken(phone, user.id)) throw new HttpError(409, "numara_kullanimda", "Bu numara başka bir hesaba bağlı. O numarayla SMS ile giriş yapabilirsiniz.");
+    return issueCode(req, "sms", phone, "telefon doğrulama");
+  });
+  app.post("/me/phone/verify", { config: { rateLimit: { max: 20, timeWindow: "10 minutes" } } }, async (req) => {
+    const user = requireUser(req);
+    const b = z.object({ phone: z.string().max(30), code: z.string().regex(/^\d{6}$/) }).parse(req.body);
+    const phone = phoneOf(b.phone);
+    await consumeCode("sms", phone, b.code);
+    if (await phoneTaken(phone, user.id)) throw new HttpError(409, "numara_kullanimda", "Bu numara başka bir hesaba bağlı.");
+    await pool.query("UPDATE users SET phone = $2, role = CASE WHEN $3 THEN 'admin' ELSE role END WHERE id = $1",
+      [user.id, phone, config.adminPhones.has(phone)]);
+    return { ok: true, phone: maskTarget("sms", phone) };
   });
 
   // 3) Google ile devam et.

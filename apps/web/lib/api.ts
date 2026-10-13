@@ -17,7 +17,7 @@ export async function api<T = unknown>(path: string, init: { method?: string; bo
   return data as T;
 }
 
-export type User = { id: string; name: string; email: string | null; phone: string | null; role: "user" | "admin"; is_corporate: boolean; credits: number; free_offers_left: number };
+export type User = { id: string; name: string; email: string | null; phone: string | null; role: "user" | "admin"; is_corporate: boolean; credits: number; free_unlocks_left: number; unlock_price: number; unread_notifications: number };
 
 export type Category = { id: string; parent_id: string | null; name: string; icon: string; is_visible: boolean; active_count: number };
 export type CategoryTop = Category & { subs: Category[] };
@@ -37,6 +37,13 @@ export type Offer = {
 };
 
 export type RequestDetail = RequestItem & { media: Media[]; is_owner: boolean; is_favorite: boolean; moderation_note?: string | null; accepted_offer_id: number | null };
+
+// Satıcının alıcı numarasını görmesi (ücretli). viewers yalnızca talep sahibine gelir.
+export type Contact = {
+  price: number; limit: number; used: number; slots_left: number | null; unlocked: boolean; unlock_id: number | null; phone: string | null;
+  hidden: boolean; blocked: boolean;
+  viewers?: { unlock_id: number; seller_name: string; created_at: string; reported: boolean }[];
+};
 
 export type Draft = {
   category_id: string | null; title: string; budget_min: number | null; budget_max: number | null; city: string | null;

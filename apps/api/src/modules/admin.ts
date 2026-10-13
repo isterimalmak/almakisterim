@@ -71,7 +71,15 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
   app.put("/admin/settings", async (req) => {
     requireAdmin(req);
     const b = z.object({
-      free_offers_per_month: z.number().int().min(0).max(1000).optional(),
+      free_unlocks_per_month: z.number().int().min(0).max(1000).optional(),
+      unlock_price_credits: z.number().int().min(0).max(1000).optional(),
+      unlock_price_by_top: z.record(z.string().max(30), z.number().int().min(0).max(1000)).optional(),
+      unlock_limit_per_request: z.number().int().min(0).max(1000).optional(),
+      unlock_price_tiers: z.array(z.object({ max_budget: z.number().int().min(1).nullable(), credits: z.number().int().min(0).max(1000) })).max(10).optional(),
+      max_active_requests_per_user: z.number().int().min(0).max(1000).optional(),
+      browse_min_requests: z.number().int().min(0).max(1000).optional(),
+      show_counts_min: z.number().int().min(0).max(100000).optional(),
+      launch_mode: z.boolean().optional(),
       store_monthly_price_try: z.number().int().min(0).optional(),
       credit_packages: z.array(z.object({ id: z.string(), credits: z.number().int().min(1), price_try: z.number().int().min(0) })).max(10).optional(),
     }).parse(req.body);

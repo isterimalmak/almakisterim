@@ -4,15 +4,15 @@ import { requireUser, type Deps } from "../context.js";
 import { HttpError, idParam } from "../lib/util.js";
 import { CITIES } from "../services/ai.js";
 import { VISIBLE_CATEGORY_SQL } from "./categories.js";
+import { freeUnlocksUsed, unlockSettings } from "./contacts.js";
 
 export function meRoutes(app: FastifyInstance, { pool }: Deps) {
   app.get("/me", async (req) => {
     if (!req.user) return { user: null };
-    const free = Number((await pool.query<{ value: number }>("SELECT value FROM settings WHERE key = 'free_offers_per_month'")).rows[0]?.value ?? 0);
-    const used = (await pool.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM offers WHERE seller_id = $1
-         AND created_at >= date_trunc('month', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul'`, [req.user.id])).rows[0]!.n;
-    return { user: { ...req.user, free_offers_left: Math.max(0, free - used) } };
+    const s = await unlockSettings(pool);
+    const used = await freeUnlocksUsed(pool, req.user.id);
+    const unread = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND read_at IS NULL", [req.user.id])).rows[0]!.n;
+    return { user: { ...req.user, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread } };
   });
 
   app.patch("/me", async (req) => {

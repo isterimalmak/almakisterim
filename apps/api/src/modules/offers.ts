@@ -15,10 +15,6 @@ const OfferBody = z.object({
   media_ids: MediaIds,
 });
 
-// Ayın başından beri (Türkiye saatiyle) verilen teklif sayısı; ücretsiz hak bununla hesaplanır.
-const MONTH_OFFERS_SQL = `SELECT count(*)::int AS n FROM offers
-  WHERE seller_id = $1 AND created_at >= date_trunc('month', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul'`;
-
 export function offerRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, ai, config, storage } = deps;
 
@@ -42,28 +38,22 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
       const dup = await c.query("SELECT 1 FROM offers WHERE request_id = $1 AND seller_id = $2", [requestId, user.id]);
       if (dup.rowCount) throw new HttpError(409, "zaten_teklif", "Bu talebe zaten teklif verdiniz.");
 
-      const free = Number((await c.query<{ value: number }>("SELECT value FROM settings WHERE key = 'free_offers_per_month'")).rows[0]?.value ?? 0);
-      const used = (await c.query<{ n: number }>(MONTH_OFFERS_SQL, [user.id])).rows[0]!.n;
-      let charged = false;
-      if (used >= free) {
-        const paid = await c.query("UPDATE users SET credits = credits - 1 WHERE id = $1 AND credits > 0 RETURNING credits", [user.id]);
-        if (!paid.rowCount) throw new HttpError(402, "kredi_yok", "Bu ayki ücretsiz teklif hakkınız doldu. Teklif vermek için kredi yükleyin.");
-        charged = true;
-      }
+      // Teklif vermek için önce numaranın açılmış (ücretinin ödenmiş) olması gerekir.
+      const unlocked = await c.query("SELECT 1 FROM contact_unlocks WHERE request_id = $1 AND seller_id = $2 AND revoked_at IS NULL", [requestId, user.id]);
+      if (!unlocked.rowCount) throw new HttpError(402, "numara_acilmadi", "Teklif vermek için önce alıcının numarasını açın.");
       const ins = await c.query<{ id: number }>(
         `INSERT INTO offers (request_id, seller_id, price, condition, delivery, warranty, note) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
         [requestId, user.id, b.price, b.condition, b.delivery, b.warranty, note]);
       const offerId = ins.rows[0]!.id;
       await attachMedia(c, user.id, b.media_ids, { offer_id: offerId });
-      if (charged) await c.query("INSERT INTO credit_ledger (user_id, delta, reason, ref) VALUES ($1, -1, 'teklif', $2)", [user.id, `offer:${offerId}`]);
       const buyer = (await c.query<{ email: string | null; phone: string | null }>("SELECT email, phone FROM users WHERE id = $1", [row.buyer_id])).rows[0]!;
-      return { offerId, charged, buyer, title: row.title };
+      return { offerId, buyer, title: row.title };
     });
 
     void notifyUser(deps, result.buyer, "Talebinize yeni teklif geldi",
       `almakisterim: "${result.title}" talebinize yeni bir teklif geldi. ${config.APP_URL}/talep/${requestId}`).catch(() => {});
     reply.code(201);
-    return { id: result.offerId, charged_credit: result.charged };
+    return { id: result.offerId };
   });
 
   app.post("/offers/:id/accept", async (req) => {

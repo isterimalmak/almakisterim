@@ -26,10 +26,10 @@ export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; stora
 }
 
 export async function resetData(pool: Pool) {
-  await pool.query(`TRUNCATE media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
+  await pool.query(`TRUNCATE notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
   await pool.query(`ALTER TABLE requests ALTER COLUMN id RESTART WITH 1048200`);
   await pool.query(`UPDATE categories SET is_visible = true`);
-  await pool.query(`UPDATE settings SET value = '5' WHERE key = 'free_offers_per_month'`);
+  await pool.query(`UPDATE settings SET value = CASE key WHEN 'free_unlocks_per_month' THEN '5' WHEN 'unlock_price_credits' THEN '1' WHEN 'unlock_price_by_top' THEN '{}' WHEN 'unlock_limit_per_request' THEN '10' WHEN 'max_active_requests_per_user' THEN '5' WHEN 'launch_mode' THEN 'false' WHEN 'browse_min_requests' THEN '1' WHEN 'show_counts_min' THEN '20' WHEN 'unlock_price_tiers' THEN '[{"max_budget": 10000, "credits": 1}, {"max_budget": 100000, "credits": 3}, {"max_budget": null, "credits": 5}]' ELSE value END`);
 }
 
 // SMS ile giriş yapar ve oturum çerezini döndürür.
@@ -56,10 +56,17 @@ export const sampleRequest = {
   condition: "İkinci El",
   attrs: { marka: "Apple", hafiza: "128 GB" },
   is_urgent: true,
+  contact_consent: true,
 };
 
 export async function createRequest(ctx: TestCtx, cookie: string, over: Record<string, unknown> = {}): Promise<number> {
   const r = await ctx.app.inject({ method: "POST", url: "/api/requests", headers: { cookie }, payload: { ...sampleRequest, ...over } });
   if (r.statusCode !== 201) throw new Error("talep açılamadı: " + r.body);
   return r.json().id;
+}
+
+// Satıcı önce alıcının numarasını açar (ücretli), sonra teklif verir.
+export async function postOffer(ctx: TestCtx, cookie: string, requestId: number, payload: Record<string, unknown>) {
+  await ctx.app.inject({ method: "POST", url: `/api/requests/${requestId}/unlock`, headers: { cookie } });
+  return ctx.app.inject({ method: "POST", url: `/api/requests/${requestId}/offers`, headers: { cookie }, payload });
 }

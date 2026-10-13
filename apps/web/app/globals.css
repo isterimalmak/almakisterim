@@ -83,7 +83,8 @@ input,select,textarea{font:inherit;color:inherit}
 .ct-top{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px;color:var(--navy)}
 .ct-top:hover{color:var(--blue)}
 .ct-top .n{font-weight:400;color:var(--muted);font-size:12px}
-.ct-ic{width:22px;height:22px;flex:none;color:var(--navy)}
+.ct-ic{width:28px;height:28px;flex:none;border-radius:7px;display:inline-grid;place-items:center}
+.ct-ic svg{width:17px;height:17px}
 .ct-subs{list-style:none;margin:4px 0 0 30px}
 .ct-subs a{display:flex;justify-content:space-between;gap:6px;font-size:12.5px;color:#3A414B;padding:1.5px 0}
 .ct-subs a:hover{color:var(--blue);text-decoration:underline}
@@ -440,3 +441,43 @@ button.link{padding:0;font-size:inherit}
 .o-media img{width:100%;height:100%;object-fit:cover;display:block}
 .ti-img{object-fit:cover;padding:0}
 .vc-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+/* ---------- Numarayı gör ---------- */
+.phone-open{display:flex;align-items:center;gap:8px;justify-content:center;border:1px solid var(--green);background:#EAF6EF;color:var(--green);border-radius:4px;padding:10px 12px;font-size:17px;font-weight:800;margin:10px 0;text-decoration:none}
+.unlock-h{display:flex;align-items:center;gap:8px;font-size:15px;margin-bottom:8px;color:var(--navy)}
+.unlock-l{margin:0 0 12px 18px;padding:0;font-size:13px;line-height:1.7;color:#3A414B}
+.phone-acts{display:flex;gap:6px;margin:-4px 0 6px}
+.phone-acts .btn{flex:1}
+.viewers{list-style:none;margin:8px 0 0;padding:0;font-size:12.5px}
+.viewers li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid var(--line-2)}
+.notifs{list-style:none;margin:0;padding:0}
+.notifs li{display:flex;justify-content:space-between;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line-2);font-size:13.5px}
+.notifs li.new{background:#FFF7F0;font-weight:600}
+.notifs li .muted{font-size:12px;white-space:nowrap;font-weight:400}
+.badge{display:inline-block;min-width:17px;height:17px;line-height:17px;border-radius:9px;background:var(--orange);color:#fff;font-size:11px;font-weight:700;text-align:center;padding:0 4px;margin-left:5px}
+.tiers .inp{height:30px;max-width:180px}
+.av-link{position:relative;display:inline-flex}
+.av-link .badge{position:absolute;top:-6px;right:-8px;margin:0}
+
+/* ---------- Başlangıç dönemi: boş bölüm yerine yönlendirme ---------- */
+.soon{background:#fff;padding:22px 18px}
+.soon h2{font-size:16px;color:var(--navy);margin-bottom:12px}
+.soon-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.soon-grid>div{border:1px solid var(--line-2);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.soon-grid p{font-size:12.5px;color:#4A5160;margin:0 0 6px}
+.launch .box-b{background:#FFF4EB;border-left:3px solid var(--orange)}
+.launch p{font-size:12.5px;margin:6px 0 10px;color:#4A5160}
+@media (max-width:520px){.soon-grid{grid-template-columns:1fr}}
+.ct-pick{margin:6px 0 0}
+.ct-pick a{justify-content:flex-start !important;align-items:center;gap:10px;font-size:13.5px;font-weight:600;color:var(--ink,#1E2430);padding:5px 6px;border-radius:6px}
+.ct-pick a:hover{background:var(--row-hover);text-decoration:none;color:var(--navy)}
+.ct-pick a .ar{margin-left:auto;color:var(--muted);font-weight:400}
+.cat-col .ct-ic svg{width:17px;height:17px}
+.cat-tiles{display:none}
+@media (max-width:860px){
+  .cat-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:14px}
+  .cat-tiles a{background:#fff;border:1px solid var(--line-2);border-radius:8px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:11.5px;font-weight:600;line-height:1.25;color:#2A303B}
+  .cat-tiles .ct-ic{width:38px;height:38px;border-radius:10px}
+  .cat-tiles .ct-ic svg{width:21px;height:21px}
+}
+@media (max-width:380px){.cat-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}

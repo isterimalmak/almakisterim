@@ -34,5 +34,14 @@ export async function visibleSubcategory(pool: Pool, id: string) {
 }
 
 export function categoryRoutes(app: FastifyInstance, { pool }: Deps) {
-  app.get("/categories", async () => ({ categories: toTree(await listCategories(pool, true)) }));
+  app.get("/categories", async () => {
+    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode')");
+    const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    return {
+      categories: toTree(await listCategories(pool, true)),
+      // Gezinme sayfalarında boş kategoriler ve küçük sayaçlar gizlenir; talep verirken hepsi görünür.
+      browse: { min_requests: Number(s.browse_min_requests ?? 1), show_counts_min: Number(s.show_counts_min ?? 0) },
+      launch_mode: s.launch_mode === true,
+    };
+  });
 }

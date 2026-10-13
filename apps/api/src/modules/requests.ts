@@ -5,6 +5,7 @@ import { HttpError, maskContacts, publicName, idParam } from "../lib/util.js";
 import { CITIES, CONDITIONS, type CategoryRef } from "../services/ai.js";
 import { listCategories, VISIBLE_CATEGORY_SQL, visibleSubcategory } from "./categories.js";
 import { tx } from "../db.js";
+import { priceFor, unlockSettings } from "./contacts.js";
 import { attachMedia, imageUrls, MediaIds, mediaFor } from "./media.js";
 import { notifyAlarmMatches } from "./notifications.js";
 
@@ -49,6 +50,8 @@ const CreateBody = z.object({
   is_corporate: z.boolean().default(false),
   days: z.union([z.literal(7), z.literal(14), z.literal(30)]).default(14),
   media_ids: MediaIds,
+  // Numaranın ücret ödeyen satıcılarla paylaşılması zorunludur; alıcı bunu açıkça onaylar.
+  contact_consent: z.literal(true, { error: "Talep vermek için numaranızın satıcılarla paylaşılmasını onaylamalısınız." }),
 });
 
 export function requestRoutes(app: FastifyInstance, deps: Deps) {
@@ -118,7 +121,28 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const media = (await mediaFor(pool, storage, "request_id", [id])).get(id) ?? [];
     const fav = viewer ? (await pool.query("SELECT 1 FROM favorites WHERE user_id = $1 AND request_id = $2", [viewer.id, id])).rowCount : 0;
     const { category_visible: _cv, moderation_note, ...rest } = r;
-    return { request: { ...pub(rest as Row), media, is_owner: isOwner, is_favorite: !!fav, moderation_note: isOwner || isAdmin ? moderation_note : undefined }, offers };
+
+    // Numara: ücret ödeyen satıcı görür. Talep kapanınca yalnızca teklifi kabul edilen satıcıda açık kalır.
+    // Alıcı paylaşımı durdurduysa ya da o satıcıyı şikâyet ettiyse numara gösterilmez.
+    const s = await unlockSettings(pool);
+    const extra = (await pool.query<{ hidden: boolean }>("SELECT contact_hidden_at IS NOT NULL AS hidden FROM requests WHERE id = $1", [id])).rows[0]!;
+    const unlockRows = (await pool.query<{ id: number; seller_id: string; seller_name: string; created_at: string; revoked: boolean; reported: boolean }>(
+      `SELECT cu.id, cu.seller_id, u.name AS seller_name, cu.created_at, cu.revoked_at IS NOT NULL AS revoked,
+              EXISTS (SELECT 1 FROM contact_reports cr WHERE cr.unlock_id = cu.id AND cr.side = 'buyer') AS reported
+         FROM contact_unlocks cu JOIN users u ON u.id = cu.seller_id WHERE cu.request_id = $1 ORDER BY cu.created_at`, [id])).rows;
+    const mine = viewer ? unlockRows.find((u) => u.seller_id === viewer.id) : undefined;
+    const accepted = (offers as { mine: boolean; status: string }[]).some((o) => o.mine && o.status === "accepted");
+    const showPhone = !!mine && !mine.revoked && !extra.hidden && (r.status === "active" || accepted);
+    const phone = showPhone ? (await pool.query<{ phone: string | null }>("SELECT phone FROM users WHERE id = $1", [r.buyer_id])).rows[0]?.phone ?? null : null;
+    const contact = {
+      price: priceFor(s, String(r.top_id), Number(r.budget_max)), limit: s.limit, used: unlockRows.length,
+      slots_left: s.limit > 0 ? Math.max(0, s.limit - unlockRows.length) : null,
+      unlocked: !!mine, unlock_id: mine?.id ?? null, phone, hidden: extra.hidden,
+      blocked: !!mine && (mine.revoked || extra.hidden),
+      // Alıcı, numarasını kimlerin gördüğünü görür ve rahatsız edeni şikâyet edebilir.
+      viewers: isOwner || isAdmin ? unlockRows.map((u) => ({ unlock_id: u.id, seller_name: publicName(u.seller_name), created_at: u.created_at, reported: u.reported })) : undefined,
+    };
+    return { request: { ...pub(rest as Row), media, is_owner: isOwner, is_favorite: !!fav, moderation_note: isOwner || isAdmin ? moderation_note : undefined }, offers, contact };
   });
 
   // Yapay zekâ ile taslak: serbest metinden kategori, bütçe, il ve özellikler çıkarılır.
@@ -134,7 +158,13 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/requests", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
+    if (!user.phone) throw new HttpError(409, "telefon_gerekli", "Talep vermek için önce telefon numaranızı doğrulayın.");
     const b = CreateBody.parse(req.body);
+    // Sahte taleplerle satıcıları kendine aratmayı önlemek için kişi başı açık talep sınırı.
+    const { maxActive } = await unlockSettings(pool);
+    const active = (await pool.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM requests WHERE buyer_id = $1 AND status IN ('active','pending_review') AND expires_at > now()", [user.id])).rows[0]!.n;
+    if (maxActive > 0 && active >= maxActive) throw new HttpError(409, "talep_siniri", `Aynı anda en fazla ${maxActive} açık talebiniz olabilir. Önce eski taleplerinizden birini kapatın.`);
     const cat = await visibleSubcategory(pool, b.category_id);
     if (!cat) throw new HttpError(400, "kategori_gecersiz", "Bu kategori şu anda talep kabul etmiyor.");
     const budgetMin = b.budget_min ?? Math.round(b.budget_max * 0.8);
@@ -146,8 +176,8 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const id = await tx(pool, async (c) => {
       const { rows } = await c.query<{ id: number }>(
         `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, condition, attrs,
-                               is_urgent, is_corporate, status, moderation_note, expires_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now() + make_interval(days => $15)) RETURNING id`,
+                               is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now() + make_interval(days => $15), now()) RETURNING id`,
         [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.condition, b.attrs,
           b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days]);
       await attachMedia(c, user.id, b.media_ids, { request_id: rows[0]!.id });
