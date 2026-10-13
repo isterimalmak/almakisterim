@@ -7,6 +7,9 @@ import { Thumbs } from "@/components/Media";
 import { useSession } from "@/components/Session";
 import { AdsAdmin } from "@/components/AdsAdmin";
 import { StockAdmin } from "@/components/StockAdmin";
+import { Dashboard } from "@/components/admin/Dashboard";
+import { RequestsAdmin } from "@/components/admin/RequestsAdmin";
+import { CreditsAdmin, IntegrationsAdmin, NotifyAdmin } from "@/components/admin/More";
 import { api, type Media, type CategoryTop } from "@/lib/api";
 import { dateTr } from "@/lib/format";
 
@@ -16,11 +19,24 @@ type Report = { id: number; request_id: number; reason: string; created_at: stri
 type UnlockStats = { summary: { today: number; month: number; month_credits: number; month_free: number; refunded_credits: number }; by_top: { id: string; name: string; unlocks: number; credits: number }[] };
 type ContactReport = { id: number; side: "seller" | "buyer"; reason_text: string; note: string; status: string; created_at: string; credits: number; request_id: number; title: string;
   seller_name: string; seller_phone: string | null; buyer_name: string; buyer_phone: string | null; seller_complaints: number; buyer_complaints: number };
-type UserRow = { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; created_at: string };
+type UserRow = { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; created_at: string; is_corporate?: boolean; requests?: number; unlocks?: number };
+type Section = "pano" | "talep" | "kul" | "kredi" | "den" | "num" | "bil" | "kat" | "rek" | "gor" | "ent" | "ayar";
+const TITLES: Record<Section, [string, string]> = {
+  pano: ["Genel Bakış", "Sitenin özeti · bugün ve bu ay"], talep: ["Talepler", "Bütün talepler · arama, vitrin, yayından kaldırma"],
+  kul: ["Üyeler ve Kredi", "Üye arama ve elle kredi tanımlama"], den: ["İçerik Denetimi", "İnceleme bekleyen talepler ve şikâyetler"],
+  num: ["Numaralar ve Şikâyetler", "Açılan numaralar, kredi iadeleri"], kat: ["Kategoriler", "Sitede görünen kategoriler"],
+  rek: ["Reklam Alanları", "Ana sayfadaki resim ve videolar, açılış karşılaması"], gor: ["Hazır Görseller", "Talep verirken seçilen örnek görseller"],
+  ayar: ["Ayarlar", "Ücretler, sınırlar ve site seçenekleri"], kredi: ["Kredi Hareketleri", "Kazanılan ve harcanan krediler"],
+  bil: ["Bildirim Gönder", "Üyelere site içi duyuru"], ent: ["Entegrasyonlar", "Bağlı dış hizmetler"],
+};
 
 export default function Admin() {
   const { user, ready, refresh, toast } = useSession();
-  const [tab, setTab] = useState<"kat" | "den" | "num" | "kul" | "rek" | "gor" | "ayar">("kat");
+  const [tab, setTabState] = useState<Section>("pano");
+  // Açık bölüm adreste (#talep gibi) durur; sayfa yenilenince aynı bölüm açılır.
+  useEffect(() => { const h = window.location.hash.slice(1) as Section; if (h in TITLES) setTabState(h); }, []);
+  const setTab = (s: string) => { setTabState(s as Section); history.replaceState(null, "", `#${s}`); window.scrollTo(0, 0); };
+  const [menuOpen, setMenuOpen] = useState(false);
   const [unl, setUnl] = useState<UnlockStats | null>(null);
   const [creps, setCreps] = useState<ContactReport[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -41,6 +57,9 @@ export default function Admin() {
   }, []);
   useEffect(() => { if (user?.role === "admin") void load().catch((e) => toast(e.message)); }, [user, load, toast]);
 
+  const searchUsers = async () => setUsers((await api<{ items: UserRow[] }>(`/admin/users?q=${encodeURIComponent(q)}`)).items);
+  useEffect(() => { if (tab === "kul" && !users.length && user?.role === "admin") void searchUsers().catch(() => {}); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!ready) return <div className="loading">Yükleniyor…</div>;
   if (user?.role !== "admin") return <div className="wrap" style={{ padding: "30px 16px" }}><div className="box"><div className="empty">Bu sayfa yalnızca yöneticiler içindir. <Link className="link" href="/giris?sonra=/yonetim">Yönetici hesabıyla giriş yapın</Link>.</div></div></div>;
 
@@ -58,7 +77,6 @@ export default function Admin() {
     try { const r = await api<{ refunded_credits: number }>(`/admin/contact-reports/${id}/resolve`, { body: { action } }); toast(action === "refund" ? `${r.refunded_credits} kredi iade edildi.` : "Bildirim kapatıldı."); void load(); }
     catch (e) { toast((e as Error).message); }
   };
-  const searchUsers = async () => setUsers((await api<{ items: UserRow[] }>(`/admin/users?q=${encodeURIComponent(q)}`)).items);
   const credit = async (u: UserRow) => {
     const v = window.prompt(`${u.name || u.phone || u.email} için eklenecek kredi (eksi değer düşer):`, "10");
     if (!v || !Number(v)) return;
@@ -66,25 +84,40 @@ export default function Admin() {
     catch (e) { toast((e as Error).message); }
   };
 
+  const pend = (mod?.pending.length ?? 0) + (mod?.reports.length ?? 0);
+  const groups: [string, [Section, string, string, number?][]][] = [
+    ["PLATFORM", [["pano", "Genel Bakış", "home"], ["talep", "Talepler", "list"], ["kul", "Üyeler ve Kredi", "user"], ["kredi", "Kredi Hareketleri", "bolt"], ["den", "İçerik Denetimi", "check", pend], ["num", "Numaralar ve Şikâyetler", "phone", creps.length], ["bil", "Bildirim Gönder", "bell"]]],
+    ["İÇERİK", [["kat", "Kategoriler", "box"], ["rek", "Reklam Alanları", "play"], ["gor", "Hazır Görseller", "camera"]]],
+    ["SİSTEM", [["ent", "Entegrasyonlar", "lock"], ["ayar", "Ayarlar", "gear"]]],
+  ];
+  const [title, sub] = TITLES[tab];
   return (
-    <div className="wrap" style={{ paddingBottom: 40 }}>
-      <div className="crumb"><Link href="/">Ana Sayfa</Link> › Yönetim Paneli</div>
-      <div className="list-head"><h1>Yönetim Paneli</h1></div>
-      <div className="kpis">
-        <div className="kpi"><small>Yayındaki talep</small><b>{stats?.active_requests ?? "–"}</b></div>
-        <div className="kpi"><small>Bugüne kadar açılan iletişim</small><b>{unl ? unl.summary.month : "–"}</b></div>
-        <div className="kpi"><small>Üye</small><b>{stats?.users ?? "–"}</b></div>
-        <div className="kpi"><small>İnceleme bekleyen</small><b style={{ color: stats?.pending_review ? "var(--red)" : undefined }}>{stats?.pending_review ?? "–"}</b></div>
-      </div>
-      <div className="res-bar" style={{ borderBottom: "1px solid var(--line)", borderRadius: 4, marginBottom: 14 }}><div className="tabs">
-        <button className={tab === "kat" ? "on" : ""} onClick={() => setTab("kat")}>Kategoriler</button>
-        <button className={tab === "den" ? "on" : ""} onClick={() => setTab("den")}>İçerik Denetimi ({(mod?.pending.length ?? 0) + (mod?.reports.length ?? 0)})</button>
-        <button className={tab === "num" ? "on" : ""} onClick={() => setTab("num")}>Numaralar ve Şikâyetler ({creps.length})</button>
-        <button className={tab === "kul" ? "on" : ""} onClick={() => setTab("kul")}>Kullanıcılar ve Kredi</button>
-        <button className={tab === "rek" ? "on" : ""} onClick={() => setTab("rek")}>Reklam Alanları</button>
-        <button className={tab === "gor" ? "on" : ""} onClick={() => setTab("gor")}>Hazır Görseller</button>
-        <button className={tab === "ayar" ? "on" : ""} onClick={() => setTab("ayar")}>Ayarlar</button>
-      </div></div>
+    <div className="ap">
+      <aside className={"ap-side" + (menuOpen ? " open" : "")} aria-label="Yönetim menüsü">
+        <div className="ap-brand"><Link href="/">almakisterim</Link><small>Yönetim Paneli</small></div>
+        {groups.map(([g, items]) => (
+          <div key={g} className="ap-grp"><div className="ap-gh">{g}</div>
+            {items.map(([k, label, icon, n]) => (
+              <button key={k} type="button" className={"ap-nav" + (tab === k ? " on" : "")} aria-current={tab === k ? "page" : undefined} onClick={() => { setTab(k); setMenuOpen(false); }}>
+                <Icon name={icon} size={16} /><span>{label}</span>{!!n && <em>{n}</em>}
+              </button>
+            ))}
+          </div>
+        ))}
+        <Link className="ap-nav ap-back" href="/">‹ Siteye dön</Link>
+      </aside>
+      <div className="ap-main">
+        <div className="ap-top">
+          <button type="button" className="ap-burger" aria-label="Menüyü aç" onClick={() => setMenuOpen((v) => !v)}>☰</button>
+          <div><h1>{title}</h1><small>{sub}</small></div>
+          <span className="ap-date">{new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}</span>
+        </div>
+        <div className="ap-body">
+      {tab === "pano" && <Dashboard go={setTab} />}
+      {tab === "talep" && <RequestsAdmin />}
+      {tab === "kredi" && <CreditsAdmin />}
+      {tab === "bil" && <NotifyAdmin />}
+      {tab === "ent" && <IntegrationsAdmin />}
 
       {tab === "kat" && (
         <>
@@ -123,10 +156,10 @@ export default function Admin() {
 
       {tab === "kul" && (
         <div className="box"><div className="box-h"><h2>Kullanıcılar</h2></div><div className="box-b">
-          <form style={{ display: "flex", gap: 8, marginBottom: 12 }} onSubmit={(e) => { e.preventDefault(); void searchUsers(); }}><input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ad, e-posta veya telefon" /><button className="btn btn-bl">Ara</button></form>
-          {users.length ? <table className="tbl"><thead><tr><th>Kullanıcı</th><th>İletişim</th><th className="r">Kredi</th><th></th></tr></thead><tbody>
-            {users.map((u) => <tr key={u.id}><td><b>{u.name || "—"}</b> {u.role === "admin" && <span className="lbl l-kur">Yönetici</span>}<div className="ti-s">{dateTr(u.created_at)}</div></td><td data-m="İletişim">{u.phone ?? u.email}</td><td data-m="Kredi" className="r">{u.credits}</td><td className="r act-cell"><button className="btn btn-wh btn-sm" onClick={() => credit(u)}>Kredi tanımla</button></td></tr>)}
-          </tbody></table> : <div className="muted">Aramak için yazın.</div>}
+          <form style={{ display: "flex", gap: 8, marginBottom: 12 }} onSubmit={(e) => { e.preventDefault(); void searchUsers(); }}><input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ad, e-posta veya telefon" /><button className="btn btn-bl">Ara</button><a className="btn btn-wh" href="/api/admin/users.csv" download>Excel'e indir</a></form>
+          {users.length ? <table className="tbl"><thead><tr><th>Kullanıcı</th><th>İletişim</th><th className="r">Talep</th><th className="r">Açtığı numara</th><th className="r">Kredi</th><th></th></tr></thead><tbody>
+            {users.map((u) => <tr key={u.id}><td><b>{u.name || "—"}</b> {u.role === "admin" && <span className="lbl l-kur">Yönetici</span>} {u.is_corporate && <span className="lbl l-soft">Kurumsal</span>}<div className="ti-s">{dateTr(u.created_at)}</div></td><td data-m="İletişim">{u.phone ?? u.email}</td><td data-m="Talep" className="r">{u.requests ?? 0}</td><td data-m="Açtığı numara" className="r">{u.unlocks ?? 0}</td><td data-m="Kredi" className="r">{u.credits}</td><td className="r act-cell"><button className="btn btn-wh btn-sm" onClick={() => credit(u)}>Kredi tanımla</button></td></tr>)}
+          </tbody></table> : <div className="muted">Üye bulunamadı.</div>}
         </div></div>
       )}
 
@@ -202,6 +235,8 @@ export default function Admin() {
           <button className="btn btn-or" style={{ marginTop: 12 }} onClick={async () => { try { await api("/admin/settings", { method: "PUT", body: settings }); toast("Ayarlar kaydedildi."); } catch (e) { toast((e as Error).message); } }}>Kaydet</button>
         </div></div>
       )}
+        </div>
+      </div>
     </div>
   );
 }
