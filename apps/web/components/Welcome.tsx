@@ -7,8 +7,8 @@ import { keepPlaying, useResumeOnShow } from "./Ads";
 const KEY = "ak_karsilama";
 
 // Karşılama: yöneticinin "Açılışta göster" dediği reklam, siteye girişte ekranın ortasında açılır.
-// Aynı oturumda bir kez gösterilir. Video sesli başlatılmaya çalışılır; tarayıcı izin vermezse
-// sessiz oynar ve ziyaretçinin ilk dokunuşunda ses açılır.
+// Aynı oturumda bir kez gösterilir. Video sesli başlatılır; tarayıcı izin vermezse (ziyaretçi henüz
+// sayfaya dokunmadıysa tarayıcılar sesi engeller) sessiz oynar ve sayfada ilk dokunuşta ses açılır.
 export function Welcome() {
   const [ad, setAd] = useState<Ad | null>(null);
   useEffect(() => {
@@ -59,14 +59,17 @@ function WelcomeVideo({ src, label }: { src: string; label: string }) {
     v.muted = false;
     v.play().then(() => setMuted(false)).catch(() => { v.muted = true; setMuted(true); void v.play().catch(() => {}); });
     // İlk dokunuşta ses açılır (ses düğmesine basılmışsa düğme kendisi karar verir); sonra dinleme biter.
-    const stop = () => { document.removeEventListener("pointerdown", unmute); document.removeEventListener("keydown", unmute); };
+    // Telefonda tarayıcı dokunuşu parmak kalkınca sayar (touchend/pointerup), bu yüzden hepsi dinlenir.
+    const EVENTS = ["pointerdown", "pointerup", "touchend", "click", "keydown"] as const;
+    const stop = () => EVENTS.forEach((n) => document.removeEventListener(n, unmute, true));
     function unmute(e: Event) {
-      stop();
-      if ((e.target as Element | null)?.closest?.(".krs-ses") || !v!.muted) return;
-      v!.muted = false; setMuted(false); void v!.play().catch(() => {});
+      if ((e.target as Element | null)?.closest?.(".krs-ses")) { stop(); return; }
+      if (!v!.muted) { stop(); return; }
+      v!.muted = false;
+      // Tarayıcı bu dokunuşu henüz izin saymadıysa video durur; o zaman sessize dönülür ve sonraki dokunuş beklenir.
+      v!.play().then(() => { setMuted(false); stop(); }).catch(() => { v!.muted = true; void v!.play().catch(() => {}); });
     }
-    document.addEventListener("pointerdown", unmute);
-    document.addEventListener("keydown", unmute);
+    EVENTS.forEach((n) => document.addEventListener(n, unmute, true));
     return stop;
   }, []);
   const toggle = (e: React.MouseEvent) => {
@@ -80,8 +83,8 @@ function WelcomeVideo({ src, label }: { src: string; label: string }) {
   return (
     <>
       <video ref={ref} src={src} loop playsInline preload="auto" aria-label={label} {...keepPlaying} />
-      <button type="button" className={muted ? "krs-ses on" : "krs-ses"} onClick={toggle} aria-label={muted ? "Sesi aç" : "Sesi kapat"}>
-        {muted ? "🔇 Sesi aç" : "🔊"}
+      <button type="button" className="krs-ses" onClick={toggle} aria-label={muted ? "Sesi aç" : "Sesi kapat"}>
+        {muted ? "🔇" : "🔊"}
       </button>
     </>
   );

@@ -32,15 +32,16 @@ describe("hazır görsel galerisi", () => {
 
     const list = (await ctx.app.inject({ url: `/api/stock-images?category=otomobil&araclar=${encodeURIComponent("BMW:3 Serisi")}` })).json().items;
     expect(list.map((x: { title: string }) => x.title).slice(0, 2)).toEqual(["BMW 3 Serisi", "BMW genel"]);
-    expect(list.map((x: { title: string }) => x.title)).toContain("Genel araba");
+    // Marka seçilince markasız genel görsel de çıkmaz.
+    expect(list.map((x: { title: string }) => x.title)).not.toContain("Genel araba");
     expect(list.map((x: { title: string }) => x.title)).not.toContain("Daire");
     expect(list[0].match).toBe("model");
-    // Başka markanın görseli (Fiat Egea) BMW talebinde çıkmaz; marka seçilmemişse hepsi çıkar.
+    // Başka markanın görseli (Fiat Egea) BMW talebinde çıkmaz; marka seçilmemişse hepsi (genel görseller dahil) çıkar.
     expect(list.map((x: { title: string }) => x.title)).not.toContain("Egea");
     const bentley = (await ctx.app.inject({ url: `/api/stock-images?category=otomobil&araclar=${encodeURIComponent("Bentley:")}` })).json().items;
-    expect(bentley.map((x: { title: string }) => x.title)).toEqual(["Genel araba"]);
+    expect(bentley).toEqual([]);
     const all = (await ctx.app.inject({ url: "/api/stock-images?category=otomobil" })).json().items;
-    expect(all.map((x: { title: string }) => x.title)).toContain("Egea");
+    expect(all.map((x: { title: string }) => x.title)).toEqual(expect.arrayContaining(["Egea", "Genel araba"]));
 
     const buyer = await login(ctx, "05321112233");
     const used = await ctx.app.inject({ method: "POST", url: `/api/stock-images/${bmw3.id}/use`, headers: { cookie: buyer } });

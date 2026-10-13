@@ -22,12 +22,13 @@ export class Pixabay implements PhotoSource {
   // Pixabay sonuçların önbellekte tutulmasını ister; görsel adresleri bir gün geçerli olduğu için 12 saat tutulur.
   async search(query: string, perPage = 12): Promise<StockPhoto[]> {
     if (!this.key) return [];
-    const hit = this.cache.get(query);
+    const ck = `${query}|${perPage}`;
+    const hit = this.cache.get(ck);
     if (hit && Date.now() - hit.at < 12 * 3600_000) return hit.items;
-    const res = await this.fetchFn(this.url({ q: query.slice(0, 100), per_page: String(Math.max(3, perPage)), orientation: "horizontal" }), { signal: AbortSignal.timeout(4000) });
+    const res = await this.fetchFn(this.url({ q: query.slice(0, 100), per_page: String(Math.min(200, Math.max(3, perPage))), orientation: "horizontal" }), { signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error(`Pixabay arama hata kodu ${res.status}`);
     const items = ((await res.json()) as { hits?: Hit[] }).hits?.slice(0, perPage).map(toPhoto) ?? [];
-    this.cache.set(query, { at: Date.now(), items });
+    this.cache.set(ck, { at: Date.now(), items });
     if (this.cache.size > 500) this.cache.delete(this.cache.keys().next().value!);
     return items;
   }

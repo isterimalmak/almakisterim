@@ -69,13 +69,14 @@ export class Pexels implements PhotoSource {
   // Sonuçlar 12 saat bellekte tutulur (Pexels saatlik sınırı aşılmasın).
   async search(query: string, perPage = 12): Promise<StockPhoto[]> {
     if (!this.key) return [];
-    const hit = this.cache.get(query);
+    const ck = `${query}|${perPage}`;
+    const hit = this.cache.get(ck);
     if (hit && Date.now() - hit.at < 12 * 3600_000) return hit.items;
-    const url = `https://api.pexels.com/v1/search?${new URLSearchParams({ query, per_page: String(perPage), orientation: "landscape" })}`;
+    const url = `https://api.pexels.com/v1/search?${new URLSearchParams({ query, per_page: String(Math.min(80, perPage)), orientation: "landscape" })}`;
     const res = await this.fetchFn(url, { headers: { Authorization: this.key }, signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error(`Pexels arama hata kodu ${res.status}`);
     const items = ((await res.json()) as { photos?: Raw[] }).photos?.map(toPhoto) ?? [];
-    this.cache.set(query, { at: Date.now(), items });
+    this.cache.set(ck, { at: Date.now(), items });
     if (this.cache.size > 500) this.cache.delete(this.cache.keys().next().value!);
     return items;
   }
