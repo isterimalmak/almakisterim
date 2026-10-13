@@ -577,3 +577,18 @@ button.link{padding:0;font-size:inherit}
 .btn-sell{flex:none;height:40px;padding:0 16px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--navy);font-weight:700;border-radius:4px;font-size:14px;white-space:nowrap}
 .btn-sell:hover{background:#EAF0FC}
 @media (max-width:860px){.hero-row{flex-direction:column;align-items:stretch;gap:8px}.hero-or{text-align:center}}
+
+/* talep listesi üst çubuğu: sonuç sayısı, seçili filtre etiketleri, alarm ve sıralama */
+.res-bar{padding:10px 12px!important;align-items:flex-start!important}
+.res-sum{display:flex;flex-direction:column;gap:7px;min-width:0;flex:1}
+.res-cnt{font-size:14px;color:var(--text)}
+.res-cnt b{color:var(--navy);font-size:16px}
+.res-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.fchip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 10px;border-radius:13px;background:var(--blue-soft);color:var(--navy);font-size:12px;font-weight:600;border:1px solid #D3DEF7}
+.fchip span{display:grid;place-items:center;width:16px;height:16px;border-radius:50%;background:rgba(19,35,91,.12);font-size:12px;line-height:1}
+.fchip:hover span{background:var(--navy);color:#fff}
+.res-tools{padding:0!important}
+.save-alarm{height:30px;padding:0 12px;border-radius:15px;border:1px solid #F7C9A9;background:var(--orange-soft);color:var(--orange-d);font-weight:700}
+.save-alarm:hover{background:var(--orange);color:#fff;border-color:var(--orange)}
+.flt-toggle .badge{margin-left:6px}
+@media (max-width:860px){.res-bar{flex-direction:column}.res-tools{width:100%;justify-content:space-between}}
