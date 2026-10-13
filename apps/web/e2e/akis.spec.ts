@@ -452,3 +452,10 @@ test("talep formunda alt kategoriye göre seçenekler çıkar: arsada imar ve ta
   await expect(page.getByLabel("Boy (en az, metre)")).toBeVisible();
   await expect(page.getByLabel("İmar durumu")).toHaveCount(0);
 });
+
+test("talep listesinde 'haber ver' düğmesi tek satırda durur", async ({ page }) => {
+  await page.goto("/kategori/vasita");
+  const btn = page.getByRole("button", { name: "Yeni talep gelince haber ver" });
+  await expect(btn).toBeVisible();
+  expect((await btn.boundingBox())!.height).toBeLessThanOrEqual(34);
+});

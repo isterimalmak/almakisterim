@@ -164,7 +164,7 @@ function Listing() {
               )}
             </div>
             <div className="res-tools">
-              <button className="save-alarm" onClick={saveAlarm}><Icon name="bell" size={14} sw={2.2} />Aramayı kaydet</button>
+              <button className="save-alarm" onClick={saveAlarm} title="Bu aramaya uyan yeni talep gelince size bildirim gönderilir" aria-label="Yeni talep gelince haber ver"><Icon name="bell" size={14} sw={2.2} /><span className="sa-l">Yeni talep gelince haber ver</span><span className="sa-s">Haber ver</span></button>
               <select className="sel" value={f.sort} onChange={(e) => set({ sort: e.target.value })} aria-label="Sıralama">
                 <option value="new">En yeni</option><option value="old">En eski</option>
                 <option value="budget_desc">Bütçe: yüksekten düşüğe</option><option value="budget_asc">Bütçe: düşükten yükseğe</option>
