@@ -85,13 +85,6 @@ function Listing() {
   const vehBrands = cat ? (sub === "motosiklet" ? cat.moto : cat.cars) : {};
   const setVeh = (p: Partial<Veh>) => set({ veh: { ...f.veh, ...p } });
 
-  const saveAlarm = async () => {
-    if (!user) { toast("Alarm kurmak için giriş yapın."); return; }
-    try {
-      await api("/me/alarms", { body: { category_id: sub ?? top ?? categories[0]?.id, city: f.city, min_budget: Number(f.bmin) || 0 } });
-      toast("Arama kaydedildi. Uygun yeni talep gelince bildirim alacaksınız.");
-    } catch (e) { toast((e as Error).message); }
-  };
 
   if (top && categories.length && !t) return <div className="wrap"><div className="crumb"><Link href="/">Ana Sayfa</Link></div><div className="box"><div className="empty">Bu kategori şu anda yayında değil.</div></div></div>;
 
@@ -164,7 +157,7 @@ function Listing() {
               )}
             </div>
             <div className="res-tools">
-              <button className="save-alarm" onClick={saveAlarm} title="Bu aramaya uyan yeni talep gelince size bildirim gönderilir" aria-label="Yeni talep gelince haber ver"><Icon name="bell" size={14} sw={2.2} /><span className="sa-l">Yeni talep gelince haber ver</span><span className="sa-s">Haber ver</span></button>
+              
               <select className="sel" value={f.sort} onChange={(e) => set({ sort: e.target.value })} aria-label="Sıralama">
                 <option value="new">En yeni</option><option value="old">En eski</option>
                 <option value="budget_desc">Bütçe: yüksekten düşüğe</option><option value="budget_asc">Bütçe: düşükten yükseğe</option>
@@ -177,7 +170,7 @@ function Listing() {
               <div className="soon">
                 <h2>{s?.name ?? t?.name ?? "Bu arama"} için talepler yakında burada</h2>
                 <div className="soon-grid">
-                  <div><b>Satıcı mısınız?</b><p>Bu bölüme ilk alım talebi geldiği anda size SMS ile haber verelim; ilk ulaşan siz olun.</p><button className="btn btn-or" onClick={saveAlarm}>Talep gelince haber ver</button></div>
+                  <div><b>Satıcı mısınız?</b><p>Bu bölüme ilk alım talebi geldiği anda size SMS ile haber verelim; ilk ulaşan siz olun.</p><Link className="btn btn-or" href="/bana-ozel?s=alarm">Talep gelince haber ver</Link></div>
                   <div><b>Bunu mu almak istiyorsunuz?</b><p>Talebinizi ücretsiz verin; satıcılar sizi arasın veya mesaj atsın.</p><Link className="btn btn-bl" href={`/talep-ver${f.q ? `?metin=${encodeURIComponent(f.q)}` : ""}`}>Ücretsiz talep ver</Link></div>
                 </div>
               </div>
