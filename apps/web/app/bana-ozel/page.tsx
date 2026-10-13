@@ -183,6 +183,7 @@ function Account() {
         {menu.slice(3, 8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
         <div className="grp">Hesap</div>
         {menu.slice(8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
+        {user.role === "admin" && <Link href="/yonetim"><span>Yönetim Paneli</span></Link>}
       </nav>
       <div>{content}</div>
     </div>
