@@ -19,14 +19,12 @@ export default function Home() {
   const [latest, setLatest] = useState<List | null>(null);
   const [vitrin, setVitrin] = useState<List | null>(null);
   const [corp, setCorp] = useState<List | null>(null);
-  const [noOffer, setNoOffer] = useState<number | null>(null);
 
   useEffect(() => {
     void api<List>("/requests?urgent=1&per=8").then(setUrgent).catch(() => setUrgent({ total: 0, items: [] }));
     void api<List>("/requests?sort=vitrin&per=20").then(setVitrin).catch(() => setVitrin({ total: 0, items: [] }));
     void api<List>("/requests?per=10").then(setLatest).catch(() => setLatest({ total: 0, items: [] }));
     void api<List>("/requests?buyer=kurumsal&per=5").then(setCorp).catch(() => setCorp({ total: 0, items: [] }));
-    void api<List>("/requests?no_offers=1&per=1").then((r) => setNoOffer(r.total)).catch(() => setNoOffer(0));
   }, []);
 
   return (
@@ -54,8 +52,8 @@ export default function Home() {
       <div>
         <section className="concept">
           <div>
-            <h1>Burada ilanı alıcı verir, satıcılar teklif verir.</h1>
-            <p>Ne almak istediğinizi ve bütçenizi yazın. Uygun satıcılar size teklif göndersin, siz en iyisini seçin. Talep vermek ücretsizdir.</p>
+            <h1>Burada ilanı alıcı verir, satıcı alıcıyı bulur.</h1>
+            <p>Ne almak istediğinizi ve bütçenizi yazın; elinde uygun ürün olan satıcılar sizi arasın veya mesaj atsın. Satmak istiyorsanız alıcıları listeleyin, ulaşın. Talep vermek ücretsizdir.</p>
             <form className="quick" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
               <div className="quick-in">
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Örn. 2. el iPhone 13 almak istiyorum, bütçem 20.000 TL" aria-label="Ne almak istiyorsunuz?" />
@@ -63,7 +61,7 @@ export default function Home() {
               </div>
             </form>
           </div>
-          <Link className="btn btn-wh" href="/bana-ozel?s=eslesme">Satıcıyım, talepleri gör</Link>
+          <Link className="btn btn-wh" href="/kategori">Satmak istiyorum, alıcıları gör</Link>
         </section>
 
         {!!urgent?.items.length && (
@@ -115,17 +113,9 @@ export default function Home() {
             <Link className="btn btn-or btn-block" href="/bana-ozel?s=alarm">Talep gelince haber ver</Link>
           </div></div>
         )}
-        {!!noOffer && (
-          <div className="box seller-cta"><div className="box-b">
-            <div className="big">{noOffer}</div>
-            <div style={{ fontWeight: 700, margin: "4px 0 2px" }}>talep henüz satıcı bekliyor</div>
-            <p className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>Alıcıya ilk ulaşan satıcı dikkatini ilk çeken olur.</p>
-            <Link className="btn btn-or btn-block" href="/kategori?teklifsiz=1">Teklif bekleyen talepler</Link>
-          </div></div>
-        )}
         <div className="box"><div className="box-h"><h3>Nasıl çalışır?</h3></div><div className="box-b"><ol className="steps">
           <li><div><b>Talebinizi yazın</b><span className="muted">Ne aradığınızı ve bütçenizi bir cümleyle yazın.</span></div></li>
-          <li><div><b>Satıcılar size ulaşsın</b><span className="muted">Uygun satıcılara bildirim gider; sizi arar veya teklif gönderirler.</span></div></li>
+          <li><div><b>Satıcılar size ulaşsın</b><span className="muted">Elinde uygun ürün olan satıcılar sizi arar veya mesaj atar.</span></div></li>
           <li><div><b>Karşılaştırın, seçin</b><span className="muted">Fiyata ve satıcıya bakıp birini kabul edin.</span></div></li>
         </ol></div></div>
         <div className="box"><div className="box-h"><h3>Güvenli alışveriş</h3></div><div className="box-b" style={{ fontSize: 12.5 }}>

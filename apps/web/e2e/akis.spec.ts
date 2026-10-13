@@ -28,7 +28,7 @@ async function loginEmail(page: Page, email: string) {
   await page.waitForURL((u) => !u.pathname.startsWith("/giris"));
 }
 
-test("alıcı talep verir, satıcı teklif verir, alıcı kabul eder", async ({ browser }) => {
+test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevaplar", async ({ browser }) => {
   const buyerCtx = await browser.newContext();
   const buyer = await buyerCtx.newPage();
   const title = `PS5 almak istiyorum ${rnd()}`;
@@ -52,25 +52,24 @@ test("alıcı talep verir, satıcı teklif verir, alıcı kabul eder", async ({ 
   await seller.goto(url);
   await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
   await expect(seller.locator(".phone-open")).toBeVisible();
-  await seller.getByLabel("Teklif fiyatınız (TL)").fill("14250");
-  await seller.getByLabel("Alıcıya mesajınız").fill("Kutulu, 2 kol. Beni 0544 111 22 33'ten arayın.");
-  await seller.getByRole("button", { name: "Teklifi Gönder" }).click();
-  await expect(seller.getByText("Teklifiniz:")).toBeVisible();
-
+  await seller.getByLabel("Alıcıya mesajınız").fill("Merhaba, kutulu PS5 var, 2 kol. 14.250 TL.");
+  await seller.getByRole("button", { name: "Gönder", exact: true }).click();
+  await expect(seller.locator(".bub.me", { hasText: "kutulu PS5 var" })).toBeVisible();
   await expect(seller.getByRole("link", { name: "WhatsApp'tan yaz" })).toBeVisible();
 
   await buyer.reload();
   await expect(buyer.locator(".phone-hidden")).toContainText("1 / 10 satıcı gördü");
   await expect(buyer.getByRole("button", { name: "Rahatsız etti" })).toBeVisible();
-  await expect(buyer.locator(".hdr .badge")).toHaveText("1");
-  await expect(buyer.getByText("14.250 TL").first()).toBeVisible();
-  await expect(buyer.getByText("[numara gizlendi]")).toBeVisible();
-  buyer.once("dialog", (d) => d.accept());
-  await buyer.getByRole("button", { name: "Kabul et" }).click();
-  await expect(buyer.locator(".lbl.l-soft", { hasText: "Kabul edildi" })).toBeVisible();
+  await expect(buyer.locator(".tabbar .badge, .hdr .badge").first()).toBeVisible();
+  await expect(buyer.locator(".bub", { hasText: "kutulu PS5 var" })).toBeVisible();
+  await buyer.getByLabel(/satıcısına cevap/).fill("Kollar orijinal mi?");
+  await buyer.getByRole("button", { name: "Gönder", exact: true }).click();
+  await expect(buyer.locator(".bub.me", { hasText: "Kollar orijinal mi?" })).toBeVisible();
 
   await seller.reload();
-  await expect(seller.getByText("Kabul edildi 🎉")).toBeVisible();
+  await expect(seller.locator(".bub:not(.me)", { hasText: "Kollar orijinal mi?" })).toBeVisible();
+  await seller.goto("/bana-ozel?s=mesaj");
+  await expect(seller.getByText("Kollar orijinal mi?")).toBeVisible();
   await seller.goto("/bana-ozel?s=numaralar");
   await expect(seller.getByText(title)).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
@@ -149,7 +148,7 @@ test("sayfalar yana taşmıyor", async ({ page }) => {
 // 1x1 piksel PNG: gerçek bir resim dosyası gibi yüklenir.
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
-test("alıcı ve satıcı fotoğraf ekler, alıcı teklifteki fotoğrafı görür", async ({ browser }) => {
+test("alıcı fotoğraf ekler; satıcı talepte fotoğrafı görür, iletişimi açar", async ({ browser }) => {
   const buyerCtx = await browser.newContext();
   const buyer = await buyerCtx.newPage();
   const title = `Bisiklet almak istiyorum ${rnd()}`;
@@ -173,20 +172,9 @@ test("alıcı ve satıcı fotoğraf ekler, alıcı teklifteki fotoğrafı görü
   const seller = await sellerCtx.newPage();
   await loginSms(seller, `0535${rnd().slice(0, 7)}`, "Can Yıldız");
   await seller.goto(url);
+  await expect(seller.getByAltText("Talep fotoğrafı")).toBeVisible();
   await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
   await expect(seller.locator(".phone-open")).toBeVisible();
-  await seller.getByLabel("Teklif fiyatınız (TL)").fill("7500");
-  await seller.getByLabel("Fotoğraf / video ekle").setInputFiles([
-    { name: "urun.png", mimeType: "image/png", buffer: PNG },
-    { name: "belge.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF") },
-  ]);
-  await expect(seller.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
-  await expect(seller.getByText(/"belge\.pdf" desteklenmiyor/)).toBeVisible();
-  await seller.getByRole("button", { name: "Teklifi Gönder" }).click();
-  await expect(seller.getByText("Teklifiniz:")).toBeVisible();
-
-  await buyer.reload();
-  await expect(buyer.getByRole("link", { name: "Teklif fotoğrafı 1" })).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
 });
 
@@ -241,7 +229,7 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await ctx.close();
 });
 
-test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir; satıcı teklif yoluyla ulaşır", async ({ browser }) => {
+test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir; satıcı mesajla ulaşır", async ({ browser }) => {
   const buyerCtx = await browser.newContext();
   const buyer = await buyerCtx.newPage();
   const title = `Telefonsuz talep ${rnd()}`;
@@ -261,6 +249,11 @@ test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir;
   await seller.goto(url);
   await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
   await expect(seller.getByText("Alıcı telefon numarası eklememiş.", { exact: false })).toBeVisible();
+  await seller.getByLabel("Alıcıya mesajınız").fill("Merhaba, elimde uygun ürün var.");
+  await seller.getByRole("button", { name: "Gönder", exact: true }).click();
+  await expect(seller.locator(".bub.me", { hasText: "elimde uygun ürün var" })).toBeVisible();
+  await buyer.goto("/bana-ozel?s=mesaj");
+  await expect(buyer.getByText("elimde uygun ürün var")).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
 });
 

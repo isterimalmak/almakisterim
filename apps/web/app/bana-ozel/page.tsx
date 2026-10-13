@@ -10,7 +10,7 @@ import { CITIES } from "@/lib/catalog";
 import { ago, budgetTxt, dateTr, fmt, initials } from "@/lib/format";
 
 type Row = { id: number; title: string; status?: string; budget_min: number; budget_max: number; city?: string; created_at: string; category_name?: string; offer_count?: number; already_offered?: boolean };
-type MyOffer = { id: number; price: number; status: string; created_at: string; request_id: number; title: string };
+type Conv = { request_id: number; title: string; role: "alici" | "satici"; other_name: string; last_body: string; last_at: string; unread: number };
 type Unlock = { id: number; request_id: number; title: string; status: string; phone: string | null; phone_note: string | null; credits: number; is_free: boolean; created_at: string; refunded: boolean; report_status: string | null };
 type Notif = { id: number; text: string; link: string; read_at: string | null; created_at: string };
 type Alarm = { id: number; category_id: string; category_name: string; city: string; min_budget: number };
@@ -26,7 +26,7 @@ function Account() {
   const router = useRouter();
   const s = useSearchParams().get("s") ?? "ozet";
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [offers, setOffers] = useState<MyOffer[] | null>(null);
+  const [convs, setConvs] = useState<Conv[] | null>(null);
   const [alarms, setAlarms] = useState<Alarm[] | null>(null);
   const [unlocks, setUnlocks] = useState<Unlock[] | null>(null);
   const [notifs, setNotifs] = useState<Notif[] | null>(null);
@@ -38,7 +38,7 @@ function Account() {
     if (s === "taleplerim") setRows((await api<{ items: Row[] }>("/me/requests")).items);
     if (s === "favori") setRows((await api<{ items: Row[] }>("/me/favorites")).items);
     if (s === "ozet" || s === "eslesme") setRows((await api<{ items: Row[] }>("/me/matches")).items);
-    if (s === "tekliflerim" || s === "ozet") setOffers((await api<{ items: MyOffer[] }>("/me/offers")).items);
+    if (s === "mesaj" || s === "ozet") setConvs((await api<{ items: Conv[] }>("/me/messages")).items);
     if (s === "alarm" || s === "ozet" || s === "eslesme") setAlarms((await api<{ items: Alarm[] }>("/me/alarms")).items);
     if (s === "numaralar") setUnlocks((await api<{ items: Unlock[] }>("/me/unlocks")).items);
     if (s === "bildirim") {
@@ -53,20 +53,19 @@ function Account() {
   if (!user) return (
     <div className="wrap" style={{ padding: "30px 16px 60px", maxWidth: 520 }}><div className="box"><div className="box-b" style={{ textAlign: "center", padding: 30 }}>
       <h2 style={{ fontSize: 18, color: "var(--navy)", marginBottom: 6 }}>Bana Özel</h2>
-      <p className="muted" style={{ marginBottom: 16 }}>Taleplerinizi, tekliflerinizi ve alarmlarınızı görmek için giriş yapın.</p>
+      <p className="muted" style={{ marginBottom: 16 }}>Taleplerinizi, mesajlarınızı ve alarmlarınızı görmek için giriş yapın.</p>
       <Link className="btn btn-or btn-lg" href="/giris?sonra=/bana-ozel">Giriş Yap / Hesap Aç</Link>
     </div></div></div>
   );
 
   const logout = async () => { await api("/auth/logout", { body: {} }); await refresh(); router.push("/"); };
   const matchTable = (items: Row[]) => items.length ? (
-    <table className="tbl"><thead><tr><th>Talep</th><th>Bütçe</th><th className="r">Teklif</th><th>İl</th><th></th></tr></thead><tbody>
+    <table className="tbl"><thead><tr><th>Talep</th><th>Bütçe</th><th>İl</th><th></th></tr></thead><tbody>
       {items.map((r) => <tr key={r.id} className="row" onClick={() => router.push(`/talep/${r.id}`)}>
         <td><div className="ti-t">{r.title}</div><div className="ti-s">{r.category_name} · {ago(r.created_at)}</div></td>
         <td className="budget-cell nb"><div className="budget">{budgetTxt(r.budget_min, r.budget_max)}</div></td>
-        <td data-m="Teklif" className="r"><span className={"oc" + (r.offer_count ? "" : " z")}>{r.offer_count}</span></td>
         <td data-m="İl">{r.city}</td>
-        <td className="r act-cell">{r.already_offered ? <span className="lbl l-gr">Teklif verdiniz</span> : <span className="btn btn-or btn-sm">Teklif ver</span>}</td>
+        <td className="r act-cell"><span className="btn btn-or btn-sm">Alıcıya ulaş</span></td>
       </tr>)}
     </tbody></table>
   ) : <div className="empty">{alarms?.length ? "Alarmlarınıza uyan açık talep şu an yok." : <>Size uygun talepleri görmek için <Link className="link" href="/bana-ozel?s=alarm">talep alarmı kurun</Link>: hangi kategoride ve ilde satış yaptığınızı seçin.</>}</div>;
@@ -83,8 +82,8 @@ function Account() {
       <div className="kpis">
         <div className="kpi"><small>Bu ay ücretsiz numara</small><b>{user.free_unlocks_left}</b></div>
         <div className="kpi"><small>Krediniz</small><b>{user.credits}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=kredi">Kredi yükle</Link></div>
-        <div className="kpi"><small>Verdiğiniz teklif</small><b>{offers?.length ?? "–"}</b></div>
-        <div className="kpi"><small>Kabul edilen</small><b>{offers?.filter((o) => o.status === "accepted").length ?? "–"}</b></div>
+        <div className="kpi"><small>Konuşma</small><b>{convs?.length ?? "–"}</b></div>
+        <div className="kpi"><small>Okunmamış mesaj</small><b>{user.unread_messages ?? 0}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=mesaj">Mesajlar</Link></div>
       </div>
       <div className="box"><div className="box-h"><h2>Size uygun talepler</h2><Link className="link" href="/bana-ozel?s=eslesme">Tümü »</Link></div>{rows ? matchTable(rows.slice(0, 6)) : content}</div>
     </>
@@ -93,11 +92,10 @@ function Account() {
   if (s === "taleplerim" || s === "favori") content = (
     <div className="box"><div className="box-h"><h2>{s === "favori" ? "Favori Talepler" : "Taleplerim"}</h2>{s === "taleplerim" && <Link className="btn btn-or btn-sm" href="/talep-ver">+ Yeni Talep</Link>}</div>
       {!rows ? content : rows.length ? (
-        <table className="tbl"><thead><tr><th>Talep</th><th>Bütçe</th><th className="r">Teklif</th><th>Tarih</th><th>Durum</th></tr></thead><tbody>
+        <table className="tbl"><thead><tr><th>Talep</th><th>Bütçe</th><th>Tarih</th><th>Durum</th></tr></thead><tbody>
           {rows.map((r) => <tr key={r.id} className="row" onClick={() => router.push(`/talep/${r.id}`)}>
             <td><div className="ti-t">{r.title}</div><div className="ti-s">Talep No {r.id}{r.category_name ? ` · ${r.category_name}` : ""}</div></td>
             <td className="budget-cell nb"><div className="budget">{budgetTxt(r.budget_min, r.budget_max)}</div></td>
-            <td data-m="Teklif" className="r">{r.offer_count !== undefined && <span className={"oc" + (r.offer_count ? "" : " z")}>{r.offer_count}</span>}</td>
             <td data-m="Tarih" className="muted nowrap">{dateTr(r.created_at)}</td>
             <td data-m="Durum">{r.status && <St s={r.status} />}</td>
           </tr>)}
@@ -105,16 +103,20 @@ function Account() {
       ) : <div className="empty">{s === "favori" ? "Favori talebiniz yok." : <>Henüz talep vermediniz.<br /><br /><Link className="btn btn-or" href="/talep-ver">Ücretsiz Talep Ver</Link></>}</div>}
     </div>
   );
-  if (s === "tekliflerim") content = (
-    <div className="box"><div className="box-h"><h2>Verdiğim Teklifler</h2></div>
-      {!offers ? content : offers.length ? (
-        <table className="tbl"><thead><tr><th>Talep</th><th className="r">Teklifiniz</th><th>Tarih</th><th>Durum</th></tr></thead><tbody>
-          {offers.map((o) => <tr key={o.id} className="row" onClick={() => router.push(`/talep/${o.request_id}`)}>
-            <td><span className="ti-t">{o.title}</span></td><td data-m="Teklif" className="r"><b>{fmt(o.price)} TL</b></td>
-            <td data-m="Tarih" className="muted nowrap">{dateTr(o.created_at)}</td><td data-m="Durum">{o.status === "active" ? <span className="lbl l-am">Alıcı inceliyor</span> : <St s={o.status} />}</td>
-          </tr>)}
-        </tbody></table>
-      ) : <div className="empty">Henüz teklif vermediniz. <Link className="link" href="/bana-ozel?s=eslesme">Size uygun taleplere</Link> göz atın.</div>}
+  if (s === "mesaj") content = (
+    <div className="box"><div className="box-h"><h2>Mesajlar</h2></div>
+      {!convs ? content : convs.length ? (
+        <ul className="convs">{convs.map((c) => (
+          <li key={`${c.request_id}-${c.other_name}-${c.role}`} className={c.unread ? "new" : ""}>
+            <Link href={`/talep/${c.request_id}#mesajlar`}>
+              <span className="cv-h"><b>{c.other_name}</b><span className={"lbl " + (c.role === "alici" ? "l-soft" : "l-gy")}>{c.role === "alici" ? "Talebinize yazan satıcı" : "Ulaştığınız alıcı"}</span>{!!c.unread && <span className="badge">{c.unread}</span>}</span>
+              <span className="cv-t">{c.title}</span>
+              <span className="cv-b muted">{c.last_body}</span>
+              <span className="cv-a muted">{ago(c.last_at)}</span>
+            </Link>
+          </li>
+        ))}</ul>
+      ) : <div className="empty">Henüz mesajınız yok. Satmak istiyorsanız <Link className="link" href="/kategori">alıcıları listeleyin</Link> ve ulaşın.</div>}
     </div>
   );
   if (s === "alarm") content = (
@@ -140,7 +142,7 @@ function Account() {
   );
   if (s === "kredi") content = (
     <>
-      <div className="note n-info" style={{ marginBottom: 12 }}><span>Alıcının numarasını görmek kredi ile olur; numarayı açtığınız talebe ücretsiz teklif verirsiniz. Her ay birkaç numara ücretsizdir: bu ay kalan hakkınız <b>{user.free_unlocks_left}</b>, krediniz <b>{user.credits}</b>. Bir numara genelde {user.unlock_price} kredidir (bazı kategorilerde farklı olabilir).</span></div>
+      <div className="note n-info" style={{ marginBottom: 12 }}><span>Alıcıyla iletişim (numarasını görmek ve mesaj göndermek) kredi ile açılır; açtığınız talebin sahibine ücretsiz mesaj yazarsınız. Her ay birkaç numara ücretsizdir: bu ay kalan hakkınız <b>{user.free_unlocks_left}</b>, krediniz <b>{user.credits}</b>. Bir numara genelde {user.unlock_price} kredidir (bazı kategorilerde farklı olabilir).</span></div>
       <div className="box"><div className="box-b">
         <b>Kredi satın alma yakında açılıyor.</b>
         <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>Ödeme altyapısı kurulana kadar kredi veya mağaza üyeliği için bizimle iletişime geçin; kredi hesabınıza elle tanımlanır.</p>
@@ -170,15 +172,15 @@ function Account() {
     </>
   );
 
-  const menu: [string, string, number?][] = [["taleplerim", "Taleplerim"], ["favori", "Favori Talepler"], ["ozet", "Satıcı Özeti"], ["eslesme", "Size Uygun Talepler"], ["tekliflerim", "Verdiğim Teklifler"], ["alarm", "Talep Alarmları"], ["numaralar", "Numarasını Açtıklarım"], ["kredi", "Kredi ve Mağaza"], ["bildirim", `Bildirimler${user.unread_notifications ? ` (${user.unread_notifications})` : ""}`], ["hesap", "Hesap Bilgileri"]];
+  const menu: [string, string, number?][] = [["taleplerim", "Taleplerim"], ["favori", "Favori Talepler"], ["mesaj", `Mesajlar${user.unread_messages ? ` (${user.unread_messages})` : ""}`], ["ozet", "Satıcı Özeti"], ["eslesme", "Size Uygun Talepler"], ["alarm", "Talep Alarmları"], ["numaralar", "Numarasını Açtıklarım"], ["kredi", "Kredi ve Mağaza"], ["bildirim", `Bildirimler${user.unread_notifications ? ` (${user.unread_notifications})` : ""}`], ["hesap", "Hesap Bilgileri"]];
   return (
     <div className="wrap acc">
       <nav className="acc-menu">
         <div className="hd"><span className="av">{initials(user.name || "Üye")}</span><div><b style={{ fontSize: 13 }}>{user.name || "Üye"}</b><div><button className="link" style={{ fontSize: 12 }} onClick={logout}>Çıkış yap</button></div></div></div>
         <div className="grp">Alıcı</div>
-        {menu.slice(0, 2).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
+        {menu.slice(0, 3).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
         <div className="grp">Satıcı</div>
-        {menu.slice(2, 8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
+        {menu.slice(3, 8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
         <div className="grp">Hesap</div>
         {menu.slice(8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
       </nav>

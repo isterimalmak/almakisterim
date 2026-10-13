@@ -147,7 +147,7 @@ function Create() {
                   ? <MediaPicker value={d.media} onChange={(media) => setD((x) => ({ ...x, media }))} onError={toast} />
                   : <span className="hint">Örnek fotoğraf eklemek için <Link className="link" href="/giris?sonra=/talep-ver" onClick={() => { try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ } }}>giriş yapın</Link>. Fotoğrafsız da talep verebilirsiniz.</span>}
               </div>
-              <div className="fg"><label htmlFor="f-days">Teklif toplama süresi</label><select className="sel" id="f-days" value={d.days} onChange={(e) => set({ days: Number(e.target.value) as D["days"] })}>{[7, 14, 30].map((n) => <option key={n} value={n}>{n} gün</option>)}</select></div>
+              <div className="fg"><label htmlFor="f-days">Talebin yayında kalma süresi</label><select className="sel" id="f-days" value={d.days} onChange={(e) => set({ days: Number(e.target.value) as D["days"] })}>{[7, 14, 30].map((n) => <option key={n} value={n}>{n} gün</option>)}</select></div>
               <div className="fg"><label>Seçenekler</label><label className="chk"><input type="checkbox" checked={d.urgent} onChange={(e) => set({ urgent: e.target.checked })} />Acil olarak işaretle</label><label className="chk"><input type="checkbox" checked={d.corporate} onChange={(e) => set({ corporate: e.target.checked })} />Firma adına faturalı alım</label></div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}><button className="btn btn-wh btn-lg" onClick={() => set({ step: 1 })}>Geri</button><button className="btn btn-or btn-lg" onClick={() => { const err = validate(); if (err) toast(err); else { set({ step: 3 }); window.scrollTo(0, 0); } }}>Devam</button></div>
@@ -166,10 +166,10 @@ function Create() {
             {sch.filter((a) => d.attrs[a.k] !== undefined && d.attrs[a.k] !== "").map((a) => <tr key={a.k}><th>{a.l}</th><td>{String(d.attrs[a.k])}</td></tr>)}
             {vehicle && <VehicleRows a={d.attrs as VehicleAttrs} />}
             <tr><th>Konum</th><td>{placeTxt({ city: d.city, district: d.district || "İlçe farketmez", neighbourhood: d.hood })}</td></tr>
-            <tr><th>Teklif toplama süresi</th><td>{d.days} gün</td></tr>
+            <tr><th>Talebin yayında kalma süresi</th><td>{d.days} gün</td></tr>
           </tbody></table>
           {d.description && <div className="desc" style={{ marginTop: 12 }}>{d.description}</div>}
-          <div className="note n-info" style={{ marginTop: 14 }}><span>Telefon numaranız herkese açık gösterilmez. Talebinize uygun ürünü olan ve ücret ödeyen <b>sınırlı sayıda satıcı</b> numaranızı görüp sizi arayabilir veya teklif gönderebilir. Numaranızı kimlerin gördüğünü talep sayfanızdan takip edersiniz; talebi kapatınca numaranız gizlenir. E-postanız hiçbir satıcıyla paylaşılmaz.</span></div>
+          <div className="note n-info" style={{ marginTop: 14 }}><span>Telefon numaranız herkese açık gösterilmez. Talebinize uygun ürünü olan ve ücret ödeyen <b>sınırlı sayıda satıcı</b> numaranızı görüp sizi arayabilir veya site içinden mesaj gönderebilir. Numaranızı kimlerin gördüğünü talep sayfanızdan takip edersiniz; talebi kapatınca numaranız gizlenir. E-postanız hiçbir satıcıyla paylaşılmaz.</span></div>
           {user && !user.phone && phoneRequired && (
             <div className="note n-warn" style={{ marginTop: 12, display: "block" }}>
               <b>Telefon numaranızı doğrulayın.</b> Satıcıların size ulaşabilmesi için talep vermeden önce numaranızı SMS koduyla doğrulamanız gerekiyor.

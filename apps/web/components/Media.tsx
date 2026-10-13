@@ -103,13 +103,13 @@ export function Gallery({ media, fallback }: { media: Media[]; fallback: React.R
   );
 }
 
-// Teklif satırında küçük önizlemeler; tıklayınca dosya yeni sekmede açılır.
+// Satırlarda küçük önizlemeler; tıklayınca dosya yeni sekmede açılır.
 export function Thumbs({ media }: { media: Media[] }) {
   if (!media.length) return null;
   return (
     <div className="o-media">
       {media.map((m, k) => (
-        <a key={m.id} href={m.url} target="_blank" rel="noreferrer" aria-label={`Teklif ${m.kind === "image" ? "fotoğrafı" : "videosu"} ${k + 1}`}>
+        <a key={m.id} href={m.url} target="_blank" rel="noreferrer" aria-label={`Ek ${m.kind === "image" ? "fotoğrafı" : "videosu"} ${k + 1}`}>
           {m.kind === "image" ? <img src={m.url} alt="" /> : <span className="gal-vid"><Icon name="play" size={14} /></span>}
         </a>
       ))}
