@@ -34,7 +34,7 @@ export default function Home() {
         {/* sahibinden'deki gibi: acil talepler kategorilerin üstünde ayrı bir bağlantı */}
         {!!urgent?.total && (
           <div className="ct-group ct-quick">
-            <Link className="ct-top" href="/kategori?acil=1"><span className="ct-ic ct-acil" aria-hidden="true">!!</span>Acil Talepler {count(urgent.total) !== null && <span className="n">({urgent.total})</span>}</Link>
+            <Link className="ct-top" href="/kategori?acil=1"><span className="ct-ic ct-acil" aria-hidden="true"><Icon name="bolt" size={16} sw={2.2} /></span>Acil Talepler {count(urgent.total) !== null && <span className="n">({urgent.total})</span>}</Link>
           </div>
         )}
         {browseCategories.length ? browseCategories.map((t) => (
@@ -79,7 +79,7 @@ export default function Home() {
 
         {/* Telefonda soldaki liste gizli; kategoriler renkli kutucuklar olarak burada. */}
         <section className="cat-tiles" aria-label="Kategoriler">
-          {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ic ct-acil" aria-hidden="true">!!</span><span>Acil Talepler</span></Link>}
+          {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ic ct-acil" aria-hidden="true"><Icon name="bolt" size={16} sw={2.2} /></span><span>Acil Talepler</span></Link>}
           {(browseCategories.length ? browseCategories : categories).map((t) => (
             <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span></Link>
           ))}
