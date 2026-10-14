@@ -122,7 +122,7 @@ function Create() {
           <div className="ai-quick">
             <h3>Ne almak istiyorsunuz?</h3>
             <p>Bir cümleyle yazın; kategori, bütçe, il ve özellikleri yapay zekâ sizin için doldursun. İsterseniz kategoriyi aşağıdan kendiniz de seçebilirsiniz.</p>
-            <textarea className="txa" rows={2} value={d.raw} onChange={(e) => set({ raw: e.target.value })} maxLength={1500} placeholder="Örn. 2. el iPhone 13 almak istiyorum, 128 GB olsun, bütçem 20.000 TL, İstanbul" aria-label="Ne almak istiyorsunuz?" />
+            <textarea className="txa" rows={2} value={d.raw} onChange={(e) => set({ raw: e.target.value })} maxLength={1500} placeholder="Örn. 2015 sonrası dizel Passat arıyorum, bütçem 1.200.000 TL, İstanbul" aria-label="Ne almak istiyorsunuz?" />
             <div className="row"><button className="btn btn-bl" disabled={aiBusy} onClick={() => runAi(d.raw)}>{aiBusy ? "İnceleniyor…" : "Otomatik doldur"}</button>{aiBusy && <span className="spinner" />}<span className="muted" style={{ fontSize: 12.5 }}>{aiMsg}</span></div>
           </div>
           <div className="box"><div className="box-h"><h2>Kategori seçin</h2></div><div className="box-b">
@@ -141,7 +141,7 @@ function Create() {
           {mod && mod.verdict !== "ok" && <div className="note n-warn" style={{ marginBottom: 12 }}>Bu talep yayınlanmadan önce ekibimiz tarafından incelenecek. {mod.reason}</div>}
           <div className="box"><div className="box-h"><h2>Talep Detayları</h2><span className="muted" style={{ fontSize: 12.5 }}>{top.name} › {sub.name} · <button className="link" onClick={() => set({ step: 1 })}>Değiştir</button></span></div><div className="box-b">
             <div className="form-grid">
-              <div className="fg full"><label htmlFor="f-t">Talep başlığı *</label><input className="inp" id="f-t" maxLength={120} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="Örn. 2. el iPhone 13 almak istiyorum" /><span className="hint">Ne aradığınızı kısa ve net yazın.</span></div>
+              <div className="fg full"><label htmlFor="f-t">Talep başlığı *</label><input className="inp" id="f-t" maxLength={120} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="Örn. Kadıköy'de 3+1 kiralık daire arıyorum" /><span className="hint">Ne aradığınızı kısa ve net yazın.</span></div>
               <div className="fg full"><label htmlFor="f-x">Açıklama</label><textarea className="txa" id="f-x" rows={4} maxLength={4000} value={d.description} onChange={(e) => set({ description: e.target.value })} placeholder="Olmazsa olmazlarınız, tercih ettiğiniz marka/model, teslimat şekli..." /></div>
               <div className="fg"><label htmlFor="f-b0">En az bütçe (TL)</label><input className="inp" id="f-b0" type="number" inputMode="numeric" value={d.b0} onChange={(e) => set({ b0: e.target.value })} /></div>
               <div className="fg"><label htmlFor="f-b1">En fazla bütçe (TL) *</label><input className="inp" id="f-b1" type="number" inputMode="numeric" value={d.b1} onChange={(e) => set({ b1: e.target.value })} /></div>
