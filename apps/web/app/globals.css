@@ -571,12 +571,13 @@ button.link{padding:0;font-size:inherit}
 .ct-acil-tile span:last-child{color:#C62828}
 
 /* ana sayfa üst bölüm: tek satırda "talep oluştur" ve "alıcıları gör" */
-.hero-row{display:flex;align-items:center;gap:10px;margin-top:14px}
-.hero-row .quick{flex:1;min-width:0;margin:0}
+.hero-row{display:flex;align-items:flex-start;gap:10px;margin-top:14px}
+.hero-row .quick{flex:1;min-width:0;margin:0;flex-direction:column}
+.hero-or{line-height:40px}
 .hero-or{color:#9FAAD1;font-size:12.5px;flex:none}
 .btn-sell{flex:none;height:40px;padding:0 16px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--navy);font-weight:700;border-radius:4px;font-size:14px;white-space:nowrap}
 .btn-sell:hover{background:#EAF0FC}
-@media (max-width:860px){.hero-row{flex-direction:column;align-items:stretch;gap:8px}.hero-or{text-align:center}}
+@media (max-width:860px){.hero-row{flex-direction:column;align-items:stretch;gap:8px}.hero-or{text-align:center;line-height:1.4}}
 
 /* talep listesi üst çubuğu: sonuç sayısı, seçili filtre etiketleri, alarm ve sıralama */
 .res-bar{padding:10px 12px!important;align-items:flex-start!important}
@@ -760,3 +761,4 @@ button.link{padding:0;font-size:inherit}
 .ai-edit{margin-top:14px;border:1px solid var(--line);border-radius:8px;padding:14px;background:#FAFBFC}
 .ai-edit h3{margin:0 0 10px;font-size:15px;color:var(--navy)}
 @media (max-width:900px){.ai-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ai-row{flex-wrap:wrap}}
+.hero-ai{margin:7px 2px 0;color:#C9D2F0;font-size:12.5px;line-height:1.4}

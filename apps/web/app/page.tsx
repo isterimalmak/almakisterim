@@ -12,10 +12,21 @@ import { api, type RequestItem } from "@/lib/api";
 
 type List = { total: number; items: RequestItem[] };
 
+// Ana sayfadaki hızlı talep kutusunda sırayla değişen örnekler (şimdilik vasıta ve emlak).
+const HERO_EXAMPLES = [
+  "2018 model dizel Passat",
+  "Kadıköy'de 3+1 kiralık daire",
+  "Az kilometreli otomatik Clio",
+  "Urla'da 500 m² imarlı arsa",
+];
+
 export default function Home() {
   const { categories, browseCategories, count, launchMode, homeUrgentBox } = useSession();
   const router = useRouter();
   const [q, setQ] = useState("");
+  const [ex, setEx] = useState(0);
+  // Kutu boşken örnek 4 saniyede bir değişir.
+  useEffect(() => { if (q) return; const t = setInterval(() => setEx((i) => (i + 1) % HERO_EXAMPLES.length), 4000); return () => clearInterval(t); }, [q]);
   const [urgent, setUrgent] = useState<List | null>(null);
   const [latest, setLatest] = useState<List | null>(null);
   const [vitrin, setVitrin] = useState<List | null>(null);
@@ -64,9 +75,10 @@ export default function Home() {
           <div className="hero-row">
             <form className="quick" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
               <div className="quick-in">
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Örn. 2. el iPhone 13, bütçem 20.000 TL" aria-label="Ne almak istiyorsunuz?" />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Örn. ${HERO_EXAMPLES[ex]}`} aria-label="Ne almak istiyorsunuz?" />
                 <button type="submit">Talep Oluştur</button>
               </div>
+              <p className="hero-ai"><span aria-hidden="true">✨</span> Tek cümleyle yazın; yapay zekâ kategoriyi, bütçeyi ve konumu sizin için doldursun.</p>
             </form>
             <span className="hero-or">veya</span>
             <Link className="btn btn-sell" href="/kategori">Satmak İstiyorum, Alıcıları Gör!</Link>
