@@ -104,7 +104,9 @@ function Create() {
         city: d.city, district: d.district, neighbourhood: d.hood, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "" && v !== undefined)),
         is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, media_ids: d.media.map((m) => m.id), contact_consent: true,
       } });
-      toast(res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi." : "Talebiniz incelemeye alındı. Onaylanınca yayınlanacak.");
+      toast(res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi."
+        : res.status === "rejected" ? `Talebiniz kurallara uymadığı için yayınlanmadı${res.moderation?.reason ? `: ${res.moderation.reason}` : "."}`
+        : "Talebiniz incelemeye alındı. Onaylanınca yayınlanacak.");
       router.push(`/talep/${res.id}`);
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };

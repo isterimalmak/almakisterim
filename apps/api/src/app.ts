@@ -1,3 +1,6 @@
+import { aiAdminRoutes } from "./modules/ai-admin.js";
+import { HeuristicAi } from "./services/ai.js";
+import { GuardedAi } from "./services/ai-guard.js";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -26,6 +29,8 @@ import { MemoryOutbox } from "./services/notify.js";
 const REDACT = ["req.headers.cookie", "req.headers.authorization", "req.headers[\"x-job-token\"]", "res.headers[\"set-cookie\"]"];
 
 export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
+  // Gerçek yapay zekâ çağrıları günlük sınırdan geçer (sınır dolunca kural tabanlı yedek çalışır).
+  if (!(deps.ai instanceof HeuristicAi)) deps = { ...deps, ai: new GuardedAi(deps.pool, deps.ai) };
   const app = Fastify({
     logger: deps.config.NODE_ENV === "test" ? false : { level: deps.config.isProd ? "info" : "debug", redact: REDACT },
     trustProxy: true,
@@ -78,6 +83,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     vehicleRoutes(api);
     meRoutes(api, deps);
     adminRoutes(api, deps);
+    aiAdminRoutes(api, deps);
     // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.
     if (deps.config.NODE_ENV === "test" && deps.sms instanceof MemoryOutbox) {
       const outbox = deps.sms;

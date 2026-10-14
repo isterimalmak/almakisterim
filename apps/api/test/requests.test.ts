@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import type { AiService } from "../src/services/ai.js";
+import { HeuristicAi, type AiService } from "../src/services/ai.js";
 import { createRequest, login, makeApp, resetData, sampleRequest, type TestCtx } from "./helpers.js";
 
 let ctx: TestCtx;
@@ -107,11 +107,11 @@ describe("talepler", () => {
   });
 
   it("yapay zekâ listede olmayan kategori uydurursa sunucu kabul etmez", async () => {
-    const lying: AiService = {
+    const lying: AiService = Object.assign(new HeuristicAi(), {
       draftRequest: async () => ({ category_id: "uydurma", title: "x", budget_min: null, budget_max: null, city: null, condition: "Farketmez", is_urgent: false, attrs: {} }),
       moderate: async () => ({ verdict: "ok", reason: "" }),
       moderateImages: async () => ({ verdict: "ok", reason: "" }),
-    };
+    } satisfies Partial<AiService>);
     const app2 = await makeApp({ ai: lying });
     const cookie = await login(app2, "05321112233");
     const r = await app2.app.inject({ method: "POST", url: "/api/requests", headers: { cookie }, payload: { ...sampleRequest, category_id: "uydurma" } });

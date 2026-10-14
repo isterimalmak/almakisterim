@@ -1,3 +1,4 @@
+import { aiSettings, logAiAction } from "../services/ai-guard.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser, type Deps } from "../context.js";
@@ -17,7 +18,8 @@ export async function unreadMessages(pool: Pool, userId: string) {
       WHERE m.read_at IS NULL AND m.sender_id <> $1 AND (m.seller_id = $1 OR r.buyer_id = $1)`, [userId])).rows[0]!.n;
 }
 
-export function messageRoutes(app: FastifyInstance, { pool }: Deps) {
+export function messageRoutes(app: FastifyInstance, deps: Deps) {
+  const { pool } = deps;
   const thread = async (requestId: number, sellerId: string, viewerId: string) => {
     const { rows } = await pool.query<Msg>(
       "SELECT id, sender_id, body, created_at, read_at FROM messages WHERE request_id = $1 AND seller_id = $2 ORDER BY created_at, id", [requestId, sellerId]);
@@ -69,6 +71,14 @@ export function messageRoutes(app: FastifyInstance, { pool }: Deps) {
       if (!acc) throw new HttpError(402, "iletisim_acilmadi", "Mesaj göndermek için önce alıcıyla iletişimi açın.");
       if (acc.revoked) throw new HttpError(403, "engellendi", "Alıcı sizinle iletişimi durdurdu.");
       sellerId = user.id;
+    }
+    // Küfür, hakaret, tehdit veya dolandırıcılık içeren mesaj karşı tarafa iletilmez.
+    if ((await aiSettings(pool)).messages) {
+      const chk = await deps.ai.checkMessage(b.body);
+      if (chk.verdict === "block") {
+        await logAiAction(pool, { kind: "mesaj_engel", target: id, summary: `Mesaj iletilmedi (${chk.reason}): "${b.body.slice(0, 120)}"` });
+        throw new HttpError(400, "mesaj_uygunsuz", `Mesajınız gönderilmedi${chk.reason ? `: ${chk.reason}` : ""}. Lütfen saygılı bir dille yazın; ürünü görmeden ödeme istemeyin.`);
+      }
     }
     const { rows } = await pool.query<{ id: number; created_at: string }>(
       "INSERT INTO messages (request_id, seller_id, sender_id, body) VALUES ($1, $2, $3, $4) RETURNING id, created_at", [id, sellerId, user.id, b.body]);

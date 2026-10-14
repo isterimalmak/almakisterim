@@ -6,10 +6,12 @@ import { CITIES } from "../services/ai.js";
 import { unreadMessages } from "./messages.js";
 import { VISIBLE_CATEGORY_SQL } from "./categories.js";
 import { freeUnlocksUsed, unlockSettings } from "./contacts.js";
+import { aiSettings, logAiAction } from "../services/ai-guard.js";
 import { ALARM_SELECT, alarmQuery, cleanAlarmFilters, type AlarmRow } from "./alarms.js";
 import { FROM, listFilters } from "./requests.js";
 
-export function meRoutes(app: FastifyInstance, { pool }: Deps) {
+export function meRoutes(app: FastifyInstance, deps: Deps) {
+  const { pool } = deps;
   app.get("/me", async (req) => {
     if (!req.user) return { user: null };
     const s = await unlockSettings(pool);
@@ -22,6 +24,13 @@ export function meRoutes(app: FastifyInstance, { pool }: Deps) {
   app.patch("/me", async (req) => {
     const user = requireUser(req);
     const b = z.object({ name: z.string().trim().min(2).max(80).optional(), is_corporate: z.boolean().optional() }).parse(req.body);
+    if (b.name && b.name !== user.name && (await aiSettings(pool)).names) {
+      const r = await deps.ai.checkName(b.name);
+      if (r.verdict === "block") {
+        await logAiAction(pool, { kind: "ad_engel", target: user.id, summary: `"${b.name.slice(0, 60)}" adı engellendi: ${r.reason}` });
+        throw new HttpError(400, "ad_uygunsuz", `Bu ad kullanılamaz${r.reason ? `: ${r.reason}` : ""}.`);
+      }
+    }
     await pool.query("UPDATE users SET name = COALESCE($2, name), is_corporate = COALESCE($3, is_corporate) WHERE id = $1",
       [user.id, b.name ?? null, b.is_corporate ?? null]);
     return { ok: true };

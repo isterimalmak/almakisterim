@@ -5,7 +5,8 @@ import { tx } from "../db.js";
 import { HttpError, safeEqual } from "../lib/util.js";
 import { listCategories, toTree } from "./categories.js";
 import { cleanupOrphans, mediaFor } from "./media.js";
-import { notifyAlarmMatches } from "./notifications.js";
+import { expiryReminders, notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
+import { autoBlog } from "./ai-admin.js";
 
 export function adminRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, config } = deps;
@@ -115,6 +116,7 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     const r = await pool.query("UPDATE requests SET status = $2 WHERE id = $1 AND status = ANY($3) RETURNING id", [p.id, to, from]);
     if (!r.rowCount) throw new HttpError(404, "bulunamadi", "İşlem yapılabilecek talep bulunamadı.");
     if (to === "active") void notifyAlarmMatches(deps, p.id).catch(() => {});
+    if (p.action !== "remove") void requestStatusEmail(deps, p.id).catch(() => {});
     return { ok: true };
   });
 
@@ -245,6 +247,9 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     const s = await pool.query("DELETE FROM sessions WHERE expires_at <= now()");
     const c = await pool.query("DELETE FROM auth_codes WHERE created_at < now() - interval '2 days'");
     const m = await cleanupOrphans(pool, deps.storage);
-    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m };
+    // Süresi dolmak üzere olan talepler için hatırlatma; otomatik blog açıksa sırası gelen yazı.
+    const reminded = await expiryReminders(deps).catch(() => 0);
+    const blog = await autoBlog(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "otomatik blog yazılamadı"); return null; });
+    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null };
   });
 }

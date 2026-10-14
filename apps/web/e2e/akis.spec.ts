@@ -218,6 +218,41 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByRole("button", { name: "Reklam Alanları" }).click();
   await page.locator(".yk-satir").last().getByRole("button", { name: "Sil" }).click();
   await expect(page.getByText("Reklam silindi.")).toBeVisible();
+
+  // Yapay Zekâ bölümü: bağlı değilken uyarı çıkar, ayarlar kaydedilir; yönetici kendi yazısını yayınlar, blogda görünür.
+  await page.getByRole("button", { name: "Yapay Zekâ" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Yapay Zekâ" })).toBeVisible();
+  await expect(page.getByText("Yapay zekâ bağlı değil.")).toBeVisible();
+  const msgSw = page.getByRole("switch", { name: "Mesajları denetle" });
+  await expect(msgSw).toHaveAttribute("aria-checked", "true");
+  await msgSw.click();
+  await expect(msgSw).toHaveAttribute("aria-checked", "false");
+  await page.reload();
+  await expect(page.getByRole("switch", { name: "Mesajları denetle" })).toHaveAttribute("aria-checked", "false");
+  await page.getByRole("switch", { name: "Mesajları denetle" }).click();
+  await expect(page.getByRole("switch", { name: "Mesajları denetle" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("button", { name: "Yapay zekâya yazdır" })).toBeDisabled();
+
+  const title = `Güvenli alışveriş rehberi ${rnd()}`;
+  await page.getByRole("button", { name: "Kendim yazayım" }).click();
+  await page.getByLabel("Başlık", { exact: true }).fill(title);
+  await page.getByLabel("Kısa özet").fill("Kapora vermeden alışveriş");
+  await page.locator("#e-body").fill("## Ürünü görmeden para göndermeyin\nSatıcıyla yüz yüze buluşun.\n\n- **Kapora** istenirse vazgeçin\n- Faturayı isteyin");
+  await page.getByRole("button", { name: "Yayınla", exact: true }).click();
+  await expect(page.getByText("Yazı yayınlandı.")).toBeVisible();
+
+  await page.goto("/blog");
+  await page.getByRole("link", { name: new RegExp(title) }).click();
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Ürünü görmeden para göndermeyin" })).toBeVisible();
+  await expect(page.locator(".md strong", { hasText: "Kapora" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Ücretsiz Talep Ver" }).last()).toBeVisible();
+
+  await page.goto("/yonetim#yz");
+  await page.getByRole("row").filter({ hasText: title }).getByRole("button", { name: "Sil" }).click();
+  await expect(page.getByText("Silindi.")).toBeVisible();
+  await page.goto("/blog");
+  await expect(page.getByText(title)).toHaveCount(0);
 });
 
 test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page }) => {
