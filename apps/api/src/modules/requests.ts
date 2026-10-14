@@ -9,7 +9,8 @@ import { priceFor, unlockSettings } from "./contacts.js";
 import { attachMedia, imageUrls, MediaIds, mediaFor } from "./media.js";
 import { findDistrictInText, LOCATIONS, matchDistrict, matchNeighbourhood } from "../data/locations.js";
 import { cleanVehicleDraft, isVehicleSub, parseVehicleAttrs, VehicleQuery, vehicleFilters } from "./vehicles.js";
-import { notifyAlarmMatches } from "./notifications.js";
+import { notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
+import { aiSettings, logAiAction } from "../services/ai-guard.js";
 
 const LIST_COLUMNS = `
   r.id, r.title, r.description, r.category_id, c.name AS category_name, p.id AS top_id, p.name AS top_name,
@@ -245,21 +246,39 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
       : z.record(z.string().max(30), z.union([z.string().max(60), z.number()])).parse(b.attrs);
     const budgetMin = b.budget_min ?? Math.round(b.budget_max * 0.8);
     if (budgetMin > b.budget_max) throw new HttpError(400, "butce_gecersiz", "En az bütçe, en fazla bütçeden büyük olamaz.");
-    const title = maskContacts(b.title).text, description = maskContacts(b.description).text;
-    const [textMod, imgMod] = await Promise.all([ai.moderate(`${title}\n${description}`), imageUrls(pool, storage, user.id, b.media_ids).then((u) => ai.moderateImages(u))]);
-    const mod = textMod.verdict !== "ok" ? textMod : imgMod;
-    const status = mod.verdict === "ok" ? "active" : "pending_review";
+    let title = maskContacts(b.title).text, description = maskContacts(b.description).text;
+    // Yapay zekâ: denetler ve (açıksa) yazımı düzeltir, başlığı düzgün yazar, iletişim bilgisi/uygunsuz ifadeyi siler.
+    const s = await aiSettings(pool);
+    const [rev, imgMod] = await Promise.all([
+      ai.reviewListing({ title, description, category: cat.name }),
+      imageUrls(pool, storage, user.id, b.media_ids).then((u) => ai.moderateImages(u)),
+    ]);
+    const original = { title, description };
+    if (s.fixText) {
+      title = maskContacts(rev.title).text.slice(0, 120) || title;
+      description = maskContacts(rev.description).text.slice(0, 4000);
+    }
+    const order = { ok: 0, review: 1, reject: 2 } as const;
+    const mod = order[imgMod.verdict] > order[rev.verdict] ? imgMod : rev;
+    // Otomatik karar kapalıysa her talep yöneticinin onayına düşer; açıksa uygun olan yayına girer, açıkça yasaklı olan reddedilir.
+    const status = !s.autoDecide ? "pending_review"
+      : mod.verdict === "ok" ? "active" : mod.verdict === "reject" ? "rejected" : s.uncertain === "publish" ? "active" : "pending_review";
     const id = await tx(pool, async (c) => {
       const { rows } = await c.query<{ id: number }>(
         `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, neighbourhood, condition, attrs,
-                               is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now() + make_interval(days => $16), now()) RETURNING id`,
+                               is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at, ai_checked_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now() + make_interval(days => $16), now(), now()) RETURNING id`,
         [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.neighbourhood, b.condition, attrs,
           b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days]);
       await attachMedia(c, user.id, b.media_ids, { request_id: rows[0]!.id });
       return rows[0]!.id;
     });
+    if (title !== original.title || description !== original.description) {
+      await logAiAction(pool, { kind: "talep_duzeltme", target: id, summary: rev.changes || "Yazım düzeltildi", before: original, after: { title, description } });
+    }
+    if (mod.verdict !== "ok") await logAiAction(pool, { kind: "talep_karar", target: id, summary: `${status === "rejected" ? "Reddedildi" : status === "active" ? "Yayına alındı (emin değil)" : "İncelemeye alındı"}: ${mod.reason}` });
     if (status === "active") void notifyAlarmMatches(deps, id).catch((e) => req.log.warn({ err: (e as Error).message }, "alarm bildirimi başarısız"));
+    void requestStatusEmail(deps, id).catch(() => {});
     reply.code(201);
     return { id, status, moderation: mod.verdict === "ok" ? null : { reason: mod.reason } };
   });

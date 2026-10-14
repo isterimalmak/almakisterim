@@ -1,5 +1,6 @@
 import type { Deps } from "../context.js";
 import { alarmOwnersFor } from "./alarms.js";
+import { aiSettings } from "../services/ai-guard.js";
 
 type Contact = { email: string | null; phone: string | null };
 
@@ -23,4 +24,49 @@ export async function notifyAlarmMatches(deps: Deps, requestId: number) {
     await pool.query("INSERT INTO notifications (user_id, text, link) VALUES ($1, $2, $3)", [m.id, `Alarmınıza uyan yeni talep: "${r.title}"`, `/talep/${requestId}`]).catch(() => {});
     await notifyUser(deps, m, "Size uygun yeni bir talep var", text).catch(() => {});
   }
+}
+
+/* ---------------- Otomatik e-postalar (yönetim → Yapay Zekâ → "Otomatik e-postalar") ---------------- */
+// Yalnızca e-postası olan üyelere gider (SMS ücretli olduğu için kullanılmaz). E-posta hizmeti bağlı değilse sessizce atlanır.
+
+async function autoMail(deps: Deps, userId: string, subject: string, text: string) {
+  const { pool, mailer } = deps;
+  if (!(await aiSettings(pool)).autoEmails) return false;
+  const u = (await pool.query<{ email: string | null; name: string }>("SELECT email, name FROM users WHERE id = $1", [userId])).rows[0];
+  if (!u?.email) return false;
+  const hi = u.name ? `Merhaba ${u.name.split(" ")[0]},` : "Merhaba,";
+  await mailer.send(u.email, subject, `${hi}\n\n${text}\n\nalmakisterim.com`);
+  return true;
+}
+
+export async function welcomeEmail(deps: Deps, userId: string) {
+  const url = deps.config.APP_URL;
+  await autoMail(deps, userId, "almakisterim'e hoş geldiniz",
+    `almakisterim'de almak istediğinizi yazarsınız, elinde o ürün olan satıcılar size ulaşır.\n\n` +
+    `• Almak istediğiniz bir şey mi var? Ücretsiz talep verin: ${url}/talep-ver\n` +
+    `• Satıcı mısınız? Size uygun talep gelince haber almak için alarm kurun: ${url}/bana-ozel?s=alarm`);
+}
+
+export async function requestStatusEmail(deps: Deps, requestId: number) {
+  const r = (await deps.pool.query<{ buyer_id: string; title: string; status: string; moderation_note: string | null }>(
+    "SELECT buyer_id, title, status, moderation_note FROM requests WHERE id = $1", [requestId])).rows[0];
+  if (!r) return;
+  const url = `${deps.config.APP_URL}/talep/${requestId}`;
+  if (r.status === "active") await autoMail(deps, r.buyer_id, "Talebiniz yayında", `"${r.title}" talebiniz yayına alındı. Uygun satıcılar size mesaj atacak ya da arayacak.\n\n${url}`);
+  else if (r.status === "pending_review") await autoMail(deps, r.buyer_id, "Talebiniz inceleniyor", `"${r.title}" talebiniz kısa bir incelemeden sonra yayınlanacak.\n\n${url}`);
+  else if (r.status === "rejected") await autoMail(deps, r.buyer_id, "Talebiniz yayınlanamadı", `"${r.title}" talebiniz site kurallarına uymadığı için yayınlanmadı.${r.moderation_note ? `\nNeden: ${r.moderation_note}` : ""}\n\nKurallara uygun şekilde yeniden talep verebilirsiniz: ${deps.config.APP_URL}/talep-ver`);
+}
+
+// Süresi 2 gün içinde dolacak talepler için bir kez hatırlatma (zamanlanmış saatlik işten çağrılır).
+export async function expiryReminders(deps: Deps) {
+  const { rows } = await deps.pool.query<{ id: number; buyer_id: string; title: string }>(
+    `UPDATE requests SET expiry_reminded_at = now()
+      WHERE status = 'active' AND expiry_reminded_at IS NULL AND expires_at > now() AND expires_at < now() + interval '2 days'
+      RETURNING id, buyer_id, title`);
+  for (const r of rows) {
+    await deps.pool.query("INSERT INTO notifications (user_id, text, link) VALUES ($1, $2, $3)", [r.buyer_id, `"${r.title}" talebinizin süresi 2 gün içinde doluyor.`, `/talep/${r.id}`]).catch(() => {});
+    await autoMail(deps, r.buyer_id, "Talebinizin süresi dolmak üzere",
+      `"${r.title}" talebinizin yayın süresi 2 gün içinde doluyor. Hâlâ arıyorsanız süresi dolunca aynı talebi yeniden verebilirsiniz; aradığınızı bulduysanız talebi kapatabilirsiniz.\n\n${deps.config.APP_URL}/talep/${r.id}`).catch(() => false);
+  }
+  return rows.length;
 }

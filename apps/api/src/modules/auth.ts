@@ -1,3 +1,5 @@
+import { aiSettings, logAiAction } from "../services/ai-guard.js";
+import { welcomeEmail } from "./notifications.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireUser, SESSION_COOKIE, SESSION_DAYS, setSessionCookie, type Deps } from "../context.js";
@@ -25,7 +27,8 @@ async function createSession(db: Pool | Client, userId: string): Promise<string>
   return token;
 }
 
-export function authRoutes(app: FastifyInstance, { config, pool, mailer, sms, google }: Deps) {
+export function authRoutes(app: FastifyInstance, deps: Deps) {
+  const { config, pool, mailer, sms, google } = deps;
   const hashCode = (target: string, code: string) => sha256(`${config.CODE_PEPPER}:${target}:${code}`);
   const roleFor = (email: string | null, phone: string | null) =>
     (email && config.adminEmails.has(email)) || (phone && config.adminPhones.has(phone)) ? "admin" : "user";
@@ -85,21 +88,37 @@ export function authRoutes(app: FastifyInstance, { config, pool, mailer, sms, go
     return issueCode(req, body.channel, normalize(body.channel, body.target), "giriş");
   });
 
+  // Uygunsuz ad kullanılamaz (yönetim → Yapay Zekâ → "Üye adlarını denetle").
+  async function assertName(name: string) {
+    if (!(await aiSettings(pool)).names) return;
+    const r = await deps.ai.checkName(name);
+    if (r.verdict === "block") {
+      await logAiAction(pool, { kind: "ad_engel", target: "", summary: `"${name.slice(0, 60)}" adı engellendi: ${r.reason}` });
+      throw new HttpError(400, "ad_uygunsuz", `Bu ad kullanılamaz${r.reason ? `: ${r.reason}` : ""}. Lütfen gerçek adınızı veya firma adınızı yazın.`);
+    }
+  }
+
   // 2) Kodu doğrula: doğruysa kullanıcı bulunur ya da açılır ve oturum başlar.
   app.post("/auth/verify", { config: { rateLimit: { max: 20, timeWindow: "10 minutes" } } }, async (req, reply) => {
     const body = z.object({ channel: Channel, target: z.string().max(254), code: z.string().regex(/^\d{6}$/), name: z.string().max(80).optional() }).parse(req.body);
     const target = normalize(body.channel, body.target);
+    // Ad yapay zekâ ile denetlenir (küfür, kurum taklidi, ad yerine reklam); kod harcanmadan önce.
+    // Yalnızca adı henüz olmayan (yeni) üyede: mevcut üyenin adı girişte değişmez.
+    const colName = body.channel === "sms" ? "phone" : "email";
+    const known = (await pool.query(`SELECT 1 FROM users WHERE ${colName} = $1 AND name <> ''`, [target])).rowCount;
+    if (body.name?.trim() && !known) await assertName(body.name.trim());
     await consumeCode(body.channel, target, body.code);
 
     const col = body.channel === "sms" ? "phone" : "email";
     const email = body.channel === "email" ? target : null, phone = body.channel === "sms" ? target : null;
-    const user = await pool.query<{ id: string }>(
+    const user = await pool.query<{ id: string; inserted: boolean }>(
       `INSERT INTO users (${col}, name, role) VALUES ($1, $2, $3)
        ON CONFLICT (${col}) DO UPDATE SET name = CASE WHEN users.name = '' THEN EXCLUDED.name ELSE users.name END,
                                          role = CASE WHEN EXCLUDED.role = 'admin' THEN 'admin' ELSE users.role END
-       RETURNING id`,
+       RETURNING id, (xmax = 0) AS inserted`,
       [target, (body.name ?? "").trim(), roleFor(email, phone)],
     );
+    if (user.rows[0]!.inserted) void welcomeEmail(deps, user.rows[0]!.id).catch(() => {});
     const token = await createSession(pool, user.rows[0]!.id);
     setSessionCookie(reply, token, config.isProd);
     return { ok: true };
@@ -154,6 +173,7 @@ export function authRoutes(app: FastifyInstance, { config, pool, mailer, sms, go
           `INSERT INTO users (google_sub, email, name, role) VALUES ($1, $2, $3, $4) RETURNING id`,
           [g.sub, g.email, g.name, roleFor(g.email, null)]);
         userId = ins.rows[0]!.id;
+        void welcomeEmail(deps, userId).catch(() => {});
       }
       setSessionCookie(reply, await createSession(pool, userId), config.isProd);
       return reply.redirect(`${config.APP_URL}/`);

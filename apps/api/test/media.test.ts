@@ -123,7 +123,7 @@ describe("fotoğraf ve video", () => {
     expect((await ctx.app.inject({ method: "DELETE", url: `/api/media/${b.id}`, headers: { cookie: u } })).statusCode).toBe(404);
   });
 
-  it("uygunsuz görsel: talep incelemeye düşer, teklif reddedilir", async () => {
+  it("uygunsuz görsel: otomatik karar açıkken talep reddedilir, kapalıyken incelemeye düşer; teklif reddedilir", async () => {
     class StrictAi extends HeuristicAi {
       override async moderateImages(urls: string[]) { return urls.length ? { verdict: "reject" as const, reason: "Uygunsuz görsel" } : { verdict: "ok" as const, reason: "" }; }
     }
@@ -131,12 +131,18 @@ describe("fotoğraf ve video", () => {
     const buyer = await login(c, "05321112233");
     const seller = await login(c, "05321112244");
     const m = await upload(c, buyer);
-    const r = await c.app.inject({ method: "POST", url: "/api/requests", headers: { cookie: buyer }, payload: { ...sampleRequest, media_ids: [m.id] } });
+    const r0 = await c.app.inject({ method: "POST", url: "/api/requests", headers: { cookie: buyer }, payload: { ...sampleRequest, media_ids: [m.id] } });
+    expect(r0.json().status).toBe("rejected");
+    // Yapay zekâ otomatik karar vermesin: talep yöneticinin onayına düşer.
+    await c.pool.query("UPDATE settings SET value = 'false' WHERE key = 'ai_auto_decide'");
+    const m2 = await upload(c, buyer);
+    const r = await c.app.inject({ method: "POST", url: "/api/requests", headers: { cookie: buyer }, payload: { ...sampleRequest, media_ids: [m2.id] } });
     expect(r.json().status).toBe("pending_review");
+    await c.pool.query("UPDATE settings SET value = 'true' WHERE key = 'ai_auto_decide'");
     // Yönetici incelemede fotoğrafı görür.
     const admin = await login(c, "yonetici@almakisterim.com");
     const mod = (await c.app.inject({ url: "/api/admin/moderation", headers: { cookie: admin } })).json();
-    expect(mod.pending[0].media.map((x: { id: string }) => x.id)).toEqual([m.id]);
+    expect(mod.pending[0].media.map((x: { id: string }) => x.id)).toEqual([m2.id]);
     const clean = await createRequest(c, buyer);
     const sm = await upload(c, seller);
     const o = await postOffer(c, seller, clean, offer([sm.id]));

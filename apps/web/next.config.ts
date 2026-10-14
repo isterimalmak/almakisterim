@@ -7,6 +7,8 @@ const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8080";
 const config: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // Sunucuda çalışan sayfalar (blog) API'ye doğrudan bağlansın diye adres derlemeye gömülür.
+  env: { API_ORIGIN },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_ORIGIN}/api/:path*` }];
   },
