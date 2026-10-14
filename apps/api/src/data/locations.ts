@@ -37,3 +37,44 @@ export function findDistrictInText(text: string, city: string | null): { city: s
   for (const [k, v] of uniqueDistricts) if (v && v.district !== "Merkez" && has(k)) return v;
   return null;
 }
+
+// İlçe adından il: yalnızca tek ilde geçen ilçeler ("Kadıköy" → İstanbul; "Merkez" gibi ortak adlar çözülmez).
+export function cityOfDistrict(raw: string): { city: string; district: string } | null {
+  return uniqueDistricts.get(fold(raw)) ?? null;
+}
+
+// Serbest metinden mahalle: ilçe biliniyorsa o ilçenin, il biliniyorsa ilin, ikisi de yoksa bütün Türkiye'nin mahalleleri aranır;
+// ad yalnızca tek yerde geçiyorsa kabul edilir. "Caddebostan'da 2+1" → İstanbul / Kadıköy / Caddebostan.
+// Kısa ve sık geçen adlar ("Merkez", "Cumhuriyet") yanlış eşleşmesin diye atlanır.
+const COMMON_HOODS = new Set(["merkez", "cumhuriyet", "atatürk", "yeni", "fatih", "istiklal", "hürriyet", "yenimahalle", "çarşı", "kale", "orta", "aşağı", "yukarı",
+  "gazi", "zafer", "barış", "pazar", "mevlana", "yıldız", "güzelyalı", "kurtuluş", "istasyon", "sanayi", "bahçelievler", "esentepe", "yenişehir", "camikebir"]);
+type Hood = { city: string; district: string; neighbourhood: string };
+const HOODS = new Map<string, Hood[]>();
+for (const [city, ds] of Object.entries(LOCATIONS)) {
+  for (const [district, ms] of Object.entries(ds)) {
+    for (const m of ms) {
+      const k = fold(m);
+      if (k.length < 5 || COMMON_HOODS.has(k)) continue;
+      const list = HOODS.get(k) ?? [];
+      list.push({ city, district, neighbourhood: m });
+      HOODS.set(k, list);
+    }
+  }
+}
+const SUFFIX = /(?:mahallesi|mah|de|da|te|ta|den|dan|ten|tan|deki|daki)$/;
+
+export function findNeighbourhoodInText(text: string, city: string | null, district: string | null): Hood | null {
+  const words = fold(text).replace(/[.,;:!?()'’"/]/g, " ").split(" ").filter(Boolean);
+  let best: Hood | null = null;
+  // 1-3 sözcüklük parçalar ("Yeni Bostancı", "19 Mayıs") ekleriyle ve eksiz denenir; en uzun eşleşme seçilir.
+  for (let n = 3; n >= 1 && !best; n--) {
+    for (let i = 0; i + n <= words.length && !best; i++) {
+      const raw = words.slice(i, i + n).join(" ");
+      for (const k of new Set([raw, raw.replace(SUFFIX, "").trim(), raw.replace(/ mahallesi$| mah$/, "")])) {
+        const hits = (HOODS.get(k) ?? []).filter((h) => (!city || h.city === city) && (!district || h.district === district));
+        if (hits.length === 1) { best = hits[0]!; break; }
+      }
+    }
+  }
+  return best;
+}

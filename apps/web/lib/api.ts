@@ -48,7 +48,7 @@ export type Contact = {
 };
 
 export type Draft = {
-  category_id: string | null; title: string; budget_min: number | null; budget_max: number | null; city: string | null; district?: string;
+  category_id: string | null; title: string; budget_min: number | null; budget_max: number | null; city: string | null; district?: string; neighbourhood?: string;
   condition: string; is_urgent: boolean; attrs: Record<string, unknown>; description: string;
 };
 

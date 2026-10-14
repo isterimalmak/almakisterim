@@ -7,7 +7,9 @@ import { listCategories, VISIBLE_CATEGORY_SQL, visibleSubcategory } from "./cate
 import { tx } from "../db.js";
 import { priceFor, unlockSettings } from "./contacts.js";
 import { attachMedia, imageUrls, MediaIds, mediaFor } from "./media.js";
-import { findDistrictInText, LOCATIONS, matchDistrict, matchNeighbourhood } from "../data/locations.js";
+import { cityOfDistrict, findDistrictInText, findNeighbourhoodInText, LOCATIONS, matchDistrict, matchNeighbourhood } from "../data/locations.js";
+import { attrsFor } from "../data/attrs.js";
+import { describeAttrs, fillAttrs } from "../services/draft-fill.js";
 import { cleanVehicleDraft, isVehicleSub, parseVehicleAttrs, VehicleQuery, vehicleFilters } from "./vehicles.js";
 import { notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 import { aiSettings, logAiAction } from "../services/ai-guard.js";
@@ -202,17 +204,25 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const { text } = z.object({ text: z.string().trim().min(3).max(1500) }).parse(req.body);
     const cats = await listCategories(pool, true);
     const tops = new Map(cats.filter((c) => !c.parent_id).map((c) => [c.id, c.name]));
-    const refs: CategoryRef[] = cats.filter((c) => c.parent_id).map((c) => ({ id: c.id, name: `${tops.get(c.parent_id!)} › ${c.name}`, parent: c.parent_id! }));
+    // Her alt kategorinin doldurulacak alanları da yapay zekâya verilir (arsada imar/tapu, kiralıkta eşya, telefonda hafıza…).
+    const refs: CategoryRef[] = cats.filter((c) => c.parent_id).map((c) => {
+      const schema = isVehicleSub(c.id) ? [] : attrsFor(c.parent_id!, c.id);
+      return { id: c.id, name: `${tops.get(c.parent_id!)} › ${c.name}`, parent: c.parent_id!, fields: schema.length ? describeAttrs(schema) : undefined };
+    });
     const masked = maskContacts(text);
     const [rawDraft, moderation] = await Promise.all([ai.draftRequest(masked.text, refs), ai.moderate(masked.text)]);
-    // Araçta alanlar katalogla eşleştirilir; diğer kategorilerde yalnızca basit değerler kalır.
-    const draft = { ...rawDraft, attrs: rawDraft.category_id && isVehicleSub(rawDraft.category_id)
-      ? cleanVehicleDraft(rawDraft.category_id, rawDraft.attrs)
-      : Object.fromEntries(Object.entries(rawDraft.attrs).filter(([, v]) => typeof v === "string" || typeof v === "number")) };
-    // "Kadıköy'de 3+1 ev" → il İstanbul, ilçe Kadıköy.
-    const loc = findDistrictInText(text, draft.city);
-    const located = { ...draft, city: loc?.city ?? draft.city, district: loc?.district ?? "" };
-    return { draft: { ...located, title: maskContacts(draft.title).text, description: masked.text }, moderation, contacts_masked: masked.masked };
+    // Listede olmayan (gizli ya da uydurma) kategori kabul edilmez.
+    const ref = refs.find((r) => r.id === rawDraft.category_id);
+    const sub = ref ? ref.id : null, parent = ref?.parent;
+    // Araçta alanlar katalogla eşleştirilir; diğer kategorilerde alanlar seçeneklerle doğrulanır, eksikler metinden tamamlanır.
+    const attrs = sub && isVehicleSub(sub) ? cleanVehicleDraft(sub, rawDraft.attrs)
+      : sub ? fillAttrs(masked.text, attrsFor(parent, sub), rawDraft.attrs) : {};
+    const loc = resolveLocation(masked.text, rawDraft.city, rawDraft.district ?? null, rawDraft.neighbourhood ?? null);
+    const description = maskContacts(rawDraft.description?.trim() || masked.text).text.slice(0, 4000);
+    return {
+      draft: { ...rawDraft, category_id: sub, ...loc, attrs, title: maskContacts(rawDraft.title).text.slice(0, 120), description },
+      moderation, contacts_masked: masked.masked,
+    };
   });
 
   app.post("/requests", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req, reply) => {
@@ -299,4 +309,23 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     await pool.query("INSERT INTO reports (request_id, user_id, reason) VALUES ($1, $2, $3)", [id, req.user?.id ?? null, reason]);
     return { ok: true };
   });
+}
+
+// Konumu doğrular ve tamamlar: yapay zekânın verdiği il/ilçe/mahalle resmî listede yoksa atılır;
+// eksik kalanlar metinden bulunur ("Caddebostan'da 2+1" → İstanbul / Kadıköy / Caddebostan).
+export function resolveLocation(text: string, aiCity: string | null, aiDistrict: string | null, aiHood: string | null) {
+  let city = aiCity && CITIES.includes(aiCity) ? aiCity : null;
+  let district: string | null = null;
+  if (aiDistrict) {
+    if (city) district = matchDistrict(city, aiDistrict);
+    else { const u = cityOfDistrict(aiDistrict); if (u) { city = u.city; district = u.district; } }
+  }
+  if (!district) { const f = findDistrictInText(text, city); if (f) { city = f.city; district = f.district; } }
+  let neighbourhood: string | null = null;
+  if (aiHood && city && district) neighbourhood = matchNeighbourhood(city, district, aiHood);
+  if (!neighbourhood) {
+    const h = findNeighbourhoodInText(text, city, district) ?? (aiHood ? findNeighbourhoodInText(aiHood, city, district) : null);
+    if (h) { city = h.city; district = h.district; neighbourhood = h.neighbourhood; }
+  }
+  return { city, district: district ?? "", neighbourhood: neighbourhood ?? "" };
 }
