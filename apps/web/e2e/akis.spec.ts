@@ -522,3 +522,20 @@ test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütç
   await expect(page.locator(".tbl tbody tr", { hasText: "Vasıta" }).getByText("BMW 1 Serisi")).toBeVisible();
 
 });
+
+test("tek cümleden talep: yapay zekâ kategori, il/ilçe/mahalle, oda, m², eşya, ısıtma ve bütçeyi doldurur; kalanı söyler", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Ne almak istiyorsunuz?").fill("Caddebostan'da 3+1 eşyalı kiralık daire arıyorum, en az 120 m2, kombili olsun, aylık 40 bin TL'ye kadar");
+  await page.getByRole("button", { name: "Talep Oluştur" }).click();
+  await expect(page.getByText("✨ Yapay zekâ doldurdu:")).toBeVisible();
+  await expect(page.locator(".ai-fill")).toContainText("Emlak › Konut (Kiralık)");
+  await expect(page.locator(".ai-fill")).toContainText("İstanbul / Kadıköy / Caddebostan");
+  await expect(page.getByLabel("İl *")).toHaveValue("İstanbul");
+  await expect(page.getByLabel("İlçe")).toHaveValue("Kadıköy");
+  await expect(page.getByLabel("Mahalle")).toHaveValue("Caddebostan");
+  await expect(page.getByLabel("En fazla bütçe (TL) *")).toHaveValue("40000");
+  await expect(page.getByLabel("Oda sayısı")).toHaveValue("3+1");
+  await expect(page.getByLabel("m² (en az)")).toHaveValue("120");
+  await expect(page.getByLabel("Eşya durumu")).toHaveValue("Eşyalı");
+  await expect(page.getByLabel("Isıtma")).toHaveValue("Kombi");
+});

@@ -34,6 +34,8 @@ function Create() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiMsg, setAiMsg] = useState("");
   const [mod, setMod] = useState<{ verdict: string; reason: string } | null>(null);
+  // Yapay zekânın doldurduğu ve kişiye kalan alanlar (Talep Detayları'nın üstünde gösterilir).
+  const [aiFill, setAiFill] = useState<{ filled: string[]; missing: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const started = useRef(false);
   const set = (p: Partial<D>) => setD((x) => ({ ...x, ...p }));
@@ -50,12 +52,28 @@ function Create() {
       const { draft, moderation } = await api<{ draft: Draft; moderation: { verdict: string; reason: string } }>("/ai/draft", { body: { text } });
       setMod(moderation);
       const top = categories.find((t) => t.subs.some((s) => s.id === draft.category_id));
+      const newCity = !!draft.city && draft.city !== d.city;
       setD((x) => ({
         ...x, raw: text, title: draft.title, description: draft.description, condition: draft.condition,
         b1: draft.budget_max ? String(draft.budget_max) : x.b1, b0: draft.budget_min ? String(draft.budget_min) : x.b0,
-        city: draft.city ?? x.city, district: draft.district || (draft.city && draft.city !== x.city ? "" : x.district), hood: draft.city && draft.city !== x.city ? "" : x.hood, urgent: draft.is_urgent, attrs: draft.attrs,
+        city: draft.city ?? x.city, district: draft.district || (newCity ? "" : x.district), hood: draft.neighbourhood || (newCity || draft.district ? "" : x.hood),
+        urgent: draft.is_urgent, attrs: draft.attrs,
         ...(top ? { top: top.id, sub: draft.category_id!, step: 2 as const } : {}),
       }));
+      // Neyin dolduğu, neyin kişiye kaldığı açıkça yazılır.
+      const filled: string[] = [], missing: string[] = [];
+      const sub = top?.subs.find((s) => s.id === draft.category_id);
+      if (sub) filled.push(`Kategori (${top!.name} › ${sub.name})`);
+      if (draft.title) filled.push("Başlık");
+      if (draft.description) filled.push("Açıklama");
+      if (draft.budget_max) filled.push("Bütçe"); else missing.push("En fazla bütçe");
+      if (draft.city) filled.push([draft.city, draft.district, draft.neighbourhood].filter(Boolean).join(" / ")); else missing.push("İl");
+      if (draft.condition !== "Farketmez") filled.push(`Durum (${draft.condition})`);
+      if (draft.is_urgent) filled.push("Acil");
+      if (sub && isVehicleSub(sub.id)) { if (Array.isArray(draft.attrs.araclar) && draft.attrs.araclar.length) filled.push("Araç bilgileri"); }
+      else if (sub) for (const a of attrsFor(top!.id, sub.id)) if (draft.attrs[a.k] !== undefined) filled.push(a.l.replace(/ \(.*\)$/, ""));
+      if (photoRequired) missing.push("Fotoğraf");
+      setAiFill(sub ? { filled, missing } : null);
       if (top) toast("Alanlar dolduruldu, lütfen kontrol edin.");
       else setAiMsg("Kategoriyi belirleyemedik, lütfen aşağıdan seçin. Diğer bilgiler sonraki adımda dolu gelecek.");
     } catch (e) { setAiMsg((e as Error).message); } finally { setAiBusy(false); }
@@ -139,6 +157,12 @@ function Create() {
       {d.step === 2 && top && sub && (
         <>
           {mod && mod.verdict !== "ok" && <div className="note n-warn" style={{ marginBottom: 12 }}>Bu talep yayınlanmadan önce ekibimiz tarafından incelenecek. {mod.reason}</div>}
+          {aiFill && (
+            <div className="note n-ok ai-fill" style={{ marginBottom: 12 }}><span>
+              <b>✨ Yapay zekâ doldurdu:</b> {aiFill.filled.join(", ")}.
+              {aiFill.missing.length ? <> <b>Size kalan:</b> {aiFill.missing.join(", ")}.</> : " Eksik bir şey kalmadı; kontrol edip devam edin."}
+            </span></div>
+          )}
           <div className="box"><div className="box-h"><h2>Talep Detayları</h2><span className="muted" style={{ fontSize: 12.5 }}>{top.name} › {sub.name} · <button className="link" onClick={() => set({ step: 1 })}>Değiştir</button></span></div><div className="box-b">
             <div className="form-grid">
               <div className="fg full"><label htmlFor="f-t">Talep başlığı *</label><input className="inp" id="f-t" maxLength={120} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="Örn. Kadıköy'de 3+1 kiralık daire arıyorum" /><span className="hint">Ne aradığınızı kısa ve net yazın.</span></div>
@@ -147,7 +171,7 @@ function Create() {
               <div className="fg"><label htmlFor="f-b1">En fazla bütçe (TL) *</label><input className="inp" id="f-b1" type="number" inputMode="numeric" value={d.b1} onChange={(e) => set({ b1: e.target.value })} /></div>
               <div className="fg"><label htmlFor="f-c">İl *</label><select className="sel" id="f-c" value={d.city} onChange={(e) => set({ city: e.target.value, district: "", hood: "" })}><option value="">Seçin</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
               <div className="fg"><label htmlFor="f-d">İlçe</label><select className="sel" id="f-d" value={d.district} disabled={!d.city} onChange={(e) => set({ district: e.target.value, hood: "" })}><option value="">{d.city ? "İlçe farketmez" : "Önce il seçin"}</option>{(districts.includes(d.district) || !d.district ? districts : [d.district, ...districts]).map((x) => <option key={x}>{x}</option>)}</select></div>
-              {d.district && <div className="fg"><label htmlFor="f-m">Mahalle</label><select className="sel" id="f-m" value={d.hood} onChange={(e) => set({ hood: e.target.value })}><option value="">Mahalle farketmez</option>{hoods.map((x) => <option key={x}>{x}</option>)}</select></div>}
+              {d.district && <div className="fg"><label htmlFor="f-m">Mahalle</label><select className="sel" id="f-m" value={d.hood} onChange={(e) => set({ hood: e.target.value })}><option value="">Mahalle farketmez</option>{(hoods.includes(d.hood) || !d.hood ? hoods : [d.hood, ...hoods]).map((x) => <option key={x}>{x}</option>)}</select></div>}
               {condsFor(d.top).length > 1 && <div className="fg full"><label>Ürün durumu</label><div className="radio-row">{condsFor(d.top).map((c) => <label key={c}><input type="radio" name="k" checked={d.condition === c} onChange={() => set({ condition: c })} />{c}</label>)}</div></div>}
               {vehicle && <VehicleFields sub={d.sub} value={d.attrs as VehicleAttrs} onChange={(attrs) => setD((x) => ({ ...x, attrs }))} onDraft={setDraftCar} />}
               {sch.map((a) => (
