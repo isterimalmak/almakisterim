@@ -764,3 +764,6 @@ button.link{padding:0;font-size:inherit}
 .hero-ai{margin:7px 2px 0;color:#C9D2F0;font-size:12.5px;line-height:1.4}
 .ai-errs{margin:8px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5}
 .ai-errs li{margin-bottom:6px;word-break:break-word}
+
+/* iPhone Safari 16 pikselden küçük yazılı kutulara dokununca sayfayı büyütür ve ekran sağa taşar; telefonda bütün giriş kutuları 16px. */
+@media (max-width:860px){input,select,textarea{font-size:16px!important}}

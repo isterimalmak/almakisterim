@@ -554,3 +554,13 @@ test("tek cümleden talep: yapay zekâ kategori, il/ilçe/mahalle, oda, m², eş
   await expect(page.getByLabel("Eşya durumu")).toHaveValue("Eşyalı");
   await expect(page.getByLabel("Isıtma")).toHaveValue("Kombi");
 });
+
+test("telefonda giriş kutularının yazısı en az 16px (iPhone dokununca sayfayı büyütmesin)", async ({ page }, info) => {
+  test.skip(info.project.name !== "telefon");
+  for (const path of ["/", "/talep-ver", "/giris"]) {
+    await page.goto(path);
+    const small = await page.evaluate(() => [...document.querySelectorAll("input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea")]
+      .filter((e) => (e as HTMLElement).offsetParent !== null && parseFloat(getComputedStyle(e).fontSize) < 16).map((e) => (e as HTMLElement).outerHTML.slice(0, 80)));
+    expect(small, path).toEqual([]);
+  }
+});

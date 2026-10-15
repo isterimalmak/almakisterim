@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { BODIES, CAR_BRANDS, FUELS, GEARS, MAX_VEHICLES } from "../data/vehicles.js";
+import { detectCategory } from "./category-detect.js";
 
 export const CONDITIONS = ["Sıfır", "İkinci El", "Farketmez", "Hizmet"] as const;
 
@@ -90,13 +91,6 @@ export const CITIES = ["Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksara
 
 /* ---------------- Kural tabanlı yedek (anahtar yokken veya Claude'a ulaşılamazsa) ---------------- */
 
-const KW: Record<string, string[]> = {
-  telefon: ["iphone", "samsung galaxy", "telefon", "xiaomi", "redmi"], bilgisayar: ["laptop", "macbook", "bilgisayar", "notebook"], tablet: ["ipad", "tablet"], tv: ["televizyon", "oled"], oyun: ["playstation", "ps5", "ps4", "xbox", "nintendo"],
-  otomobil: ["araba", "otomobil", "egea", "passat", "corolla", "clio", "golf"], suv: ["suv", "4x4", "pickup"], motosiklet: ["motosiklet", "scooter"], kiralik: ["kiralık"], satilik: ["satılık", "daire", "villa", "müstakil ev"], gunluk: ["günlük kiralık", "yazlık", "apart", "tatil evi"],
-  isyeri: ["dükkan", "ofis", "depo", "işyeri", "mağaza"], arsa: ["arsa", "tarla", "imarlı"], deniz: ["tekne", "yat", "yelkenli", "jet ski"],
-  mobilya: ["koltuk", "masa", "dolap", "yatak"], beyaz: ["buzdolabı", "çamaşır makinesi", "bulaşık makinesi"], lastik: ["lastik", "jant"], tadilat: ["tadilat", "usta", "boya"], nakliyat: ["nakliyat", "taşıma"], temizlik: ["temizlik"],
-  lise: ["yks", "lgs", "özel ders"], dil: ["ingilizce", "almanca"], tarim: ["traktör"], jenerator: ["jeneratör"], ayakkabi: ["ayakkabı", "sneaker"], bisiklet: ["bisiklet"], araba: ["bebek arabası"], gida: ["kıyma", "gıda"], tekstil: ["tişört", "tekstil"],
-};
 const BANNED = /ehliyet al|sahte|silah|uyuşturucu|kaçak|reçetesiz|hesap satış/i;
 
 const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -143,11 +137,8 @@ export class HeuristicAi implements AiService {
   async draftRequest(text: string, categories: CategoryRef[]): Promise<Draft> {
     const t = text.toLocaleLowerCase("tr");
     const allowed = new Set(categories.map((c) => c.id));
-    let category_id: string | null = null, best = 0;
-    for (const [id, words] of Object.entries(KW)) {
-      const sc = words.filter((w) => t.includes(w)).length;
-      if (sc > best && allowed.has(id)) { best = sc; category_id = id; }
-    }
+    const vehicle = parseVehicleText(t);
+    let category_id = detectCategory(t, allowed, vehicle.araclar.length > 0);
     const toNum = (n: string, u?: string) => {
       let v = parseFloat(n.replace(/\./g, "").replace(",", "."));
       if (u === "bin") v *= 1e3;
@@ -172,8 +163,7 @@ export class HeuristicAi implements AiService {
     let title = text.trim().split(/[,;\n]|\.\s+(?=[A-ZÇĞİÖŞÜ])/)[0]!.replace(/\s*(bütçem|bütçe)\b.*$/i, "").trim();
     title = title.slice(0, 100);
     title = title.charAt(0).toLocaleUpperCase("tr") + title.slice(1);
-    const vehicle = parseVehicleText(t);
-    if (vehicle.araclar.length && !category_id && allowed.has("otomobil")) category_id = /suv|4x4|arazi/.test(t) && allowed.has("suv") ? "suv" : "otomobil";
+    if (vehicle.araclar.length && !category_id && allowed.has("otomobil")) category_id = "otomobil";
     const isVehicle = ["otomobil", "suv", "elektrikli", "ticari", "motosiklet"].includes(category_id ?? "");
     return { category_id, title, budget_min, budget_max, city, condition, is_urgent: /\bacil\b/.test(t), attrs: isVehicle ? vehicle : {},
       description: ((d) => (d && !/[.!?]$/.test(d) ? `${d}.` : d))(tidyText(text)) };
@@ -280,6 +270,8 @@ Ama yalnızca kişinin yazdığını ya da metinden kesin çıkan bilgiyi kullan
 - ozellikler: seçilen alt kategorinin listede verilen alanları. Her biri {alan: anahtar, deger: değer}.
   Seçenekli alanda değer verilen seçeneklerden biri olmalı, birebir aynı yazımla (ör. 3+1 → "3+1", 5+1 → "4+1 ve üzeri", "konut imarlı" → "Konut").
   Sayı alanında yalnızca rakam (ör. "500 metrekare" → "500"). Metinde geçmeyen alanı yazma. "Farketmez" ancak kişi açıkça farketmez dediyse.
+  Alan adındaki "en az / en fazla" anlamına uy: "m² (en az)" alanına kişi "en fazla 500 m²" dediyse yazma (bu bilgi açıklamada kalır).
+  "arazi", "parsel", "köy içi arsa", "tarla" → arsa kategorisi.
 - attrs: yalnızca araç taleplerinde (otomobil, SUV, elektrikli, ticari, motosiklet); diğerlerinde araclar boş liste, diğerleri null/boş.
   Alıcı birden fazla araç isteyebilir ("BMW 3 serisi veya Audi A4"): her birini araclar listesine {marka, model} olarak yaz; model belirtilmemişse null.
   Marka resmi adıyla (ör. "Mercedes-Benz", "Volkswagen"), model Türkiye'deki yaygın adıyla (ör. "3 Serisi", "C Serisi", "A4", "Egea", "Corolla", "Passat").
@@ -369,23 +361,40 @@ export class ClaudeAi implements AiService {
     this.client = new Anthropic({ apiKey, timeout: 120_000, maxRetries: 2 });
   }
 
+  // Sırayla denenir: (1) yedek-model betası ile, (2) betasız sade istek, (3) bir alt modelle. Anahtar/kredi hatasında (401/403/kredi) denemenin anlamı yoktur.
   private async json(system: string, user: string | Anthropic.Beta.BetaContentBlockParam[], schema: object,
     opt: { effort?: "low" | "medium"; maxTokens?: number } = {}): Promise<unknown> {
-    const res = await this.client.beta.messages.create({
-      model: this.model,
+    const base = {
       max_tokens: opt.maxTokens ?? 4000,
-      betas: ["server-side-fallback-2026-07-01"],
-      // Sınıflandırıcı bir isteği reddederse sunucu tarafında uygun modelle yeniden dener.
-      fallbacks: "default",
-      output_config: { effort: opt.effort ?? "low", format: { type: "json_schema", schema: schema as Record<string, unknown> } },
+      output_config: { effort: opt.effort ?? "low", format: { type: "json_schema" as const, schema: schema as Record<string, unknown> } },
       system,
-      messages: [{ role: "user", content: user }],
-    });
-    if (res.stop_reason === "refusal") throw new Error("Claude isteği reddetti");
-    if (res.stop_reason === "max_tokens") throw new Error("Yanıt uzunluk sınırına takıldı (max_tokens)");
-    const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-    return JSON.parse(text);
+      messages: [{ role: "user" as const, content: user }],
+    };
+    const attempts: (() => Promise<{ stop_reason: string | null; content: { type: string; text?: string }[] }>)[] = [
+      () => this.client.beta.messages.create({ ...base, model: this.model, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }),
+      () => this.client.messages.create({ ...base, model: this.model } as Anthropic.MessageCreateParamsNonStreaming),
+      () => this.client.messages.create({ ...base, model: ClaudeAi.BACKUP_MODEL } as Anthropic.MessageCreateParamsNonStreaming),
+    ];
+    let lastErr: unknown;
+    for (const [i, run] of attempts.entries()) {
+      if (i === 2 && this.model === ClaudeAi.BACKUP_MODEL) break;
+      try {
+        const res = await run();
+        if (res.stop_reason === "refusal") throw new Error("Claude isteği reddetti");
+        if (res.stop_reason === "max_tokens") throw new Error("Yanıt uzunluk sınırına takıldı (max_tokens)");
+        const text = res.content.flatMap((b) => (b.type === "text" && b.text ? [b.text] : [])).join("");
+        return JSON.parse(text);
+      } catch (e) {
+        lastErr = e;
+        const st = (e as { status?: number }).status;
+        const msg = String((e as Error).message ?? "");
+        if (st === 401 || st === 403 || /credit balance|billing/i.test(msg)) break;
+        if (i < attempts.length - 1) this.fail(`deneme ${i + 1}`, e);
+      }
+    }
+    throw lastErr;
   }
+  static BACKUP_MODEL = "claude-sonnet-5-5";
 
   async draftRequest(text: string, categories: CategoryRef[]): Promise<Draft> {
     try {

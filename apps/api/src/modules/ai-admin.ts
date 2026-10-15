@@ -106,7 +106,16 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
     const last = deps.ai.errors?.()[0];
     const s = await aiSettings(pool);
     const used = (await pool.query<{ calls: number }>("SELECT calls FROM ai_usage WHERE day = (now() AT TIME ZONE 'Europe/Istanbul')::date")).rows[0]?.calls ?? 0;
-    return { ok: false, ms, error: s.dailyLimit <= 0 || used >= s.dailyLimit ? "Günlük kullanım sınırı dolu ya da 0; yapay zekâ çağrılmadı." : last?.message ?? "Yapay zekâ yanıt vermedi." };
+    if (s.dailyLimit <= 0 || used >= s.dailyLimit) return { ok: false, ms, error: "Günlük kullanım sınırı dolu ya da 0; yapay zekâ çağrılmadı. Sınırı aşağıdaki ayarlardan artırın." };
+    const m = last?.message ?? "";
+    const why = /HTTP 401|api.key|authentication/i.test(m) ? "Anahtar geçersiz ya da silinmiş. Anthropic panelinden yeni anahtar alıp Secret Manager'a girin (infra/anahtar-ekle.sh)."
+      : /credit balance|billing|HTTP 402/i.test(m) ? "Anthropic hesabında kredi bitmiş. console.anthropic.com → Billing bölümünden kredi yükleyin."
+      : /HTTP 403|permission/i.test(m) ? "Anahtarın bu modele izni yok. Anthropic panelinde anahtarın çalışma alanını (workspace) ve izinlerini kontrol edin."
+      : /HTTP 404|not.found/i.test(m) ? "Model bulunamadı; yedek model de çalışmadı."
+      : /HTTP 429|rate/i.test(m) ? "Çok fazla istek (hız sınırı). Birkaç dakika sonra tekrar deneyin."
+      : /HTTP 5\d\d|overloaded|timeout|timed out/i.test(m) ? "Anthropic şu an yoğun ya da yanıt vermiyor; biraz sonra tekrar deneyin."
+      : "Yapay zekâ yanıt vermedi.";
+    return { ok: false, ms, error: `${why}${m ? ` (Teknik ayrıntı: ${m})` : ""}` };
   });
 
   app.put("/admin/ai/settings", async (req) => {

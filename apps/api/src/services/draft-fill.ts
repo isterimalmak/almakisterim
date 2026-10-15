@@ -55,7 +55,8 @@ function fromText(t: string, a: Attr): string | number | null {
       const n = Number(m[1]);
       return n >= 4 ? "4+1 ve üzeri" : n >= 1 ? `${n}+1` : null;
     }
-    case "m2": return (m = /(\d[\d.]*)\s*(?:m2|m²|metrekare|metre kare|metrekarelik)/.exec(t)) ? int(m[1]!) : null;
+    // Alan "en az" anlamındadır; kişi "en fazla 500 m²" dediyse doldurulmaz (açıklamada kalır).
+    case "m2": return (m = /(en fazla|en çok|maksimum|max\.?|en az|minimum)?\s*(\d[\d.]*)\s*(?:m2|m²|metrekare|metre kare|metrekarelik|metre²)/.exec(t)) && !/fazla|çok|maks|max/.test(m[1] ?? "") ? int(m[2]!) : null;
     case "bina_yasi": return (m = /(\d{1,2})\s*yaş/.exec(t)) ? Number(m[1]) : /sıfır bina|yeni bina|yeni yapı/.test(t) ? 0 : null;
     case "kisi": return (m = /(\d{1,2})\s*kişi/.exec(t)) ? Number(m[1]) : null;
     case "numara": return (m = /(\d{2})\s*numara|numara\s*(\d{2})/.exec(t)) ? Number(m[1] ?? m[2]) : null;
