@@ -291,7 +291,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     }
     if (mod.verdict !== "ok") await logAiAction(pool, { kind: "talep_karar", target: id, summary: `${status === "rejected" ? "Reddedildi" : status === "active" ? "Yayına alındı (emin değil)" : "İncelemeye alındı"}: ${mod.reason}` });
     if (status === "active") void notifyAlarmMatches(deps, id).catch((e) => req.log.warn({ err: (e as Error).message }, "alarm bildirimi başarısız"));
-    void requestStatusEmail(deps, id).catch(() => {});
+    void requestStatusEmail(deps, id, { bell: false }).catch(() => {});
     reply.code(201);
     return { id, status, moderation: mod.verdict === "ok" ? null : { reason: mod.reason } };
   });

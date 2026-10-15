@@ -38,7 +38,11 @@ export class GuardedAi implements AiService {
   private async pick() { return (await this.allow().catch(() => false)) ? this.inner : this.fallback; }
   async draftRequest(text: string, c: CategoryRef[]) { return (await this.pick()).draftRequest(text, c); }
   async moderate(text: string) { return (await this.pick()).moderate(text); }
-  async moderateImages(urls: string[]) { return urls.length ? (await this.pick()).moderateImages(urls) : { verdict: "ok" as const, reason: "" }; }
+  // Günlük sınır dolduysa fotoğraf denetimsiz yayına girmez: bekletilir, sınır açılınca saatlik iş yeniden denetler.
+  async moderateImages(urls: string[]) {
+    if (!urls.length) return { verdict: "ok" as const, reason: "" };
+    return (await this.allow().catch(() => false)) ? this.inner.moderateImages(urls) : { verdict: "review" as const, reason: "Görseller otomatik denetlenemedi." };
+  }
   async reviewListing(i: { title: string; description: string; category: string }) { return (await this.pick()).reviewListing(i); }
   async checkMessage(text: string) { return (await this.pick()).checkMessage(text); }
   async checkName(name: string) { return (await this.pick()).checkName(name); }

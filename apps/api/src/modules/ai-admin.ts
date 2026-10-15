@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin, type Deps } from "../context.js";
 import { HttpError, maskContacts } from "../lib/util.js";
 import { aiSettings, logAiAction } from "../services/ai-guard.js";
+import { notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 
 // Hazır blog konuları: otomatik blog sırayla bunlardan henüz yazılmamış olanı seçer; yönetici kendi konusunu da yazabilir.
 export const BLOG_TOPICS = [
@@ -64,6 +65,33 @@ export async function autoBlog(deps: Deps) {
   const topic = BLOG_TOPICS.find((t) => !used.has(t));
   if (!topic) return null;
   return generateBlog(deps, topic, s.blogAutopublish);
+}
+
+// Yapay zekâ o an çalışmadığı için bekletilen talepler (ör. "Görseller otomatik denetlenemedi") saatlik işte yeniden denetlenir.
+// Uygunsa kendiliğinden yayına alınır ve sahibine "yayına çıktı" bildirimi gider; şüpheliyse yöneticide kalır.
+export const AI_HOLD_NOTE = "Görseller otomatik denetlenemedi.";
+export async function recheckHeld(deps: Deps, limit = 10) {
+  const s = await aiSettings(deps.pool);
+  if (!s.autoDecide) return { checked: 0, published: 0 };
+  const { rows } = await deps.pool.query<{ id: number; title: string; description: string; category: string }>(
+    `SELECT r.id, r.title, r.description, c.name AS category FROM requests r JOIN categories c ON c.id = r.category_id
+      WHERE r.status = 'pending_review' AND r.moderation_note = $1 AND r.expires_at > now() ORDER BY r.created_at LIMIT $2`, [AI_HOLD_NOTE, limit]);
+  let published = 0, checked = 0;
+  for (const r of rows) {
+    const keys = (await deps.pool.query<{ storage_key: string }>("SELECT storage_key FROM media WHERE request_id = $1 AND kind = 'image'", [r.id])).rows;
+    const [img, rev] = await Promise.all([deps.ai.moderateImages(keys.map((k) => deps.storage.publicUrl(k.storage_key))), deps.ai.reviewListing(r)]);
+    // Yapay zekâ hâlâ çalışmıyorsa bekleyenlere dokunulmaz; sonraki saatte yeniden denenir.
+    if (img.verdict === "review" && img.reason === AI_HOLD_NOTE) break;
+    checked++;
+    const order = { ok: 0, review: 1, reject: 2 } as const;
+    const mod = order[img.verdict] > order[rev.verdict] ? img : rev;
+    const status = mod.verdict === "ok" || (mod.verdict === "review" && s.uncertain === "publish") ? "active" : mod.verdict === "reject" ? "rejected" : "pending_review";
+    await deps.pool.query("UPDATE requests SET status = $2, moderation_note = $3, ai_checked_at = now() WHERE id = $1", [r.id, status, status === "active" ? null : mod.reason || null]);
+    await logAiAction(deps.pool, { kind: "talep_karar", target: r.id, summary: `${status === "active" ? "Yeniden denetlendi, yayına alındı" : status === "rejected" ? "Yeniden denetlendi, reddedildi" : "Yeniden denetlendi, size bırakıldı"}${mod.reason ? `: ${mod.reason}` : ""}` });
+    if (status !== "pending_review") await requestStatusEmail(deps, r.id).catch(() => {});
+    if (status === "active") { published++; await notifyAlarmMatches(deps, r.id).catch(() => {}); }
+  }
+  return { checked, published };
 }
 
 const Settings = z.object({
@@ -182,6 +210,8 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
       }
       if (status !== r.status) {
         if (status === "active") published++; else if (status === "rejected") rejected++; else held++;
+        void requestStatusEmail(deps, r.id).catch(() => {});
+        if (status === "active") void notifyAlarmMatches(deps, r.id).catch(() => {});
         await logAiAction(pool, { kind: "talep_karar", target: r.id, summary: `${status === "active" ? "Yayına alındı" : status === "rejected" ? "Reddedildi" : "İncelemeye alındı"}${rev.reason ? `: ${rev.reason}` : ""}` });
       }
     }

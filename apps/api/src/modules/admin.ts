@@ -6,7 +6,7 @@ import { HttpError, safeEqual } from "../lib/util.js";
 import { listCategories, toTree } from "./categories.js";
 import { cleanupOrphans, mediaFor } from "./media.js";
 import { expiryReminders, notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
-import { autoBlog } from "./ai-admin.js";
+import { autoBlog, recheckHeld } from "./ai-admin.js";
 
 export function adminRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, config } = deps;
@@ -250,6 +250,8 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     // Süresi dolmak üzere olan talepler için hatırlatma; otomatik blog açıksa sırası gelen yazı.
     const reminded = await expiryReminders(deps).catch(() => 0);
     const blog = await autoBlog(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "otomatik blog yazılamadı"); return null; });
-    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null };
+    // Yapay zekâ çalışmadığı için bekletilen talepler yeniden denetlenir; uygunsa yayına alınır, sahibine haber gider.
+    const recheck = await recheckHeld(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "yeniden denetim yapılamadı"); return { checked: 0, published: 0 }; });
+    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null, rechecked: recheck };
   });
 }

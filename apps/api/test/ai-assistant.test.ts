@@ -11,7 +11,8 @@ class FakeAi implements AiService {
   message: (t: string) => TextCheck = () => ({ verdict: "ok", reason: "" });
   draftRequest = this.base.draftRequest.bind(this.base);
   moderate = this.base.moderate.bind(this.base);
-  moderateImages = this.base.moderateImages.bind(this.base);
+  images: (urls: string[]) => { verdict: "ok" | "review" | "reject"; reason: string } = () => ({ verdict: "ok", reason: "" });
+  async moderateImages(urls: string[]) { this.calls++; return this.images(urls); }
   async reviewListing(i: { title: string; description: string; category: string }) { this.calls++; return this.review(i); }
   async checkMessage(t: string) { this.calls++; return this.message(t); }
   async checkName(n: string) { this.calls++; return this.base.checkName(n); }
@@ -28,6 +29,7 @@ beforeEach(async () => {
   await resetData(ctx.pool);
   ai.review = (i) => ({ verdict: "ok", reason: "", title: i.title, description: i.description, changes: "" });
   ai.message = () => ({ verdict: "ok", reason: "" });
+  ai.images = () => ({ verdict: "ok", reason: "" });
   ai.calls = 0;
 });
 afterAll(async () => { await ctx.app.close(); await ctx.pool.end(); });
@@ -195,5 +197,37 @@ describe("yapay zekâ asistanı", () => {
     expect(scan).toMatchObject({ checked: 1, fixed: 1 });
     expect((await ctx.app.inject({ url: `/api/requests/${third.json().id}` })).json().request.title).toBe("eski talep başlığı (yz)");
     expect((await ctx.app.inject({ url: "/api/admin/ai", headers: { cookie: buyer } })).statusCode).toBe(403);
+  });
+
+  it("yapay zekâ çalışmadığı için bekletilen talep saatlik işte yeniden denetlenir; uygunsa yayına çıkar ve sahibine haber gider", async () => {
+    await setting("phone_required", false);
+    const buyer = await login(ctx, "05321119050");
+    const job = () => ctx.app.inject({ method: "POST", url: "/api/jobs/expire", headers: { "x-job-token": "test-job-token-123" } });
+    const held = async (title: string) => {
+      const id = (await post(buyer, { title })).json().id as number;
+      const owner = (await ctx.pool.query("SELECT buyer_id FROM requests WHERE id = $1", [id])).rows[0].buyer_id;
+      await ctx.pool.query("INSERT INTO media (owner_id, kind, storage_key, content_type, size_bytes, status, request_id) VALUES ($1, 'image', $2, 'image/png', 10, 'ready', $3)", [owner, `t/${id}.png`, id]);
+      await ctx.pool.query("UPDATE requests SET status = 'pending_review', moderation_note = 'Görseller otomatik denetlenemedi.' WHERE id = $1", [id]);
+      return id;
+    };
+    const status = async (id: number) => (await ctx.pool.query("SELECT status, moderation_note FROM requests WHERE id = $1", [id])).rows[0];
+    const bells = async () => (await ctx.pool.query("SELECT text FROM notifications n JOIN users u ON u.id = n.user_id WHERE u.phone LIKE '%5321119050' ORDER BY n.id")).rows.map((r) => r.text);
+    const a = await held("Uygun talep bir"), b = await held("Uygunsuz talep iki");
+
+    // Yapay zekâ hâlâ çalışmıyorsa dokunulmaz.
+    ai.images = () => ({ verdict: "review", reason: "Görseller otomatik denetlenemedi." });
+    expect((await job()).json().rechecked).toEqual({ checked: 0, published: 0 });
+    expect((await status(a)).status).toBe("pending_review");
+
+    // Çalışınca: uygun olan yayına çıkar, yasaklı görsel reddedilir; ikisine de bildirim gider.
+    ai.images = (urls) => (urls[0]!.includes(`${b}.png`) ? { verdict: "reject", reason: "Uygunsuz görsel" } : { verdict: "ok", reason: "" });
+    expect((await job()).json().rechecked).toEqual({ checked: 2, published: 1 });
+    expect(await status(a)).toEqual({ status: "active", moderation_note: null });
+    expect(await status(b)).toEqual({ status: "rejected", moderation_note: "Uygunsuz görsel" });
+    await expect.poll(bells).toEqual(expect.arrayContaining(['"Uygun talep bir" talebiniz onaylandı ve yayına çıktı.', '"Uygunsuz talep iki" talebiniz kurallara uymadığı için yayınlanmadı. Neden: Uygunsuz görsel']));
+    // Günlük sınır dolduysa fotoğraf denetimsiz yayına girmez, bekletilir.
+    await setting("ai_daily_limit", 0);
+    const c = (await post(buyer, { title: "Sınır dolu talep", media_ids: [] })).json();
+    expect(c.status).toBe("active"); // fotoğrafsız talepte görsel denetimi gerekmez
   });
 });
