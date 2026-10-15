@@ -25,7 +25,8 @@ export async function logAiAction(pool: Pool, a: { kind: string; target: string 
 // Günlük çağrı sınırı: sınır dolunca kural tabanlı yedek çalışır, kredi bitmez. Sayaç İstanbul gününe göre.
 export class GuardedAi implements AiService {
   private fallback = new HeuristicAi();
-  constructor(private pool: Pool, private inner: AiService) {}
+  constructor(private pool: Pool, readonly inner: AiService) {}
+  errors = () => this.inner.errors?.() ?? [];
   private async allow(): Promise<boolean> {
     const limit = (await aiSettings(this.pool)).dailyLimit;
     if (limit <= 0) return false;

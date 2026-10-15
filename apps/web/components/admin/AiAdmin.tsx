@@ -10,7 +10,9 @@ type Settings = {
   ai_fix_text: boolean; ai_auto_decide: boolean; ai_uncertain: "hold" | "publish"; ai_messages: boolean; ai_names: boolean;
   ai_blog_every_days: number; ai_blog_autopublish: boolean; ai_daily_limit: number; auto_emails: boolean;
 };
-type AiInfo = { connected: boolean; settings: Settings; usage: { today: number; limit: number }; counts: Record<string, number>; unchecked_requests: number; topics: string[] };
+type AiInfo = { connected: boolean; settings: Settings; usage: { today: number; limit: number }; counts: Record<string, number>; unchecked_requests: number; topics: string[];
+  errors?: { at: string; where: string; message: string }[] };
+type TestResult = { ok: boolean; ms?: number; title?: string; description?: string; error?: string };
 type Action = { id: number; kind: string; target_id: string | null; summary: string; undone_at: string | null; created_at: string };
 type Post = { id: number; slug: string; title: string; summary: string; body: string; topic: string; status: "draft" | "published"; source: string; created_at: string; published_at: string | null };
 
@@ -78,6 +80,8 @@ export function AiAdmin() {
       {info.connected
         ? <div className="note n-ok" style={{ marginBottom: 12 }}><span><b>Yapay zekâ bağlı.</b> Bugün {fmt(info.usage.today)} / {info.usage.limit ? fmt(info.usage.limit) : "sınırsız"} kullanım. Sınır dolunca site ücretsiz basit denetimle çalışmaya devam eder.</span></div>
         : <div className="note n-warn" style={{ marginBottom: 12 }}><span><b>Yapay zekâ bağlı değil.</b> Şu an basit kelime denetimi çalışıyor; blog yazılamaz. Bağlamak için Entegrasyonlar bölümüne bakın.</span></div>}
+
+      <AiTest connected={info.connected} errors={info.errors ?? []} onDone={() => void load()} />
 
       <div className="kpis ai-kpis">{cards.map(([l, n]) => <div key={l} className="kpi"><small>{l} · son 30 gün</small><b>{fmt(n)}</b></div>)}</div>
 
@@ -224,6 +228,33 @@ function EditPost({ post, close, save }: { post?: Post; close: () => void; save:
           <button type="button" className="btn btn-or" disabled={!ok} onClick={() => save({ title, summary, body }, true)}>Yayınla</button>
           <button type="button" className="btn" disabled={!ok} onClick={() => save({ title, summary, body }, false)}>Taslak kaydet</button></>}
         <button type="button" className="btn" onClick={close}>Vazgeç</button>
+      </div>
+    </div>
+  );
+}
+
+// Bağlantı denemesi ve son hatalar: yapay zekâ gerçekten çalışıyor mu, çalışmıyorsa neden?
+function AiTest({ connected, errors, onDone }: { connected: boolean; errors: { at: string; where: string; message: string }[]; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [r, setR] = useState<TestResult | null>(null);
+  const run = async () => {
+    setBusy(true); setR(null);
+    try { setR(await api<TestResult>("/admin/ai/test", { body: {} })); onDone(); }
+    catch (e) { setR({ ok: false, error: (e as Error).message }); } finally { setBusy(false); }
+  };
+  return (
+    <div className="ap-box"><div className="ap-box-h"><h2>Bağlantı denemesi</h2>
+      <button type="button" className="btn btn-bl" disabled={busy || !connected} onClick={() => void run()}>{busy ? "Deneniyor…" : "Bağlantıyı dene"}</button></div>
+      <div className="ap-box-b">
+        <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>Örnek bir cümleyi (&quot;kadıköyde 3+1 kiralık ev bakıyorum eşyalı olsun…&quot;) yapay zekâya doldurtur; yazdığı başlık ve açıklamayı gösterir.</p>
+        {r && (r.ok
+          ? <div className="note n-ok"><span><b>Çalışıyor</b> ({((r.ms ?? 0) / 1000).toFixed(1)} sn). Başlık: <b>{r.title}</b><br />Açıklama: {r.description}</span></div>
+          : <div className="note n-warn"><span><b>Çalışmıyor:</b> {r.error}</span></div>)}
+        {!!errors.length && (
+          <details style={{ marginTop: 10 }}><summary>Son yapay zekâ hataları ({errors.length})</summary>
+            <ul className="ai-errs">{errors.map((e, i) => <li key={i}><small className="muted">{dateTr(e.at)} · {e.where}</small><br />{e.message}</li>)}</ul>
+          </details>
+        )}
       </div>
     </div>
   );

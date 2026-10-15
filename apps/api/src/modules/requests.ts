@@ -9,7 +9,7 @@ import { priceFor, unlockSettings } from "./contacts.js";
 import { attachMedia, imageUrls, MediaIds, mediaFor } from "./media.js";
 import { cityOfDistrict, findDistrictInText, findNeighbourhoodInText, LOCATIONS, matchDistrict, matchNeighbourhood } from "../data/locations.js";
 import { attrsFor } from "../data/attrs.js";
-import { describeAttrs, fillAttrs } from "../services/draft-fill.js";
+import { buildTitle, describeAttrs, fillAttrs } from "../services/draft-fill.js";
 import { cleanVehicleDraft, isVehicleSub, parseVehicleAttrs, VehicleQuery, vehicleFilters } from "./vehicles.js";
 import { notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 import { aiSettings, logAiAction } from "../services/ai-guard.js";
@@ -219,8 +219,11 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
       : sub ? fillAttrs(masked.text, attrsFor(parent, sub), rawDraft.attrs) : {};
     const loc = resolveLocation(masked.text, rawDraft.city, rawDraft.district ?? null, rawDraft.neighbourhood ?? null);
     const description = maskContacts(rawDraft.description?.trim() || masked.text).text.slice(0, 4000);
+    // Yapay zekâ yazmadıysa (bağlı değil, sınır doldu ya da hata) başlık cümle kopyalanmadan doldurulan alanlardan kurulur.
+    const subName = ref ? ref.name.split(" › ").pop()! : null;
+    const title = (rawDraft.generated ? rawDraft.title : buildTitle({ sub, subName, attrs, ...loc }) ?? rawDraft.title).trim();
     return {
-      draft: { ...rawDraft, category_id: sub, ...loc, attrs, title: maskContacts(rawDraft.title).text.slice(0, 120), description },
+      draft: { ...rawDraft, generated: undefined, category_id: sub, ...loc, attrs, title: maskContacts(title).text.slice(0, 120), description },
       moderation, contacts_masked: masked.masked,
     };
   });
