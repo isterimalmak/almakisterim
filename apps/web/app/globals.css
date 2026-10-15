@@ -767,3 +767,15 @@ button.link{padding:0;font-size:inherit}
 
 /* iPhone Safari 16 pikselden küçük yazılı kutulara dokununca sayfayı büyütür ve ekran sağa taşar; telefonda bütün giriş kutuları 16px. */
 @media (max-width:860px){input,select,textarea{font-size:16px!important}}
+
+/* Yönetim · Entegrasyonlar */
+.integ-list{display:flex;flex-direction:column;gap:12px}
+.integ-card{margin:0}
+.integ-h{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.integ-h>div{flex:1;min-width:0}
+.integ-h b{display:block;font-size:14px;color:#101B2D}
+.integ-h small{color:#8592A6;font-size:12px}
+.integ-card.on .ap-dot{background:#16A34A;box-shadow:0 0 0 3px #E7F7EC}
+.integ-b{padding:14px 16px}
+.integ-help{margin:0 0 10px;font-size:12.5px;color:#4A515B;line-height:1.5}
+.integ-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}

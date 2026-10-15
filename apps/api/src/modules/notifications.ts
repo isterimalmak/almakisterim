@@ -47,14 +47,26 @@ export async function welcomeEmail(deps: Deps, userId: string) {
     `• Satıcı mısınız? Size uygun talep gelince haber almak için alarm kurun: ${url}/bana-ozel?s=alarm`);
 }
 
-export async function requestStatusEmail(deps: Deps, requestId: number) {
+// Talep durumu değişince sahibine haber: site içi bildirim (zil) her zaman, e-posta otomatik e-postalar açıksa.
+// bell: false → talep verilirken (kişi sonucu ekranda zaten görüyor) yalnızca e-posta gider.
+export async function requestStatusEmail(deps: Deps, requestId: number, opt: { bell?: boolean } = {}) {
   const r = (await deps.pool.query<{ buyer_id: string; title: string; status: string; moderation_note: string | null }>(
     "SELECT buyer_id, title, status, moderation_note FROM requests WHERE id = $1", [requestId])).rows[0];
   if (!r) return;
   const url = `${deps.config.APP_URL}/talep/${requestId}`;
-  if (r.status === "active") await autoMail(deps, r.buyer_id, "Talebiniz yayında", `"${r.title}" talebiniz yayına alındı. Uygun satıcılar size mesaj atacak ya da arayacak.\n\n${url}`);
-  else if (r.status === "pending_review") await autoMail(deps, r.buyer_id, "Talebiniz inceleniyor", `"${r.title}" talebiniz kısa bir incelemeden sonra yayınlanacak.\n\n${url}`);
-  else if (r.status === "rejected") await autoMail(deps, r.buyer_id, "Talebiniz yayınlanamadı", `"${r.title}" talebiniz site kurallarına uymadığı için yayınlanmadı.${r.moderation_note ? `\nNeden: ${r.moderation_note}` : ""}\n\nKurallara uygun şekilde yeniden talep verebilirsiniz: ${deps.config.APP_URL}/talep-ver`);
+  const bell = async (text: string, link: string) => {
+    if (opt.bell !== false) await deps.pool.query("INSERT INTO notifications (user_id, text, link) VALUES ($1, $2, $3)", [r.buyer_id, text, link]).catch(() => {});
+  };
+  if (r.status === "active") {
+    await bell(`"${r.title}" talebiniz onaylandı ve yayına çıktı.`, `/talep/${requestId}`);
+    await autoMail(deps, r.buyer_id, "Talebiniz yayına çıktı", `"${r.title}" talebiniz denetlendi ve yayına alındı. Uygun satıcılar size mesaj atacak ya da arayacak.\n\n${url}`);
+  } else if (r.status === "pending_review") {
+    await bell(`"${r.title}" talebiniz kısa bir denetimden sonra yayına çıkacak.`, `/talep/${requestId}`);
+    await autoMail(deps, r.buyer_id, "Talebiniz denetleniyor", `"${r.title}" talebiniz kısa bir denetimden sonra yayınlanacak. Yayına çıkınca size haber vereceğiz.\n\n${url}`);
+  } else if (r.status === "rejected") {
+    await bell(`"${r.title}" talebiniz kurallara uymadığı için yayınlanmadı.${r.moderation_note ? ` Neden: ${r.moderation_note}` : ""}`, "/talep-ver");
+    await autoMail(deps, r.buyer_id, "Talebiniz yayınlanamadı", `"${r.title}" talebiniz site kurallarına uymadığı için yayınlanmadı.${r.moderation_note ? `\nNeden: ${r.moderation_note}` : ""}\n\nKurallara uygun şekilde yeniden talep verebilirsiniz: ${deps.config.APP_URL}/talep-ver`);
+  }
 }
 
 // Süresi 2 gün içinde dolacak talepler için bir kez hatırlatma (zamanlanmış saatlik işten çağrılır).

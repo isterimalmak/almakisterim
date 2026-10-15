@@ -6,7 +6,7 @@ import { HttpError, safeEqual } from "../lib/util.js";
 import { listCategories, toTree } from "./categories.js";
 import { cleanupOrphans, mediaFor } from "./media.js";
 import { expiryReminders, notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
-import { autoBlog } from "./ai-admin.js";
+import { autoBlog, recheckHeld } from "./ai-admin.js";
 
 export function adminRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, config } = deps;
@@ -200,20 +200,6 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   // Entegrasyonlar: hangi dış hizmet bağlı (anahtarların kendisi asla gösterilmez).
-  app.get("/admin/integrations", async (req) => {
-    requireAdmin(req);
-    const has = (...v: string[]) => v.every((x) => !!x.trim());
-    return { items: [
-      { key: "storage", name: "Fotoğraf ve video deposu (Cloudflare R2)", connected: deps.storage.enabled, note: "Fotoğraf/video yükleme" },
-      { key: "ai", name: "Yapay zekâ (Anthropic Claude)", connected: has(config.ANTHROPIC_API_KEY), note: "Talebi otomatik doldurma ve içerik denetimi" },
-      { key: "photos", name: "Ücretsiz fotoğraflar (Pixabay / Pexels)", connected: has(config.PIXABAY_API_KEY) || has(config.PEXELS_API_KEY), note: "Talebe uyan hazır görseller" },
-      { key: "mail", name: "E-posta (Resend)", connected: has(config.RESEND_API_KEY), note: "E-postayla giriş kodu ve bildirimler" },
-      { key: "sms", name: "SMS (Netgsm)", connected: has(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER), note: "SMS ile giriş kodu ve talep alarmları" },
-      { key: "google", name: "Google ile giriş", connected: has(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET), note: "Tek tıkla giriş" },
-      { key: "pay", name: "Ödeme (iyzico / PayTR)", connected: false, note: "Kredi satın alma (henüz bağlanmadı; kredi elle tanımlanıyor)" },
-    ] };
-  });
-
   // Üye listesi Excel'de açılacak CSV olarak (Türkçe karakterler için UTF-8 BOM, ayraç ;).
   app.get("/admin/users.csv", async (req, reply) => {
     requireAdmin(req);
@@ -250,6 +236,8 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     // Süresi dolmak üzere olan talepler için hatırlatma; otomatik blog açıksa sırası gelen yazı.
     const reminded = await expiryReminders(deps).catch(() => 0);
     const blog = await autoBlog(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "otomatik blog yazılamadı"); return null; });
-    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null };
+    // Yapay zekâ çalışmadığı için bekletilen talepler yeniden denetlenir; uygunsa yayına alınır, sahibine haber gider.
+    const recheck = await recheckHeld(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "yeniden denetim yapılamadı"); return { checked: 0, published: 0 }; });
+    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null, rechecked: recheck };
   });
 }

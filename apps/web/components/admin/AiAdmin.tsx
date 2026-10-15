@@ -244,7 +244,7 @@ function AiTest({ connected, errors, onDone }: { connected: boolean; errors: { a
   };
   return (
     <div className="ap-box"><div className="ap-box-h"><h2>Bağlantı denemesi</h2>
-      <button type="button" className="btn btn-bl" disabled={busy || !connected} onClick={() => void run()}>{busy ? "Deneniyor…" : "Bağlantıyı dene"}</button></div>
+      <button type="button" className="btn btn-bl" disabled={busy} onClick={() => void run()}>{busy ? "Deneniyor…" : "Bağlantıyı dene"}</button></div>
       <div className="ap-box-b">
         <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>Örnek bir cümleyi (&quot;kadıköyde 3+1 kiralık ev bakıyorum eşyalı olsun…&quot;) yapay zekâya doldurtur; yazdığı başlık ve açıklamayı gösterir.</p>
         {r && (r.ok

@@ -112,7 +112,7 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.getByText(/üyeye bildirim gönderildi/)).toBeVisible();
   // Entegrasyonlar: hangi hizmet bağlı görünür, anahtar görünmez.
   await page.getByRole("button", { name: "Entegrasyonlar" }).click();
-  await expect(page.locator(".ap-int.on", { hasText: "Fotoğraf ve video deposu" })).toBeVisible();
+  await expect(page.locator(".integ-card.on", { hasText: "Fotoğraf ve video deposu" })).toBeVisible();
   // Üyeler: liste kendiliğinden gelir, Excel'e indirilebilir.
   await page.getByRole("button", { name: "Üyeler ve Kredi" }).click();
   await expect(page.locator(".ap-body .tbl tbody tr").first()).toBeVisible();
@@ -255,6 +255,27 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.getByText("Silindi.")).toBeVisible();
   await page.goto("/blog");
   await expect(page.getByText(title)).toHaveCount(0);
+
+  // Entegrasyonlar: anahtar panelden girilir, kaydedilince bir daha gösterilmez; test düğmesi eksik olanı söyler; silinince eski haline döner.
+  await page.goto("/yonetim#ent");
+  const card = page.locator(".integ-card").filter({ hasText: "Google ile giriş" });
+  await card.getByLabel("İstemci kimliği").fill("deneme-kimlik.apps.googleusercontent.com");
+  await card.getByRole("button", { name: "Kaydet" }).click();
+  await expect(page.getByText("Kaydedildi.")).toBeVisible();
+  await expect(card.getByLabel("İstemci kimliği")).toHaveValue("deneme-kimlik.apps.googleusercontent.com");
+  await card.getByRole("button", { name: "Test et" }).click();
+  await expect(card.getByText("İstemci kimliği ve gizli anahtar girilmeli.")).toBeVisible();
+  await card.getByLabel("İstemci gizli anahtarı").fill("cok-gizli-deger-123");
+  await card.getByRole("button", { name: "Kaydet" }).click();
+  await expect(card.getByLabel("İstemci gizli anahtarı")).toHaveValue("");
+  await expect(card.getByLabel("İstemci gizli anahtarı")).toHaveAttribute("placeholder", /kayıtlı/);
+  await page.reload();
+  expect(await page.content()).not.toContain("cok-gizli-deger-123");
+  for (const label of ["İstemci gizli anahtarı", "İstemci kimliği"]) {
+    await card.locator(".fg").filter({ has: page.getByLabel(label) }).getByRole("button", { name: "Sil" }).click();
+    await expect(page.getByText("Silindi.")).toBeVisible();
+  }
+  await expect(card.getByText("Bağlı değil")).toBeVisible();
 });
 
 test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page }) => {

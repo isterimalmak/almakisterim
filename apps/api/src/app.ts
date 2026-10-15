@@ -1,4 +1,6 @@
 import { aiAdminRoutes } from "./modules/ai-admin.js";
+import { integrationRoutes } from "./modules/integrations.js";
+import { Integrations, isLive } from "./services/integrations.js";
 import { HeuristicAi } from "./services/ai.js";
 import { GuardedAi } from "./services/ai-guard.js";
 import cookie from "@fastify/cookie";
@@ -30,7 +32,13 @@ const REDACT = ["req.headers.cookie", "req.headers.authorization", "req.headers[
 
 export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
   // Gerçek yapay zekâ çağrıları günlük sınırdan geçer (sınır dolunca kural tabanlı yedek çalışır).
-  if (!(deps.ai instanceof HeuristicAi)) deps = { ...deps, ai: new GuardedAi(deps.pool, deps.ai) };
+  // Panelden anahtar sonradan girilebileceği için canlı (değişebilen) yapay zekâ her zaman sınırdan geçer.
+  if (isLive(deps.ai) || !(deps.ai instanceof HeuristicAi)) deps = { ...deps, ai: new GuardedAi(deps.pool, deps.ai) };
+  // Panelden girilen anahtarlar yapılandırmaya uygulanır (sunucu bunu hizmetleri kurmadan önce kendisi yapar).
+  if (!deps.integrations) {
+    deps = { ...deps, integrations: new Integrations(deps.pool, deps.config) };
+    await deps.integrations!.refresh(true).catch(() => {});
+  }
   const app = Fastify({
     logger: deps.config.NODE_ENV === "test" ? false : { level: deps.config.isProd ? "info" : "debug", redact: REDACT },
     trustProxy: true,
@@ -84,6 +92,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     meRoutes(api, deps);
     adminRoutes(api, deps);
     aiAdminRoutes(api, deps);
+    integrationRoutes(api, deps);
     // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.
     if (deps.config.NODE_ENV === "test" && deps.sms instanceof MemoryOutbox) {
       const outbox = deps.sms;

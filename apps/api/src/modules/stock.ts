@@ -19,10 +19,14 @@ const SELECT = `SELECT s.id, s.title, s.category_id, s.marka, s.model, s.is_acti
 const MAX_PHOTOS = 50;
 const Text = z.string().trim().max(60).nullable().optional().transform((v) => v || null);
 
+export function photoSourceFor(config: Deps["config"]) {
+  return config.PIXABAY_API_KEY.trim() ? new Pixabay(config.PIXABAY_API_KEY) : new Pexels(config.PEXELS_API_KEY);
+}
+
 export function stockRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, storage } = deps;
   // Ücretsiz fotoğraf kaynağı: Pixabay anahtarı varsa o, yoksa Pexels (ikisi de yoksa kapalı).
-  const photoSrc = deps.photos ?? (deps.config.PIXABAY_API_KEY ? new Pixabay(deps.config.PIXABAY_API_KEY) : new Pexels(deps.config.PEXELS_API_KEY));
+  const photoSrc = deps.photos ?? photoSourceFor(deps.config);
   const out = (r: Row) => ({ id: Number(r.id), title: r.title, category_id: r.category_id, marka: r.marka, model: r.model, is_active: r.is_active, uses: r.uses,
     media: toPublic(storage, { id: r.media_id, kind: r.kind, content_type: r.content_type, storage_key: r.storage_key }) });
 

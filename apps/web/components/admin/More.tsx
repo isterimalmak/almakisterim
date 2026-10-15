@@ -58,24 +58,84 @@ export function CreditsAdmin() {
   );
 }
 
-type Integ = { key: string; name: string; connected: boolean; note: string };
+type IField = { key: string; label: string; secret: boolean; placeholder: string; set: boolean; source: "panel" | "sunucu" | "yok"; updated_at: string | null; value?: string };
+type IGroup = { id: string; name: string; note: string; help: string; connected: boolean; fields: IField[] };
 
-// Entegrasyonlar: hangi dış hizmet bağlı; anahtarlar burada görünmez, Secret Manager'dan eklenir.
+// Entegrasyonlar: anahtarlar buradan girilir. Gizli alanlar kaydedildikten sonra bir daha gösterilmez (yalnızca "kayıtlı" yazar).
 export function IntegrationsAdmin() {
-  const [items, setItems] = useState<Integ[] | null>(null);
-  useEffect(() => { void api<{ items: Integ[] }>("/admin/integrations").then((r) => setItems(r.items)).catch(() => setItems([])); }, []);
+  const [groups, setGroups] = useState<IGroup[] | null>(null);
+  const [pay, setPay] = useState<{ name: string; note: string } | null>(null);
+  const load = async () => {
+    try { const r = await api<{ groups: IGroup[]; pay: { name: string; note: string } }>("/admin/integrations"); setGroups(r.groups); setPay(r.pay); }
+    catch { setGroups([]); }
+  };
+  useEffect(() => { void load(); }, []);
   return (
-    <div className="ap-box"><div className="ap-box-h"><h2>Entegrasyonlar</h2></div><div className="ap-box-b">
-      <div className="note n-info" style={{ marginBottom: 12 }}><span>Anahtarlar güvenlik için burada gösterilmez ve buradan girilmez; Google Cloud'daki anahtar kasasına eklenir, sonraki "Canlıya al"da bağlanır.</span></div>
-      {!items ? <div className="loading">Yükleniyor…</div> : (
-        <div className="ap-integ">{items.map((i) => (
-          <div key={i.key} className={"ap-int" + (i.connected ? " on" : "")}>
-            <span className="ap-dot" aria-hidden="true" />
-            <div><b>{i.name}</b><small>{i.note}</small></div>
-            <span className={"lbl " + (i.connected ? "l-gr" : "l-gy")}>{i.connected ? "Bağlı" : "Bağlı değil"}</span>
-          </div>
-        ))}</div>
+    <>
+      <div className="note n-info" style={{ marginBottom: 12 }}><span>
+        Anahtarları ilgili hizmetin sitesinden kopyalayıp buraya yapıştırın ve <b>Kaydet</b>&apos;e basın; yaklaşık 1 dakika içinde devreye girer, yeniden yayına gerek yok.
+        Güvenlik için kaydedilen anahtarlar şifreli saklanır ve bir daha gösterilmez. Sonra <b>Test et</b> ile çalıştığını görün.
+      </span></div>
+      {!groups ? <div className="loading">Yükleniyor…</div> : (
+        <div className="integ-list">
+          {groups.map((g) => <IntegCard key={g.id} g={g} reload={load} />)}
+          {pay && <div className="ap-box integ-card"><div className="integ-h"><span className="ap-dot" aria-hidden="true" /><div><b>{pay.name}</b><small>{pay.note}</small></div><span className="lbl l-gy">Bağlı değil</span></div></div>}
+        </div>
       )}
-    </div></div>
+    </>
+  );
+}
+
+function IntegCard({ g, reload }: { g: IGroup; reload: () => Promise<void> }) {
+  const { toast } = useSession();
+  const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(g.fields.map((f) => [f.key, f.secret ? "" : f.value ?? ""])));
+  const [busy, setBusy] = useState(false);
+  const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const changed = g.fields.filter((f) => (vals[f.key] ?? "").trim() !== "" && (f.secret || (vals[f.key] ?? "").trim() !== (f.value ?? "")));
+  const save = async () => {
+    setBusy(true);
+    try {
+      for (const f of changed) await api(`/admin/integrations/${f.key}`, { method: "PUT", body: { value: vals[f.key] } });
+      toast("Kaydedildi.");
+      setVals((v) => Object.fromEntries(Object.entries(v).map(([k, x]) => [k, g.fields.find((f) => f.key === k)?.secret ? "" : x])));
+      await reload();
+    } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
+  };
+  const remove = async (f: IField) => {
+    if (!confirm(`"${f.label}" panelden silinsin mi?${f.source === "panel" ? " Sunucuda ayrı bir değer varsa o kullanılır." : ""}`)) return;
+    try { await api(`/admin/integrations/${f.key}`, { method: "DELETE" }); toast("Silindi."); await reload(); } catch (e) { toast((e as Error).message); }
+  };
+  const run = async () => {
+    setBusy(true); setTest(null);
+    try { setTest(await api<{ ok: boolean; message: string }>(`/admin/integrations/${g.id}/test`, { body: {} })); }
+    catch (e) { setTest({ ok: false, message: (e as Error).message }); } finally { setBusy(false); }
+  };
+  return (
+    <div className={"ap-box integ-card" + (g.connected ? " on" : "")}>
+      <div className="integ-h"><span className="ap-dot" aria-hidden="true" /><div><b>{g.name}</b><small>{g.note}</small></div>
+        <span className={"lbl " + (g.connected ? "l-gr" : "l-gy")}>{g.connected ? "Bağlı" : "Bağlı değil"}</span></div>
+      <div className="integ-b">
+        <p className="integ-help">{g.help}</p>
+        <div className="form-grid">
+          {g.fields.map((f) => (
+            <div key={f.key} className="fg">
+              <label htmlFor={`i-${f.key}`}>{f.label}</label>
+              <input id={`i-${f.key}`} className="inp" type={f.secret ? "password" : "text"} autoComplete="off" spellCheck={false} value={vals[f.key] ?? ""}
+                placeholder={f.secret && f.set ? "•••••••• kayıtlı (değiştirmek için yenisini yazın)" : f.placeholder}
+                onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))} />
+              <span className="hint">
+                {f.set ? (f.source === "panel" ? `Kayıtlı · panelden${f.updated_at ? `, ${dateTr(f.updated_at)}` : ""}` : "Kayıtlı · sunucu ayarından") : "Girilmemiş"}
+                {f.source === "panel" && <> · <button type="button" className="link" onClick={() => void remove(f)}>Sil</button></>}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="integ-act">
+          <button type="button" className="btn btn-or" disabled={busy || !changed.length} onClick={() => void save()}>Kaydet</button>
+          <button type="button" className="btn btn-bl" disabled={busy} onClick={() => void run()}>{busy ? "Bekleyin…" : "Test et"}</button>
+        </div>
+        {test && <div className={"note " + (test.ok ? "n-ok" : "n-warn")} style={{ marginTop: 10 }}><span><b>{test.ok ? "Çalışıyor." : "Çalışmıyor."}</b> {test.message}</span></div>}
+      </div>
+    </div>
   );
 }

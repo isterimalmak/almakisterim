@@ -7,6 +7,7 @@ import type { GoogleAuth } from "./services/google.js";
 import type { Mailer, Sms } from "./services/notify.js";
 import type { PhotoSource } from "./services/pexels.js";
 import type { MediaStorage } from "./services/storage.js";
+import type { Integrations } from "./services/integrations.js";
 
 export type Deps = {
   config: Config;
@@ -18,6 +19,8 @@ export type Deps = {
   storage: MediaStorage;
   // Stok fotoğraf araması; verilmezse yapılandırmadaki anahtarla oluşturulur.
   photos?: PhotoSource;
+  // Panelden girilen anahtarlar (yönetim → Entegrasyonlar). Verilmezse buildApp yalnızca okuyup yapılandırmaya uygular.
+  integrations?: Integrations;
 };
 
 export type SessionUser = {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin, type Deps } from "../context.js";
 import { HttpError, maskContacts } from "../lib/util.js";
 import { aiSettings, logAiAction } from "../services/ai-guard.js";
+import { notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 
 // Hazır blog konuları: otomatik blog sırayla bunlardan henüz yazılmamış olanı seçer; yönetici kendi konusunu da yazabilir.
 export const BLOG_TOPICS = [
@@ -66,6 +67,58 @@ export async function autoBlog(deps: Deps) {
   return generateBlog(deps, topic, s.blogAutopublish);
 }
 
+// Yapay zekâ o an çalışmadığı için bekletilen talepler (ör. "Görseller otomatik denetlenemedi") saatlik işte yeniden denetlenir.
+// Uygunsa kendiliğinden yayına alınır ve sahibine "yayına çıktı" bildirimi gider; şüpheliyse yöneticide kalır.
+export const AI_HOLD_NOTE = "Görseller otomatik denetlenemedi.";
+export async function recheckHeld(deps: Deps, limit = 10) {
+  const s = await aiSettings(deps.pool);
+  if (!s.autoDecide) return { checked: 0, published: 0 };
+  const { rows } = await deps.pool.query<{ id: number; title: string; description: string; category: string }>(
+    `SELECT r.id, r.title, r.description, c.name AS category FROM requests r JOIN categories c ON c.id = r.category_id
+      WHERE r.status = 'pending_review' AND r.moderation_note = $1 AND r.expires_at > now() ORDER BY r.created_at LIMIT $2`, [AI_HOLD_NOTE, limit]);
+  let published = 0, checked = 0;
+  for (const r of rows) {
+    const keys = (await deps.pool.query<{ storage_key: string }>("SELECT storage_key FROM media WHERE request_id = $1 AND kind = 'image'", [r.id])).rows;
+    const [img, rev] = await Promise.all([deps.ai.moderateImages(keys.map((k) => deps.storage.publicUrl(k.storage_key))), deps.ai.reviewListing(r)]);
+    // Yapay zekâ hâlâ çalışmıyorsa bekleyenlere dokunulmaz; sonraki saatte yeniden denenir.
+    if (img.verdict === "review" && img.reason === AI_HOLD_NOTE) break;
+    checked++;
+    const order = { ok: 0, review: 1, reject: 2 } as const;
+    const mod = order[img.verdict] > order[rev.verdict] ? img : rev;
+    const status = mod.verdict === "ok" || (mod.verdict === "review" && s.uncertain === "publish") ? "active" : mod.verdict === "reject" ? "rejected" : "pending_review";
+    await deps.pool.query("UPDATE requests SET status = $2, moderation_note = $3, ai_checked_at = now() WHERE id = $1", [r.id, status, status === "active" ? null : mod.reason || null]);
+    await logAiAction(deps.pool, { kind: "talep_karar", target: r.id, summary: `${status === "active" ? "Yeniden denetlendi, yayına alındı" : status === "rejected" ? "Yeniden denetlendi, reddedildi" : "Yeniden denetlendi, size bırakıldı"}${mod.reason ? `: ${mod.reason}` : ""}` });
+    if (status !== "pending_review") await requestStatusEmail(deps, r.id).catch(() => {});
+    if (status === "active") { published++; await notifyAlarmMatches(deps, r.id).catch(() => {}); }
+  }
+  return { checked, published };
+}
+
+// Bağlantıyı dene: örnek bir talep cümlesi yapay zekâya doldurtulur; çalışıyorsa yazdığı başlık ve açıklama, çalışmıyorsa nedeni döner.
+export async function testAi(deps: Deps): Promise<{ ok: boolean; ms?: number; title?: string; description?: string; error?: string }> {
+  const { pool, config } = deps;
+  if (!config.ANTHROPIC_API_KEY.replace(/\s+/g, "")) return { ok: false, error: "Yapay zekâ anahtarı girilmemiş. Yönetim → Entegrasyonlar → Yapay zekâ bölümüne anahtarı yazıp kaydedin." };
+  const cats = (await pool.query<{ id: string; name: string; parent_id: string }>("SELECT id, name, parent_id FROM categories WHERE parent_id IS NOT NULL")).rows;
+  const started = Date.now();
+  const d = await deps.ai.draftRequest("kadıköyde 3+1 kiralık ev bakıyorum eşyalı olsun aylık 40 bine kadar verebilirim kombili olsa iyi olur",
+    cats.map((c) => ({ id: c.id, name: c.name, parent: c.parent_id })));
+  const ms = Date.now() - started;
+  if (d.generated) return { ok: true, ms, title: d.title, description: d.description ?? "" };
+  const last = deps.ai.errors?.()[0];
+  const s = await aiSettings(pool);
+  const used = (await pool.query<{ calls: number }>("SELECT calls FROM ai_usage WHERE day = (now() AT TIME ZONE 'Europe/Istanbul')::date")).rows[0]?.calls ?? 0;
+  if (s.dailyLimit <= 0 || used >= s.dailyLimit) return { ok: false, ms, error: "Günlük kullanım sınırı dolu ya da 0; yapay zekâ çağrılmadı. Sınırı Yapay Zekâ ayarlarından artırın." };
+  const m = last?.message ?? "";
+  const why = /HTTP 401|api.key|authentication/i.test(m) ? "Anahtar geçersiz ya da silinmiş. Anthropic panelinden yeni anahtar alıp Entegrasyonlar bölümüne girin."
+    : /credit balance|billing|HTTP 402/i.test(m) ? "Anthropic hesabında kredi bitmiş. console.anthropic.com → Billing bölümünden kredi yükleyin."
+    : /HTTP 403|permission/i.test(m) ? "Anahtarın bu modele izni yok. Anthropic panelinde anahtarın çalışma alanını (workspace) ve izinlerini kontrol edin."
+    : /HTTP 404|not.found/i.test(m) ? "Model bulunamadı; yedek model de çalışmadı. Entegrasyonlardaki model adını boş bırakın."
+    : /HTTP 429|rate/i.test(m) ? "Çok fazla istek (hız sınırı). Birkaç dakika sonra tekrar deneyin."
+    : /HTTP 5\d\d|overloaded|timeout|timed out/i.test(m) ? "Anthropic şu an yoğun ya da yanıt vermiyor; biraz sonra tekrar deneyin."
+    : "Yapay zekâ yanıt vermedi.";
+  return { ok: false, ms, error: `${why}${m ? ` (Teknik ayrıntı: ${m})` : ""}` };
+}
+
 const Settings = z.object({
   ai_fix_text: z.boolean(), ai_auto_decide: z.boolean(), ai_uncertain: z.enum(["hold", "publish"]), ai_messages: z.boolean(), ai_names: z.boolean(),
   ai_blog_every_days: z.number().int().min(0).max(60), ai_blog_autopublish: z.boolean(), ai_daily_limit: z.number().int().min(0).max(100000), auto_emails: z.boolean(),
@@ -82,7 +135,7 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
       "SELECT kind, count(*)::int AS n FROM ai_actions WHERE created_at > now() - interval '30 days' GROUP BY kind")).rows;
     const pending = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM requests WHERE ai_checked_at IS NULL AND status IN ('active', 'pending_review')")).rows[0]!.n;
     return {
-      connected: !!config.ANTHROPIC_API_KEY.trim(),
+      connected: !!config.ANTHROPIC_API_KEY.replace(/\s+/g, ""),
       settings: { ai_fix_text: s.fixText, ai_auto_decide: s.autoDecide, ai_uncertain: s.uncertain, ai_messages: s.messages, ai_names: s.names,
         ai_blog_every_days: s.blogEveryDays, ai_blog_autopublish: s.blogAutopublish, ai_daily_limit: s.dailyLimit, auto_emails: s.autoEmails },
       usage: { today, limit: s.dailyLimit },
@@ -96,26 +149,7 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
   // Bağlantıyı dene: örnek bir talep cümlesi yapay zekâya doldurtulur; çalışıyorsa yazdığı başlık ve açıklama, çalışmıyorsa hatası döner.
   app.post("/admin/ai/test", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req) => {
     requireAdmin(req);
-    if (!config.ANTHROPIC_API_KEY.trim()) return { ok: false, error: "Yapay zekâ anahtarı tanımlı değil (Entegrasyonlar)." };
-    const cats = (await pool.query<{ id: string; name: string; parent_id: string }>("SELECT id, name, parent_id FROM categories WHERE parent_id IS NOT NULL")).rows;
-    const started = Date.now();
-    const d = await deps.ai.draftRequest("kadıköyde 3+1 kiralık ev bakıyorum eşyalı olsun aylık 40 bine kadar verebilirim kombili olsa iyi olur",
-      cats.map((c) => ({ id: c.id, name: c.name, parent: c.parent_id })));
-    const ms = Date.now() - started;
-    if (d.generated) return { ok: true, ms, title: d.title, description: d.description ?? "" };
-    const last = deps.ai.errors?.()[0];
-    const s = await aiSettings(pool);
-    const used = (await pool.query<{ calls: number }>("SELECT calls FROM ai_usage WHERE day = (now() AT TIME ZONE 'Europe/Istanbul')::date")).rows[0]?.calls ?? 0;
-    if (s.dailyLimit <= 0 || used >= s.dailyLimit) return { ok: false, ms, error: "Günlük kullanım sınırı dolu ya da 0; yapay zekâ çağrılmadı. Sınırı aşağıdaki ayarlardan artırın." };
-    const m = last?.message ?? "";
-    const why = /HTTP 401|api.key|authentication/i.test(m) ? "Anahtar geçersiz ya da silinmiş. Anthropic panelinden yeni anahtar alıp Secret Manager'a girin (infra/anahtar-ekle.sh)."
-      : /credit balance|billing|HTTP 402/i.test(m) ? "Anthropic hesabında kredi bitmiş. console.anthropic.com → Billing bölümünden kredi yükleyin."
-      : /HTTP 403|permission/i.test(m) ? "Anahtarın bu modele izni yok. Anthropic panelinde anahtarın çalışma alanını (workspace) ve izinlerini kontrol edin."
-      : /HTTP 404|not.found/i.test(m) ? "Model bulunamadı; yedek model de çalışmadı."
-      : /HTTP 429|rate/i.test(m) ? "Çok fazla istek (hız sınırı). Birkaç dakika sonra tekrar deneyin."
-      : /HTTP 5\d\d|overloaded|timeout|timed out/i.test(m) ? "Anthropic şu an yoğun ya da yanıt vermiyor; biraz sonra tekrar deneyin."
-      : "Yapay zekâ yanıt vermedi.";
-    return { ok: false, ms, error: `${why}${m ? ` (Teknik ayrıntı: ${m})` : ""}` };
+    return testAi(deps);
   });
 
   app.put("/admin/ai/settings", async (req) => {
@@ -182,6 +216,8 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
       }
       if (status !== r.status) {
         if (status === "active") published++; else if (status === "rejected") rejected++; else held++;
+        void requestStatusEmail(deps, r.id).catch(() => {});
+        if (status === "active") void notifyAlarmMatches(deps, r.id).catch(() => {});
         await logAiAction(pool, { kind: "talep_karar", target: r.id, summary: `${status === "active" ? "Yayına alındı" : status === "rejected" ? "Reddedildi" : "İncelemeye alındı"}${rev.reason ? `: ${rev.reason}` : ""}` });
       }
     }

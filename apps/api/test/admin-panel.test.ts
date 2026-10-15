@@ -59,10 +59,10 @@ describe("yönetim paneli", () => {
     expect(await texts("5321112255")).toEqual(["Alıcılara duyuru", "Herkese duyuru"]);
     expect(await texts("5321112266")).toEqual(["Herkese duyuru"]);
 
-    const integ = (await ctx.app.inject({ url: "/api/admin/integrations", headers: { cookie: admin } })).json().items;
-    expect(integ.find((x: { key: string }) => x.key === "storage").connected).toBe(true);
-    expect(integ.find((x: { key: string }) => x.key === "pay").connected).toBe(false);
-    expect(JSON.stringify(integ)).not.toMatch(/key_|secret|password/i);
+    const integ = (await ctx.app.inject({ url: "/api/admin/integrations", headers: { cookie: admin } })).json();
+    expect(integ.groups.find((x: { id: string }) => x.id === "storage").connected).toBe(true);
+    expect(integ.groups.find((x: { id: string }) => x.id === "ai").connected).toBe(false);
+    expect(integ.pay.name).toContain("Ödeme");
 
     const csv = await ctx.app.inject({ url: "/api/admin/users.csv", headers: { cookie: admin } });
     expect(csv.headers["content-type"]).toContain("text/csv");
