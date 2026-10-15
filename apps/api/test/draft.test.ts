@@ -4,6 +4,7 @@ import { ClaudeAi, HeuristicAi, type AiService, type Draft } from "../src/servic
 import { buildTitle, fillAttrs, locative } from "../src/services/draft-fill.js";
 import { login } from "./helpers.js";
 import { findNeighbourhoodInText } from "../src/data/locations.js";
+import { detectCategory } from "../src/services/category-detect.js";
 import { makeApp, type TestCtx } from "./helpers.js";
 
 let ctx: TestCtx;
@@ -81,7 +82,13 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
       condition: "Farketmez" as const, is_urgent: false, ozellikler: [{ alan: "oda", deger: "3+1" }],
       attrs: { araclar: [], yil_min: null, yil_max: null, km_max: null, yakit: [], vites: [], kasa: [], hasarsiz: null } };
     const ai = new ClaudeAi("test-anahtari", "claude-opus-5-5");
-    const fake = (impl: () => Promise<unknown>) => { (ai as unknown as { client: unknown }).client = { beta: { messages: { create: impl } } }; };
+    const calls: string[] = [];
+    const fake = (impl: () => Promise<unknown>) => {
+      (ai as unknown as { client: unknown }).client = {
+        beta: { messages: { create: (p: { model: string }) => { calls.push(`beta:${p.model}`); return impl(); } } },
+        messages: { create: (p: { model: string }) => { calls.push(p.model); return impl(); } },
+      };
+    };
     fake(async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(reply) }] }));
     const cats = [{ id: "kiralik", name: "Emlak › Konut (Kiralık)", parent: "emlak" }];
     expect(await ai.draftRequest("caddebostanda kiralık ev bakıyom", cats)).toMatchObject({ generated: true, title: reply.title, description: reply.description, attrs: { oda: "3+1" } });
@@ -89,9 +96,17 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     const d = await ai.draftRequest("caddebostanda kiralık ev bakıyom", cats);
     expect(d.generated).toBeUndefined();
     expect(ai.errors()[0]).toMatchObject({ where: "talep doldurma", message: "HTTP 401: invalid x-api-key" });
+    // Anahtar hatasında başka yol denenmez.
+    expect(calls).toEqual(["beta:claude-opus-5-5", "beta:claude-opus-5-5"]);
     fake(async () => ({ stop_reason: "max_tokens", content: [{ type: "text", text: "{\"tit" }] }));
     await ai.draftRequest("kiralık ev", cats);
     expect(ai.errors()[0]!.message).toContain("max_tokens");
+    // Başka bir hata (ör. model bulunamadı) olursa betasız ve yedek modelle de denenir; biri çalışırsa sonuç gelir.
+    calls.length = 0;
+    let n = 0;
+    fake(async () => { if (n++ < 2) throw Object.assign(new Error("model not found"), { status: 404 }); return { stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(reply) }] }; });
+    expect(await ai.draftRequest("caddebostanda kiralık ev", cats)).toMatchObject({ generated: true, title: reply.title });
+    expect(calls).toEqual(["beta:claude-opus-5-5", "claude-opus-5-5", "claude-sonnet-5-5"]);
     // Yapay zekâ yazdıysa sunucu başlığı değiştirmez.
     const liar: AiService = Object.assign(new HeuristicAi(), { draftRequest: async (): Promise<Draft> => ({ ...reply, attrs: { oda: "3+1" }, generated: true }) });
     const c2 = await makeApp({ ai: liar });
@@ -107,6 +122,25 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     const r = await ctx.app.inject({ method: "POST", url: "/api/admin/ai/test", headers: { cookie: admin }, payload: {} });
     expect(r.json()).toMatchObject({ ok: false, error: expect.stringContaining("anahtar") });
     expect((await ctx.app.inject({ url: "/api/admin/ai", headers: { cookie: admin } })).json().errors).toEqual([]);
+  });
+
+  it("yapay zekâ yokken de kategori mantığı: arsa, yat, kat, araç, ev eşyası birbirine karışmaz", () => {
+    const all = new Set(["arsa", "satilik", "kiralik", "gunluk", "isyeri", "deniz", "otomobil", "suv", "ticari", "motosiklet", "mobilya", "nakliyat", "ayakkabi", "telefon", "beyaz"]);
+    const c = (t: string, car = false) => detectCategory(t.toLocaleLowerCase("tr"), all, car);
+    expect(c("Bodrum'da 12 metrelik yat arıyorum")).toBe("deniz");
+    expect(c("Göcek'te yatı olan biri varsa satın alırım")).toBe("deniz");
+    expect(c("yatak ve baza lazım")).toBe("mobilya");
+    expect(c("Kadıköy'de 3. katta 2+1 daire")).toBe("satilik");
+    expect(c("ara kat bir daire kiralamak istiyorum, kira 30 bin")).toBe("kiralik");
+    expect(c("Bodrum'da haftalık kiralık yazlık")).toBe("gunluk");
+    expect(c("kat karşılığı müteahhide verilecek arsa arıyorum")).toBe("arsa");
+    expect(c("Milas'ta köy içi arazi")).toBe("arsa");
+    expect(c("toyota hilux arazi aracı", true)).toBe("suv");
+    expect(c("evden eve nakliyat lazım")).toBe("nakliyat");
+    expect(c("42 numara bot ayakkabı")).toBe("ayakkabi");
+    expect(c("merkezde kiralık dükkan")).toBe("isyeri");
+    expect(c("ikinci el buzdolabı")).toBe("beyaz");
+    expect(c("bir şey arıyorum")).toBeNull();
   });
 
   it("kurallı doldurucu ve mahalle bulucu", () => {
