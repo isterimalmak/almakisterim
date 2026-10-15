@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ATTRS, SUB_ATTRS } from "../src/data/attrs.js";
-import { HeuristicAi, type AiService, type Draft } from "../src/services/ai.js";
-import { fillAttrs } from "../src/services/draft-fill.js";
+import { ClaudeAi, HeuristicAi, type AiService, type Draft } from "../src/services/ai.js";
+import { buildTitle, fillAttrs, locative } from "../src/services/draft-fill.js";
+import { login } from "./helpers.js";
 import { findNeighbourhoodInText } from "../src/data/locations.js";
 import { makeApp, type TestCtx } from "./helpers.js";
 
@@ -28,6 +29,8 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     expect(d).toMatchObject({ category_id: "kiralik", city: "İstanbul", district: "Kadıköy", neighbourhood: "Caddebostan", budget_max: 40000 });
     expect(d.attrs).toEqual({ oda: "3+1", m2: 120, esya: "Eşyalı", isitma: "Kombi" });
     expect(d.description).toContain("Caddebostan");
+    // Yapay zekâ yokken de başlık cümle kopyalanmadan kurulur.
+    expect(d.title).toBe("Caddebostan'da Eşyalı 3+1 Kiralık Daire");
   });
 
   it("arsa: imar, tapu ve m²; il yazılmasa da ilçeden bulunur", async () => {
@@ -35,6 +38,7 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     // Tek değer yazıldı: en az bütçe uydurulmaz.
     expect(d).toMatchObject({ category_id: "arsa", city: "İzmir", district: "Urla", budget_min: null, budget_max: 5000000 });
     expect(d.attrs).toEqual({ m2: 500, imar: "Konut", tapu: "Müstakil tapu" });
+    expect(d.title).toBe("Urla'da 500 m² Konut İmarlı Arsa");
   });
 
   it("satılık ev: 5+1 → '4+1 ve üzeri', bina yaşı; yazılmayan alan doldurulmaz", async () => {
@@ -64,7 +68,47 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     expect(await draft(ctx, "Kadıköy'de kiralık daire 30-40 bin TL")).toMatchObject({ budget_min: 30000, budget_max: 40000 });
   });
 
+  it("yapay zekânın yazdığı başlık ve açıklama korunur; hata olursa kaydedilir ve yedek çalışır", async () => {
+    const reply = { title: "Caddebostan'da Eşyalı 3+1 Kiralık Daire", description: "Caddebostan'da eşyalı, kombili 3+1 bir daire arıyorum.",
+      category_id: "kiralik", budget_min: null, budget_max: 40000, city: "İstanbul", district: "Kadıköy", neighbourhood: "Caddebostan",
+      condition: "Farketmez" as const, is_urgent: false, ozellikler: [{ alan: "oda", deger: "3+1" }],
+      attrs: { araclar: [], yil_min: null, yil_max: null, km_max: null, yakit: [], vites: [], kasa: [], hasarsiz: null } };
+    const ai = new ClaudeAi("test-anahtari", "claude-opus-5-5");
+    const fake = (impl: () => Promise<unknown>) => { (ai as unknown as { client: unknown }).client = { beta: { messages: { create: impl } } }; };
+    fake(async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(reply) }] }));
+    const cats = [{ id: "kiralik", name: "Emlak › Konut (Kiralık)", parent: "emlak" }];
+    expect(await ai.draftRequest("caddebostanda kiralık ev bakıyom", cats)).toMatchObject({ generated: true, title: reply.title, description: reply.description, attrs: { oda: "3+1" } });
+    fake(async () => { throw Object.assign(new Error("invalid x-api-key"), { status: 401 }); });
+    const d = await ai.draftRequest("caddebostanda kiralık ev bakıyom", cats);
+    expect(d.generated).toBeUndefined();
+    expect(ai.errors()[0]).toMatchObject({ where: "talep doldurma", message: "HTTP 401: invalid x-api-key" });
+    fake(async () => ({ stop_reason: "max_tokens", content: [{ type: "text", text: "{\"tit" }] }));
+    await ai.draftRequest("kiralık ev", cats);
+    expect(ai.errors()[0]!.message).toContain("max_tokens");
+    // Yapay zekâ yazdıysa sunucu başlığı değiştirmez.
+    const liar: AiService = Object.assign(new HeuristicAi(), { draftRequest: async (): Promise<Draft> => ({ ...reply, attrs: { oda: "3+1" }, generated: true }) });
+    const c2 = await makeApp({ ai: liar });
+    try {
+      const r = await draft(c2, "caddebostanda kiralık ev bakıyom");
+      expect(r).toMatchObject({ title: reply.title, description: reply.description });
+      expect(r.generated).toBeUndefined();
+    } finally { await c2.app.close(); await c2.pool.end(); }
+  });
+
+  it("panelde bağlantı denemesi: anahtar yoksa açıkça söyler", async () => {
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    const r = await ctx.app.inject({ method: "POST", url: "/api/admin/ai/test", headers: { cookie: admin }, payload: {} });
+    expect(r.json()).toMatchObject({ ok: false, error: expect.stringContaining("anahtar") });
+    expect((await ctx.app.inject({ url: "/api/admin/ai", headers: { cookie: admin } })).json().errors).toEqual([]);
+  });
+
   it("kurallı doldurucu ve mahalle bulucu", () => {
+    expect(locative("Kadıköy")).toBe("Kadıköy'de");
+    expect(locative("Urla")).toBe("Urla'da");
+    expect(locative("Sinop")).toBe("Sinop'ta");
+    expect(locative("Çeşme")).toBe("Çeşme'de");
+    expect(buildTitle({ sub: "otomobil", subName: "Otomobil", attrs: { araclar: [{ marka: "Volkswagen", model: "Passat" }], yil_min: 2018, yakit: ["Dizel"] }, city: "İstanbul", district: "", neighbourhood: "" }))
+      .toBe("2018 ve Sonrası Dizel Volkswagen Passat");
     expect(fillAttrs("256 gb iphone 13 garantili", SUB_ATTRS.telefon!, {})).toEqual({ marka: "Apple", hafiza: "256 GB", garanti: "Var" });
     expect(fillAttrs("42 numara erkek ayakkabı", SUB_ATTRS.ayakkabi!, {})).toEqual({ cinsiyet: "Erkek", numara: 42 });
     expect(fillAttrs("12 metre 2015 model tekne", SUB_ATTRS.deniz!, {})).toEqual({ tip: "Tekne", boy: 12, yil: 2015 });

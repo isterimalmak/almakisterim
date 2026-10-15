@@ -109,3 +109,41 @@ export function fillAttrs(text: string, schema: Attr[], suggested: Record<string
 export function describeAttrs(schema: Attr[]) {
   return schema.map((a) => (a.t === "num" ? `${a.k} (${a.l}, sayı)` : `${a.k} (${a.l}) [${(a.o ?? []).join(", ")}]`)).join(" | ");
 }
+
+// Türkçe bulunma eki: "Kadıköy" → "Kadıköy'de", "Urla" → "Urla'da", "Bostancı" → "Bostancı'da", "Çeşme" → "Çeşme'de", "Sinop" → "Sinop'ta".
+export function locative(place: string) {
+  const low = place.toLocaleLowerCase("tr");
+  const v = [...low].reverse().find((c) => "aeıioöuü".includes(c)) ?? "a";
+  const back = "aıou".includes(v);
+  const hard = "fstkçşhp".includes(low.at(-1) ?? "");
+  return `${place}'${hard ? "t" : "d"}${back ? "a" : "e"}`;
+}
+
+const SUB_NOUN: Record<string, string> = {
+  kiralik: "Kiralık Daire", satilik: "Satılık Daire", gunluk: "Günlük Kiralık Ev", arsa: "Arsa", isyeri: "İşyeri",
+};
+
+// Yapay zekâ çalışmadığında başlık kişinin cümlesi kopyalanmadan, doldurulan alanlardan kurulur.
+export function buildTitle(o: { sub: string | null; subName: string | null; attrs: Record<string, unknown>; city: string | null; district: string; neighbourhood: string }): string | null {
+  if (!o.sub || !o.subName) return null;
+  const a = o.attrs;
+  const val = (k: string) => (a[k] !== undefined && a[k] !== "Farketmez" ? String(a[k]) : "");
+  const place = o.neighbourhood || o.district || o.city || "";
+  const parts: string[] = [];
+  if (Array.isArray(a.araclar) && a.araclar.length) {
+    const cars = (a.araclar as { marka: string; model: string | null }[]).slice(0, 2).map((c) => [c.marka, c.model].filter(Boolean).join(" ")).join(" veya ");
+    const yil = a.yil_min ? `${a.yil_min} ve Sonrası ` : "";
+    const extra = [...((a.yakit as string[] | undefined) ?? []), ...((a.vites as string[] | undefined) ?? [])].slice(0, 2).join(" ");
+    parts.push(`${yil}${extra ? `${extra} ` : ""}${cars}`);
+  } else if (SUB_NOUN[o.sub]) {
+    if (place) parts.push(locative(place));
+    if (o.sub === "arsa") parts.push(a.m2 ? `${a.m2} m²` : "", val("imar") ? `${val("imar")} İmarlı` : "");
+    else parts.push(val("esya"), val("oda"), o.sub === "isyeri" ? val("tip") : "");
+    parts.push(SUB_NOUN[o.sub]!);
+  } else {
+    const sels = Object.keys(a).filter((k) => typeof a[k] === "string" && a[k] !== "Farketmez" && k !== "garanti").slice(0, 2).map((k) => String(a[k]));
+    parts.push(...sels, o.subName.replace(/\s*\(.*\)$/, ""));
+  }
+  const t = parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  return t.length >= 5 ? t.slice(0, 100) : null;
+}

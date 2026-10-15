@@ -43,7 +43,9 @@ test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevap
   await buyer.goto("/");
   await buyer.getByLabel("Ne almak istiyorsunuz?").fill(`${title}, bütçem 15 bin TL, Ankara`);
   await buyer.getByRole("button", { name: "Talep Oluştur" }).click();
-  await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue(title);
+  // Başlığı yapay zekâ (ya da yedek doldurucu) kendisi kurar; cümle kopyalanmaz. Test kendi benzersiz başlığını yazar.
+  await expect(buyer.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await buyer.getByLabel("Talep başlığı *").fill(title);
   await expect(buyer.getByLabel("En fazla bütçe (TL) *")).toHaveValue("15000");
   await expect(buyer.getByLabel("İl *")).toHaveValue("Ankara");
   // Fotoğraf zorunlu: fotoğrafsız devam edilemez.
@@ -259,7 +261,9 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
   const title = `Vitrin bisiklet ${rnd()}`;
   await loginSms(page, `0536${rnd().slice(0, 7)}`, "Deniz Kaya");
   await page.goto(`/talep-ver?metin=${encodeURIComponent(`${title}, bütçem 9 bin TL, Ankara`)}`);
-  await expect(page.getByLabel("Talep başlığı *")).toHaveValue(title);
+  // Başlığı yapay zekâ (ya da yedek doldurucu) kendisi kurar; cümle kopyalanmaz. Test kendi benzersiz başlığını yazar.
+  await expect(page.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await page.getByLabel("Talep başlığı *").fill(title);
   await page.getByLabel("Fotoğraf / video ekle").setInputFiles({ name: "v.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
   await page.getByRole("button", { name: "Devam" }).click();
@@ -294,7 +298,9 @@ test("alıcı fotoğraf ekler; satıcı talepte fotoğrafı görür, iletişimi 
   await buyer.goto("/");
   await buyer.getByLabel("Ne almak istiyorsunuz?").fill(`${title}, bütçem 8 bin TL, İzmir`);
   await buyer.getByRole("button", { name: "Talep Oluştur" }).click();
-  await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue(title);
+  // Başlığı yapay zekâ (ya da yedek doldurucu) kendisi kurar; cümle kopyalanmaz. Test kendi benzersiz başlığını yazar.
+  await expect(buyer.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await buyer.getByLabel("Talep başlığı *").fill(title);
   await buyer.getByLabel("Fotoğraf / video ekle").setInputFiles({ name: "ornek.png", mimeType: "image/png", buffer: PNG });
   await expect(buyer.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
   await expect(buyer.getByText("Kapak", { exact: true })).toBeVisible();
@@ -340,6 +346,9 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await expect(buyer.locator(".chip.on", { hasText: "Audi A4" })).toBeVisible();
   await expect(buyer.getByLabel("Model yılı (en eski)")).toHaveValue("2018");
   await expect(buyer.getByRole("button", { name: "Otomatik", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // Başlık cümle kopyalanmadan araçlardan kurulur; test sonunda bulmak için etiketi ekler.
+  await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue("2018 ve Sonrası Dizel Otomatik BMW 3 Serisi veya Audi A4");
+  await buyer.getByLabel("Talep başlığı *").fill(`BMW 3 Serisi veya Audi A4 ${tag}`);
   // Üçüncü araç elle eklenir.
   await buyer.getByLabel("Marka", { exact: true }).selectOption("Mercedes-Benz");
   await buyer.getByLabel("Model", { exact: true }).selectOption("C Serisi");
@@ -374,7 +383,9 @@ test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir;
   const title = `Telefonsuz talep ${rnd()}`;
   await loginEmail(buyer, `alici${rnd()}@example.com`);
   await buyer.goto(`/talep-ver?metin=${encodeURIComponent(`${title}, bütçem 5 bin TL, Bursa`)}`);
-  await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue(title);
+  // Başlığı yapay zekâ (ya da yedek doldurucu) kendisi kurar; cümle kopyalanmaz. Test kendi benzersiz başlığını yazar.
+  await expect(buyer.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await buyer.getByLabel("Talep başlığı *").fill(title);
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("Telefon numaranızı doğrulayın.")).toHaveCount(0);
@@ -422,6 +433,8 @@ test("alıcı il/ilçe/mahalle seçer; satıcı İstanbul → Kadıköy diye ara
   await buyer.goto(`/talep-ver?metin=${encodeURIComponent(`Kadıköy'de satılık ev almak istiyorum ${tag}, bütçem 8 milyon TL`)}`);
   await expect(buyer.getByLabel("İl *")).toHaveValue("İstanbul");
   await expect(buyer.getByLabel("İlçe")).toHaveValue("Kadıköy");
+  await expect(buyer.getByLabel("Talep başlığı *")).toHaveValue("Kadıköy'de Satılık Daire");
+  await buyer.getByLabel("Talep başlığı *").fill(`Kadıköy'de satılık ev ${tag}`);
   await buyer.getByLabel("Mahalle").selectOption("Caferağa");
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
@@ -453,7 +466,9 @@ test("acil talepler solda kategorilerin üstünde bağlantı olarak durur; ortad
   const title = `Acil laptop ${rnd()}`;
   await loginSms(page, `0538${rnd().slice(0, 7)}`, "Okan Er");
   await page.goto(`/talep-ver?metin=${encodeURIComponent(`${title} acil lazım, bütçem 30 bin TL, İzmir`)}`);
-  await expect(page.getByLabel("Talep başlığı *")).toHaveValue(new RegExp(title));
+  // Başlığı yapay zekâ (ya da yedek doldurucu) kendisi kurar; cümle kopyalanmaz. Test kendi benzersiz başlığını yazar.
+  await expect(page.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await page.getByLabel("Talep başlığı *").fill(title);
   await addPhoto(page);
   await page.getByRole("button", { name: "Devam" }).click();
   await page.getByLabel(/kurallarını/).check();

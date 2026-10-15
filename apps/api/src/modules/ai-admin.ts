@@ -89,7 +89,24 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
       counts: Object.fromEntries(counts.map((c) => [c.kind, c.n])),
       unchecked_requests: pending,
       topics: BLOG_TOPICS,
+      errors: deps.ai.errors?.() ?? [],
     };
+  });
+
+  // Bağlantıyı dene: örnek bir talep cümlesi yapay zekâya doldurtulur; çalışıyorsa yazdığı başlık ve açıklama, çalışmıyorsa hatası döner.
+  app.post("/admin/ai/test", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req) => {
+    requireAdmin(req);
+    if (!config.ANTHROPIC_API_KEY.trim()) return { ok: false, error: "Yapay zekâ anahtarı tanımlı değil (Entegrasyonlar)." };
+    const cats = (await pool.query<{ id: string; name: string; parent_id: string }>("SELECT id, name, parent_id FROM categories WHERE parent_id IS NOT NULL")).rows;
+    const started = Date.now();
+    const d = await deps.ai.draftRequest("kadıköyde 3+1 kiralık ev bakıyorum eşyalı olsun aylık 40 bine kadar verebilirim kombili olsa iyi olur",
+      cats.map((c) => ({ id: c.id, name: c.name, parent: c.parent_id })));
+    const ms = Date.now() - started;
+    if (d.generated) return { ok: true, ms, title: d.title, description: d.description ?? "" };
+    const last = deps.ai.errors?.()[0];
+    const s = await aiSettings(pool);
+    const used = (await pool.query<{ calls: number }>("SELECT calls FROM ai_usage WHERE day = (now() AT TIME ZONE 'Europe/Istanbul')::date")).rows[0]?.calls ?? 0;
+    return { ok: false, ms, error: s.dailyLimit <= 0 || used >= s.dailyLimit ? "Günlük kullanım sınırı dolu ya da 0; yapay zekâ çağrılmadı." : last?.message ?? "Yapay zekâ yanıt vermedi." };
   });
 
   app.put("/admin/ai/settings", async (req) => {
