@@ -41,6 +41,13 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     expect(d.title).toBe("Urla'da 500 m² Konut İmarlı Arsa");
   });
 
+  it("arazi: 'arazi' arsa sayılır; iki ilçe yazılınca eki alan seçilir; 'en fazla 500 m²' en az alanına yazılmaz", async () => {
+    const d = await draft(ctx, "Bodrum Milas'ta köyiçi alanı içerisinde kalan en fazla 500 metre² olan en fazla 500.000 TL ödeyeceğim bir arazi arıyorum");
+    expect(d).toMatchObject({ category_id: "arsa", city: "Muğla", district: "Milas", budget_max: 500000, budget_min: null, title: "Milas'ta Arsa" });
+    expect(d.attrs).toEqual({});
+    expect(d.description).toContain("en fazla 500 metre²");
+  });
+
   it("satılık ev: 5+1 → '4+1 ve üzeri', bina yaşı; yazılmayan alan doldurulmaz", async () => {
     const d = await draft(ctx, "Ankara Çankaya'da en fazla 10 yaşında 5+1 satılık daire, 9 milyon TL");
     expect(d).toMatchObject({ category_id: "satilik", city: "Ankara", district: "Çankaya" });

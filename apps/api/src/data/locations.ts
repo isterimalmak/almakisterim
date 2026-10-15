@@ -30,12 +30,17 @@ export function findDistrictInText(text: string, city: string | null): { city: s
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // "Kadıköy", "Kadıköy'de", "Kadıköyde", "Kadıköydeki" eşleşir; "Kadıköylü" gibi başka sözcükler eşleşmez.
   const has = (d: string) => new RegExp(`\\s${esc(fold(d))}(?:de|da|te|ta|den|dan|ten|tan|deki|daki)?\\s`).test(t);
+  // Birden fazla ilçe geçerse ("Bodrum Milas'ta") eki alan ilçe, o da yoksa en son yazılan seçilir.
+  const suffixed = (d: string) => new RegExp(`\\s${esc(fold(d))}(?:de|da|te|ta|den|dan|ten|tan|deki|daki|\\s(?:de|da|te|ta|den|dan|ten|tan|deki|daki))\\s`).test(t);
+  const pickBest = <T extends { district: string }>(hits: T[]) => hits.find((h) => suffixed(h.district))
+    ?? hits.sort((a, b) => t.lastIndexOf(` ${fold(b.district)}`) - t.lastIndexOf(` ${fold(a.district)}`))[0] ?? null;
   if (city) {
-    const d = Object.keys(LOCATIONS[city] ?? {}).sort((a, b) => b.length - a.length).find(has);
-    return d ? { city, district: d } : null;
+    const ds = Object.keys(LOCATIONS[city] ?? {}).filter(has).map((d) => ({ city, district: d }));
+    return pickBest(ds);
   }
-  for (const [k, v] of uniqueDistricts) if (v && v.district !== "Merkez" && has(k)) return v;
-  return null;
+  const hits: { city: string; district: string }[] = [];
+  for (const [k, v] of uniqueDistricts) if (v && v.district !== "Merkez" && has(k)) hits.push(v);
+  return pickBest(hits);
 }
 
 // İlçe adından il: yalnızca tek ilde geçen ilçeler ("Kadıköy" → İstanbul; "Merkez" gibi ortak adlar çözülmez).

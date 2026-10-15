@@ -93,7 +93,7 @@ export const CITIES = ["Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksara
 const KW: Record<string, string[]> = {
   telefon: ["iphone", "samsung galaxy", "telefon", "xiaomi", "redmi"], bilgisayar: ["laptop", "macbook", "bilgisayar", "notebook"], tablet: ["ipad", "tablet"], tv: ["televizyon", "oled"], oyun: ["playstation", "ps5", "ps4", "xbox", "nintendo"],
   otomobil: ["araba", "otomobil", "egea", "passat", "corolla", "clio", "golf"], suv: ["suv", "4x4", "pickup"], motosiklet: ["motosiklet", "scooter"], kiralik: ["kiralık"], satilik: ["satılık", "daire", "villa", "müstakil ev"], gunluk: ["günlük kiralık", "yazlık", "apart", "tatil evi"],
-  isyeri: ["dükkan", "ofis", "depo", "işyeri", "mağaza"], arsa: ["arsa", "tarla", "imarlı"], deniz: ["tekne", "yat", "yelkenli", "jet ski"],
+  isyeri: ["dükkan", "ofis", "depo", "işyeri", "mağaza"], arsa: ["arsa", "tarla", "imarlı", "arazi", "parsel", "köy içi", "köyiçi", "zeytinlik", "bağ yeri"], deniz: ["tekne", "yat", "yelkenli", "jet ski"],
   mobilya: ["koltuk", "masa", "dolap", "yatak"], beyaz: ["buzdolabı", "çamaşır makinesi", "bulaşık makinesi"], lastik: ["lastik", "jant"], tadilat: ["tadilat", "usta", "boya"], nakliyat: ["nakliyat", "taşıma"], temizlik: ["temizlik"],
   lise: ["yks", "lgs", "özel ders"], dil: ["ingilizce", "almanca"], tarim: ["traktör"], jenerator: ["jeneratör"], ayakkabi: ["ayakkabı", "sneaker"], bisiklet: ["bisiklet"], araba: ["bebek arabası"], gida: ["kıyma", "gıda"], tekstil: ["tişört", "tekstil"],
 };
@@ -280,6 +280,8 @@ Ama yalnızca kişinin yazdığını ya da metinden kesin çıkan bilgiyi kullan
 - ozellikler: seçilen alt kategorinin listede verilen alanları. Her biri {alan: anahtar, deger: değer}.
   Seçenekli alanda değer verilen seçeneklerden biri olmalı, birebir aynı yazımla (ör. 3+1 → "3+1", 5+1 → "4+1 ve üzeri", "konut imarlı" → "Konut").
   Sayı alanında yalnızca rakam (ör. "500 metrekare" → "500"). Metinde geçmeyen alanı yazma. "Farketmez" ancak kişi açıkça farketmez dediyse.
+  Alan adındaki "en az / en fazla" anlamına uy: "m² (en az)" alanına kişi "en fazla 500 m²" dediyse yazma (bu bilgi açıklamada kalır).
+  "arazi", "parsel", "köy içi arsa", "tarla" → arsa kategorisi.
 - attrs: yalnızca araç taleplerinde (otomobil, SUV, elektrikli, ticari, motosiklet); diğerlerinde araclar boş liste, diğerleri null/boş.
   Alıcı birden fazla araç isteyebilir ("BMW 3 serisi veya Audi A4"): her birini araclar listesine {marka, model} olarak yaz; model belirtilmemişse null.
   Marka resmi adıyla (ör. "Mercedes-Benz", "Volkswagen"), model Türkiye'deki yaygın adıyla (ör. "3 Serisi", "C Serisi", "A4", "Egea", "Corolla", "Passat").
