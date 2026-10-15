@@ -78,7 +78,7 @@ export default function Home() {
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Örn. ${HERO_EXAMPLES[ex]}`} aria-label="Ne almak istiyorsunuz?" />
                 <button type="submit">Talep Oluştur</button>
               </div>
-              <p className="hero-ai"><span aria-hidden="true">✨</span> Tek cümleyle yazın; yapay zekâ kategoriyi, bütçeyi ve konumu sizin için doldursun.</p>
+              <p className="hero-ai"><span aria-hidden="true">✨</span> Konuşur gibi yazın: ne aradığınızı, bütçenizi, nerede istediğinizi ve olmazsa olmazlarınızı anlatın; formu yapay zekâ sizin için eksiksiz doldursun.</p>
             </form>
             <span className="hero-or">veya</span>
             <Link className="btn btn-sell" href="/kategori">Satmak İstiyorum, Alıcıları Gör!</Link>
