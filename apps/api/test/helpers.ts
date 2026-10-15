@@ -1,3 +1,4 @@
+import type { Config } from "../src/config.js";
 import type { PhotoSource } from "../src/services/pexels.js";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
@@ -8,7 +9,7 @@ import { disabledGoogle, type GoogleAuth } from "../src/services/google.js";
 import { MemoryOutbox } from "../src/services/notify.js";
 import { MemoryStorage, type MediaStorage } from "../src/services/storage.js";
 
-export type TestCtx = { app: FastifyInstance; pool: Pool; outbox: MemoryOutbox; storage: MediaStorage };
+export type TestCtx = { app: FastifyInstance; pool: Pool; outbox: MemoryOutbox; storage: MediaStorage; config: Config };
 
 export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; storage?: MediaStorage; photos?: PhotoSource; env?: Record<string, string> } = {}): Promise<TestCtx> {
   const config = loadConfig({
@@ -23,11 +24,11 @@ export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; stora
   const outbox = new MemoryOutbox();
   const storage = over.storage ?? new MemoryStorage();
   const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle, storage, photos: over.photos });
-  return { app, pool, outbox, storage };
+  return { app, pool, outbox, storage, config };
 }
 
 export async function resetData(pool: Pool) {
-  await pool.query(`TRUNCATE blog_posts, ai_actions, ai_usage, stock_images, messages, ads, notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
+  await pool.query(`TRUNCATE integration_settings, blog_posts, ai_actions, ai_usage, stock_images, messages, ads, notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
   await pool.query(`ALTER TABLE requests ALTER COLUMN id RESTART WITH 1048200`);
   await pool.query(`UPDATE categories SET is_visible = true`);
   await pool.query(`UPDATE settings SET value = CASE key WHEN 'free_unlocks_per_month' THEN '5' WHEN 'unlock_price_credits' THEN '1' WHEN 'unlock_price_by_top' THEN '{}' WHEN 'unlock_limit_per_request' THEN '10' WHEN 'max_active_requests_per_user' THEN '5' WHEN 'launch_mode' THEN 'false' WHEN 'phone_required' THEN 'true' WHEN 'home_urgent_box' THEN 'false' WHEN 'photo_required' THEN 'false' WHEN 'ai_fix_text' THEN 'true' WHEN 'ai_auto_decide' THEN 'true' WHEN 'ai_uncertain' THEN '"hold"' WHEN 'ai_messages' THEN 'true' WHEN 'ai_names' THEN 'true' WHEN 'ai_blog_every_days' THEN '0' WHEN 'ai_blog_autopublish' THEN 'false' WHEN 'ai_daily_limit' THEN '300' WHEN 'auto_emails' THEN 'true' WHEN 'browse_min_requests' THEN '1' WHEN 'show_counts_min' THEN '20' WHEN 'unlock_price_tiers' THEN '[{"max_budget": 10000, "credits": 1}, {"max_budget": 100000, "credits": 3}, {"max_budget": null, "credits": 5}]' ELSE value END`);

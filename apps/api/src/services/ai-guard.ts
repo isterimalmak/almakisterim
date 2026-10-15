@@ -35,13 +35,15 @@ export class GuardedAi implements AiService {
        ON CONFLICT (day) DO UPDATE SET calls = ai_usage.calls + 1 WHERE ai_usage.calls < $1 RETURNING calls`, [limit]);
     return !!r.rowCount;
   }
-  private async pick() { return (await this.allow().catch(() => false)) ? this.inner : this.fallback; }
+  // Anahtar yoksa (kural tabanlı) sayılmaz, sınıra takılmaz.
+  private get free() { return this.inner instanceof HeuristicAi; }
+  private async pick() { return this.free || (await this.allow().catch(() => false)) ? this.inner : this.fallback; }
   async draftRequest(text: string, c: CategoryRef[]) { return (await this.pick()).draftRequest(text, c); }
   async moderate(text: string) { return (await this.pick()).moderate(text); }
   // Günlük sınır dolduysa fotoğraf denetimsiz yayına girmez: bekletilir, sınır açılınca saatlik iş yeniden denetler.
   async moderateImages(urls: string[]) {
     if (!urls.length) return { verdict: "ok" as const, reason: "" };
-    return (await this.allow().catch(() => false)) ? this.inner.moderateImages(urls) : { verdict: "review" as const, reason: "Görseller otomatik denetlenemedi." };
+    return this.free || (await this.allow().catch(() => false)) ? this.inner.moderateImages(urls) : { verdict: "review" as const, reason: "Görseller otomatik denetlenemedi." };
   }
   async reviewListing(i: { title: string; description: string; category: string }) { return (await this.pick()).reviewListing(i); }
   async checkMessage(text: string) { return (await this.pick()).checkMessage(text); }

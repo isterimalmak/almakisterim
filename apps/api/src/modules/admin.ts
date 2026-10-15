@@ -200,20 +200,6 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   // Entegrasyonlar: hangi dış hizmet bağlı (anahtarların kendisi asla gösterilmez).
-  app.get("/admin/integrations", async (req) => {
-    requireAdmin(req);
-    const has = (...v: string[]) => v.every((x) => !!x.trim());
-    return { items: [
-      { key: "storage", name: "Fotoğraf ve video deposu (Cloudflare R2)", connected: deps.storage.enabled, note: "Fotoğraf/video yükleme" },
-      { key: "ai", name: "Yapay zekâ (Anthropic Claude)", connected: has(config.ANTHROPIC_API_KEY), note: "Talebi otomatik doldurma ve içerik denetimi" },
-      { key: "photos", name: "Ücretsiz fotoğraflar (Pixabay / Pexels)", connected: has(config.PIXABAY_API_KEY) || has(config.PEXELS_API_KEY), note: "Talebe uyan hazır görseller" },
-      { key: "mail", name: "E-posta (Resend)", connected: has(config.RESEND_API_KEY), note: "E-postayla giriş kodu ve bildirimler" },
-      { key: "sms", name: "SMS (Netgsm)", connected: has(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER), note: "SMS ile giriş kodu ve talep alarmları" },
-      { key: "google", name: "Google ile giriş", connected: has(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET), note: "Tek tıkla giriş" },
-      { key: "pay", name: "Ödeme (iyzico / PayTR)", connected: false, note: "Kredi satın alma (henüz bağlanmadı; kredi elle tanımlanıyor)" },
-    ] };
-  });
-
   // Üye listesi Excel'de açılacak CSV olarak (Türkçe karakterler için UTF-8 BOM, ayraç ;).
   app.get("/admin/users.csv", async (req, reply) => {
     requireAdmin(req);
