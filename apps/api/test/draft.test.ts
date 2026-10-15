@@ -2,13 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ATTRS, SUB_ATTRS } from "../src/data/attrs.js";
 import { ClaudeAi, HeuristicAi, type AiService, type Draft } from "../src/services/ai.js";
 import { buildTitle, fillAttrs, locative } from "../src/services/draft-fill.js";
-import { login } from "./helpers.js";
 import { findNeighbourhoodInText } from "../src/data/locations.js";
 import { detectCategory } from "../src/services/category-detect.js";
-import { makeApp, type TestCtx } from "./helpers.js";
+import { login, makeApp, resetData, type TestCtx } from "./helpers.js";
 
 let ctx: TestCtx;
-beforeAll(async () => { ctx = await makeApp(); });
+// Önceki test dosyalarından kalan giriş kodları (dakikada bir kod sınırı) bu dosyadaki yönetici girişini engellemesin.
+beforeAll(async () => { ctx = await makeApp(); await resetData(ctx.pool); });
 afterAll(async () => { await ctx.app.close(); await ctx.pool.end(); });
 const draft = async (c: TestCtx, text: string) => {
   const r = await c.app.inject({ method: "POST", url: "/api/ai/draft", payload: { text } });
