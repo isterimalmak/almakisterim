@@ -474,6 +474,8 @@ export class ClaudeAi implements AiService {
   }
 }
 
+// Anahtar kasaya boşluk ya da satır sonuyla girilmiş olabilir; boşsa yapay zekâ kapalı sayılır.
 export function createAi(apiKey: string, model: string): AiService {
-  return apiKey ? new ClaudeAi(apiKey, model) : new HeuristicAi();
+  const key = apiKey.replace(/\s+/g, "");
+  return key ? new ClaudeAi(key, model.trim() || "claude-opus-5-5") : new HeuristicAi();
 }

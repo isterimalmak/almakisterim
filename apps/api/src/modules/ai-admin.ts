@@ -110,7 +110,7 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
       "SELECT kind, count(*)::int AS n FROM ai_actions WHERE created_at > now() - interval '30 days' GROUP BY kind")).rows;
     const pending = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM requests WHERE ai_checked_at IS NULL AND status IN ('active', 'pending_review')")).rows[0]!.n;
     return {
-      connected: !!config.ANTHROPIC_API_KEY.trim(),
+      connected: !!config.ANTHROPIC_API_KEY.replace(/\s+/g, ""),
       settings: { ai_fix_text: s.fixText, ai_auto_decide: s.autoDecide, ai_uncertain: s.uncertain, ai_messages: s.messages, ai_names: s.names,
         ai_blog_every_days: s.blogEveryDays, ai_blog_autopublish: s.blogAutopublish, ai_daily_limit: s.dailyLimit, auto_emails: s.autoEmails },
       usage: { today, limit: s.dailyLimit },
@@ -124,7 +124,7 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
   // Bağlantıyı dene: örnek bir talep cümlesi yapay zekâya doldurtulur; çalışıyorsa yazdığı başlık ve açıklama, çalışmıyorsa hatası döner.
   app.post("/admin/ai/test", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req) => {
     requireAdmin(req);
-    if (!config.ANTHROPIC_API_KEY.trim()) return { ok: false, error: "Yapay zekâ anahtarı tanımlı değil (Entegrasyonlar)." };
+    if (!config.ANTHROPIC_API_KEY.replace(/\s+/g, "")) return { ok: false, error: "Yapay zekâ anahtarı siteye ulaşmamış: kasadaki ANTHROPIC_API_KEY boş. Anahtarı yeniden girip (infra/anahtar-ekle.sh ANTHROPIC_API_KEY) Canlıya al'ı çalıştırın." };
     const cats = (await pool.query<{ id: string; name: string; parent_id: string }>("SELECT id, name, parent_id FROM categories WHERE parent_id IS NOT NULL")).rows;
     const started = Date.now();
     const d = await deps.ai.draftRequest("kadıköyde 3+1 kiralık ev bakıyorum eşyalı olsun aylık 40 bine kadar verebilirim kombili olsa iyi olur",
