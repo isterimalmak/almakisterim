@@ -139,7 +139,7 @@ function Create() {
         <>
           <div className="ai-quick">
             <h3>Ne almak istiyorsunuz?</h3>
-            <p>Bir cümleyle yazın; kategori, bütçe, il ve özellikleri yapay zekâ sizin için doldursun. İsterseniz kategoriyi aşağıdan kendiniz de seçebilirsiniz.</p>
+            <p>Arkadaşınıza anlatır gibi yazın: ne aradığınızı, bütçenizi, il ve semtini, olmazsa olmazlarınızı. Ne kadar ayrıntı verirseniz yapay zekâ formu o kadar eksiksiz doldurur. İsterseniz kategoriyi aşağıdan kendiniz de seçebilirsiniz.</p>
             <textarea className="txa" rows={2} value={d.raw} onChange={(e) => set({ raw: e.target.value })} maxLength={1500} placeholder="Örn. 2015 sonrası dizel Passat arıyorum, bütçem 1.200.000 TL, İstanbul" aria-label="Ne almak istiyorsunuz?" />
             <div className="row"><button className="btn btn-bl" disabled={aiBusy} onClick={() => runAi(d.raw)}>{aiBusy ? "İnceleniyor…" : "Otomatik doldur"}</button>{aiBusy && <span className="spinner" />}<span className="muted" style={{ fontSize: 12.5 }}>{aiMsg}</span></div>
           </div>
