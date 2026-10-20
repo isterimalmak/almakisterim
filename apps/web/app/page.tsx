@@ -9,7 +9,7 @@ import { Welcome } from "@/components/Welcome";
 import { CatIcon, RequestTable, VitrinCard, VitrinTile } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type Ad, type RequestItem } from "@/lib/api";
-import { BUILTIN_NAMES, SIDE_IDS, blockName, saveHomeBlocks, withHidden, type BuiltinId, type HomeBlock } from "@/lib/home";
+import { BUILTIN_NAMES, SIDE_IDS, blockName, blockText, saveHomeBlocks, withHidden, type BuiltinId, type HomeBlock } from "@/lib/home";
 import { CustomBlock } from "@/components/HomeBlocks";
 
 type List = { total: number; items: RequestItem[] };
@@ -27,6 +27,10 @@ export default function Home() {
   const admin = user?.role === "admin";
   // Bölümler yönetimdeki sırayla (Yönetim → Ana Sayfa Düzeni). Yönetici ana sayfadan da gizleyip gösterebilir.
   const list: HomeBlock[] = homeBlocks.length ? homeBlocks : (Object.keys(BUILTIN_NAMES) as BuiltinId[]).map((id) => ({ type: "builtin", id, hidden: false }));
+  const T = (id: BuiltinId, k: string) => blockText(list, id, k);
+  // Telefon/bilgisayar ayrımı; yan kutular bilgisayarda sağ sütunda olduğu için ortada yalnızca telefonda görünür.
+  const showCls = (b: HomeBlock) => b.type === "builtin" && SIDE_IDS.includes(b.id) ? (b.show === "desktop" ? "hb-none" : "m-only")
+    : b.show === "mobile" ? "m-only" : b.show === "desktop" ? "d-only" : "hb-all";
   const toggleSection = async (b: HomeBlock, show: boolean) => {
     try { await saveHomeBlocks(withHidden(list, b.id, !show)); await refresh(); toast(`${blockName(b)} ${show ? "ana sayfada gösteriliyor." : "ziyaretçilerden gizlendi."}`); }
     catch (e) { toast((e as Error).message); }
@@ -60,27 +64,27 @@ export default function Home() {
   const blocks: Record<BuiltinId, React.ReactNode> = {
     hero: (<>
       <section className="concept hero">
-        <span className="hero-badge">Ücretsiz · 1 dakikada</span>
-        <h1>Ne almak istiyorsunuz?</h1>
-        <p>İlanı siz verin, elinde ürünü olan satıcılar sizi arasın ya da mesaj atsın.</p>
+        <span className="hero-badge">{T("hero", "badge")}</span>
+        <h1>{T("hero", "title")}</h1>
+        <p>{T("hero", "sub")}</p>
         <form className="hero-form" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
           <div className="hero-in">
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Örn. ${HERO_EXAMPLES[ex]}`} aria-label="Ne almak istiyorsunuz?" />
-            <button type="submit">Talep Oluştur</button>
+            <button type="submit">{T("hero", "button")}</button>
           </div>
         </form>
-        <p className="hero-ai"><span aria-hidden="true">✨</span> Konuşur gibi yazın: ne aradığınızı, bütçenizi, nerede istediğinizi ve olmazsa olmazlarınızı anlatın; formu yapay zekâ sizin için eksiksiz doldursun.</p>
+        <p className="hero-ai"><span aria-hidden="true">✨</span> {T("hero", "ai")}</p>
         <ul className="hero-steps" aria-label="Nasıl çalışır">
-          <li><b>1</b>Ne aradığınızı yazın</li>
-          <li><b>2</b>Satıcılar size ulaşsın</li>
-          <li><b>3</b>En uygununu seçin</li>
+          <li><b>1</b>{T("hero", "s1")}</li>
+          <li><b>2</b>{T("hero", "s2")}</li>
+          <li><b>3</b>{T("hero", "s3")}</li>
         </ul>
       </section>
     </>),
     urgent: (<>
       {homeUrgentBox && !!urgent?.items.length && (
         <section className="box" style={{ marginBottom: 14 }}>
-          <div className="box-h"><h2>Acil Alım Talepleri</h2><Link className="link" href="/kategori?acil=1">Tüm acil talepler{count(urgent.total) !== null && ` (${urgent.total})`} »</Link></div>
+          <div className="box-h"><h2>{T("urgent", "title")}</h2><Link className="link" href="/kategori?acil=1">{T("urgent", "link")}{count(urgent.total) !== null && ` (${urgent.total})`} »</Link></div>
           <div className="box-b"><div className="vitrin">{urgent.items.map((r) => <VitrinCard key={r.id} r={r} />)}</div></div>
         </section>
       )}
@@ -103,14 +107,14 @@ export default function Home() {
     vitrin: (<>
       {!!vitrin?.items.length && (
         <section className="box" style={{ marginBottom: 14 }}>
-          <div className="box-h"><h2>Ana Sayfa Vitrini</h2><span className="sec-act"><Link className="link" href="/kategori">Tüm talepleri göster »</Link>{hideBtn("vitrin")}</span></div>
+          <div className="box-h"><h2>{T("vitrin", "title")}</h2><span className="sec-act"><Link className="link" href="/kategori">{T("vitrin", "link")} »</Link>{hideBtn("vitrin")}</span></div>
           <div className="box-b"><div className="vt">{vitrin.items.map((r) => <VitrinTile key={r.id} r={r} />)}</div></div>
         </section>
       )}
     </>),
     latest: (<>
       <section className="box" style={{ marginBottom: 14 }}>
-        <div className="box-h"><h2>Son Eklenen Talepler</h2><span className="sec-act">{!!latest?.total && <Link className="link" href="/kategori">Tüm talepler{count(latest.total) !== null && ` (${latest.total})`} »</Link>}{hideBtn("latest")}</span></div>
+        <div className="box-h"><h2>{T("latest", "title")}</h2><span className="sec-act">{!!latest?.total && <Link className="link" href="/kategori">{T("latest", "link")}{count(latest.total) !== null && ` (${latest.total})`} »</Link>}{hideBtn("latest")}</span></div>
         {!latest ? <div className="loading">Yükleniyor…</div> : latest.items.length ? <RequestTable items={latest.items} /> : (
           <div className="soon"><div className="soon-grid">
             <div><b>İlk talepler geliyor</b><p>Almak istediğinizi yazın; ilk talep sahipleri satıcıların en çok ilgisini çeker.</p><Link className="btn btn-or" href="/talep-ver">Ücretsiz talep ver</Link></div>
@@ -122,7 +126,7 @@ export default function Home() {
     corp: (<>
       {!!corp?.items.length && (
         <section className="box" style={{ marginBottom: 14 }}>
-          <div className="box-h"><h2>Kurumsal Alım Talepleri</h2><Link className="link" href="/kategori?buyer=kurumsal">Tümü »</Link></div>
+          <div className="box-h"><h2>{T("corp", "title")}</h2><Link className="link" href="/kategori?buyer=kurumsal">{T("corp", "link")} »</Link></div>
           <RequestTable items={corp.items} />
         </section>
       )}
@@ -130,27 +134,28 @@ export default function Home() {
     launch: (<>
       {launchMode && (
         <div className="box launch"><div className="box-b">
-          <b>Lansman dönemi: numara görmek ücretsiz!</b>
-          <p>Satıcılar şimdilik alıcıların numarasını kredi harcamadan görebilir. Erken katılan satıcılar ilk müşterileri kapar.</p>
-          <Link className="btn btn-or btn-block" href="/bana-ozel?s=alarm">Talep gelince haber ver</Link>
+          <b>{T("launch", "title")}</b>
+          <p>{T("launch", "text")}</p>
+          <Link className="btn btn-or btn-block" href="/bana-ozel?s=alarm">{T("launch", "button")}</Link>
         </div></div>
       )}
     </>),
     how: (<>
-      <div className="box"><div className="box-h"><h3>Nasıl çalışır?</h3></div><div className="box-b"><ol className="steps">
-        <li><div><b>Talebinizi yazın</b><span className="muted">Ne aradığınızı ve bütçenizi bir cümleyle yazın.</span></div></li>
-        <li><div><b>Satıcılar size ulaşsın</b><span className="muted">Elinde uygun ürün olan satıcılar sizi arar veya mesaj atar.</span></div></li>
-        <li><div><b>Anlaşın</b><span className="muted">Satıcıyla konuşun, ürünü görün; aldığınızda talebinizi kapatın.</span></div></li>
+      <div className="box"><div className="box-h"><h3>{T("how", "title")}</h3></div><div className="box-b"><ol className="steps">
+        <li><div><b>{T("how", "s1t")}</b><span className="muted">{T("how", "s1d")}</span></div></li>
+        <li><div><b>{T("how", "s2t")}</b><span className="muted">{T("how", "s2d")}</span></div></li>
+        <li><div><b>{T("how", "s3t")}</b><span className="muted">{T("how", "s3d")}</span></div></li>
       </ol></div></div>
     </>),
     safe: (<>
-      <div className="box"><div className="box-h"><h3>Güvenli alışveriş</h3></div><div className="box-b" style={{ fontSize: 12.5 }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}><Icon name="lock" size={16} sw={2} /><span>Numaranız herkese açık değildir; yalnızca talebinizle ilgilenen sınırlı sayıda satıcı görür. İstediğiniz an gizleyebilirsiniz.</span></div>
-        <div style={{ display: "flex", gap: 8 }}><Icon name="check" size={16} sw={2} /><span>Kapora göndermeyin, ürünü görmeden ödeme yapmayın.</span></div>
+      <div className="box"><div className="box-h"><h3>{T("safe", "title")}</h3></div><div className="box-b" style={{ fontSize: 12.5 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}><Icon name="lock" size={16} sw={2} /><span>{T("safe", "p1")}</span></div>
+        <div style={{ display: "flex", gap: 8 }}><Icon name="check" size={16} sw={2} /><span>{T("safe", "p2")}</span></div>
       </div></div>
     </>),
   };
-  const sideBlocks = list.filter((b) => b.type === "builtin" && SIDE_IDS.includes(b.id) && !b.hidden).map((b) => <Fragment key={b.id}>{blocks[b.id as BuiltinId]}</Fragment>);
+  // Bilgisayarda sağ sütun: yan kutular ("Telefonda" seçilenler hariç).
+  const sideBlocks = list.filter((b) => b.type === "builtin" && SIDE_IDS.includes(b.id) && !b.hidden && b.show !== "mobile").map((b) => <Fragment key={b.id}>{blocks[b.id as BuiltinId]}</Fragment>);
   return (
     <div className="wrap home">
       <Welcome />
@@ -183,8 +188,7 @@ export default function Home() {
       <div>
       {/* Bölümler yönetimde seçilen sırayla; gizlenenler yalnızca yöneticiye çubuk olarak görünür. Yan kutular telefonda burada, bilgisayarda sağ sütunda. */}
       {list.map((b) => <Fragment key={b.id}>{b.hidden ? hiddenBar(b)
-        : b.type !== "builtin" ? <CustomBlock b={b} ads={blockAds} />
-        : SIDE_IDS.includes(b.id) ? <div className="m-only">{blocks[b.id]}</div> : blocks[b.id]}</Fragment>)}
+        : <div className={showCls(b)}>{b.type !== "builtin" ? <CustomBlock b={b} ads={blockAds} /> : blocks[b.id]}</div>}</Fragment>)}
       </div>
 
       <aside className="side">
