@@ -114,7 +114,11 @@ function Listing() {
   return (
     <div className="wrap">
       <div className="crumb"><Link href="/">Ana Sayfa</Link> › <Link href="/kategori">Talepler</Link>{t && <> › <Link href={`/kategori/${t.id}`}>{t.name}</Link></>}{s && <> › {s.name}</>}</div>
-      <div className="list-head"><h1>{title}</h1><button className="btn btn-wh btn-sm flt-toggle" onClick={() => setOpenFilters((o) => !o)}>Filtrele{chips.length > 0 && <span className="badge">{chips.length}</span>}</button></div>
+      <div className="list-head lst-hero">
+        <div><span className="rq-kind">Alım Talepleri</span><h1>{title}</h1>
+          <p>{data && data.total > 0 && count(data.total) !== null ? <><b>{data.total}</b> alıcı, elindeki ürünü satacak satıcıyı bekliyor.</> : "Alıcılar ne aradığını yazdı; elinizde varsa hemen ulaşın."}</p></div>
+        <button className="btn btn-wh btn-sm flt-toggle" onClick={() => setOpenFilters((o) => !o)}>Filtrele{chips.length > 0 && <span className="badge">{chips.length}</span>}</button>
+      </div>
       <div className="listing">
         <aside className={"flt" + (openFilters ? " open" : "")}>
           <div className="flt-sec flt-cats">

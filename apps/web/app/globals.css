@@ -1191,3 +1191,48 @@ button.link{padding:0;font-size:inherit}
   .rq-stick.on{transform:none}
   .rq-stick-t>span span:nth-child(3){display:none}
 }
+
+/* Talepler listesi: talep sayfasıyla aynı dil (lacivert başlık kartı, yuvarlak kartlar, turuncu bütçe) */
+.lst-hero{align-items:center!important;background:linear-gradient(120deg,#13235B 0%,#1B3480 70%,#24418F 100%);color:#fff;border-radius:14px;padding:18px 22px;margin:4px 0 14px!important;box-shadow:0 10px 30px rgba(19,35,91,.16);position:relative;overflow:hidden}
+.lst-hero::after{content:"";position:absolute;right:-50px;top:-70px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(242,107,29,.35),rgba(242,107,29,0) 70%);pointer-events:none}
+.lst-hero>div{position:relative;z-index:1;min-width:0}
+.lst-hero h1{color:#fff!important;font-size:24px!important;font-weight:800!important;margin-top:6px;letter-spacing:-.01em}
+.lst-hero p{margin-top:4px;font-size:13.5px;color:#D3DAF0}
+.lst-hero p b{color:#FFB48A}
+.lst-hero .flt-toggle{position:relative;z-index:1;border-radius:999px;padding:0 16px;height:36px;font-weight:700}
+.res-bar{border-radius:14px 14px 0 0!important;border-color:var(--line-2)!important}
+.tbl-wrap{border-radius:0 0 14px 14px!important;border-color:var(--line-2)!important;box-shadow:0 2px 10px rgba(16,24,40,.05)}
+.rq-tbl td{padding:12px 12px}
+.rq-tbl .ti{gap:14px}
+.rq-tbl .ti-ic{width:84px;height:64px;border-radius:10px}
+.rq-tbl .ti-ic svg{width:30px;height:30px}
+.rq-tbl .ti-t{color:var(--navy);font-size:14.5px;font-weight:700}
+.rq-tbl tr.row:hover .ti-t{color:var(--orange);text-decoration:none}
+.rq-tbl tr.row:hover td{background:#FFF8F3}
+.rq-tbl .budget{color:var(--orange-d);font-size:15px;font-weight:800}
+.rq-tbl .m-pill svg{display:none}
+.rq-tbl tr.urgent td:first-child{box-shadow:inset 4px 0 0 var(--red)}
+@media (max-width:860px){
+  .lst-hero{padding:16px;border-radius:12px;flex-wrap:nowrap!important}
+  .lst-hero h1{font-size:20px!important}
+  .lst-hero p{font-size:12.5px}
+  .res-bar{border-radius:12px!important;border:1px solid var(--line-2)!important;margin-bottom:10px}
+  .tbl-wrap{border:0!important;box-shadow:none;background:none;overflow:visible!important}
+  .rq-tbl{background:none}
+  .rq-tbl td{padding:0}
+  .rq-tbl tbody{display:grid!important;gap:10px}
+  .rq-tbl tr.row{background:#fff;border:1px solid var(--line-2)!important;border-radius:14px;padding:12px!important;box-shadow:0 2px 8px rgba(16,24,40,.06);overflow:hidden;position:relative}
+  .rq-tbl tr.row.urgent{box-shadow:inset 4px 0 0 var(--red),0 2px 8px rgba(16,24,40,.06)}
+  .rq-tbl tr.row:hover td{background:none}
+  .rq-tbl .ti{align-items:flex-start}
+  .rq-tbl .ti-ic{width:96px;height:96px;border-radius:12px}
+  .rq-tbl .ti-t{font-size:15px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rq-tbl .ti-ic{width:84px;height:84px}
+  .rq-tbl td.budget-cell{margin:10px 0 0!important;width:100%}
+  .rq-tbl .budget{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;white-space:normal;font-size:16px;align-items:center;background:var(--orange-soft);border:1px solid #FFD9C2;border-radius:10px;padding:8px 12px}
+  .rq-tbl .budget small{color:#8A4B21;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;order:-1;margin:0}
+  .rq-tbl td.m-pill{display:inline-flex!important;align-items:center;gap:4px;margin:10px 6px 0 0!important;padding:4px 9px!important;border-radius:999px;background:#F3F5F9;font-size:12px;color:#3A414B}
+  .rq-tbl td.m-pill::before{content:none!important}
+  .rq-tbl .m-pill svg{display:inline-block;color:var(--orange)}
+  .rq-tbl td.loc .loc-d{margin-left:3px}
+}

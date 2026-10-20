@@ -546,6 +546,19 @@ test("telefonda ana sayfa: üstte arama ve bildirim, kategoriler ve vitrin yana 
   await expect(page).toHaveURL(/kategori\?q=laptop/);
 });
 
+test("talepler listesi: lacivert başlık kartı; telefonda talepler yuvarlak kart, bütçe turuncu şeritte", async ({ page }, info) => {
+  await page.goto("/kategori");
+  const hero = page.locator(".lst-hero");
+  await expect(hero.getByText("Alım Talepleri", { exact: true })).toBeVisible();
+  await expect(hero.getByRole("heading", { level: 1 })).toBeVisible();
+  const row = page.locator(".rq-tbl tr.row").first();
+  await expect(row).toBeVisible();
+  if (info.project.name === "telefon") {
+    expect(parseFloat(await row.evaluate((e) => getComputedStyle(e).borderTopLeftRadius))).toBeGreaterThan(8);
+    expect(await row.locator(".budget").evaluate((e) => getComputedStyle(e).display)).toBe("flex");
+  }
+});
+
 test("sayfalar yana taşmıyor", async ({ page }) => {
   for (const p of ["/", "/kategori", "/kategori/vasita", "/talep-ver", "/giris", "/sayfa/kvkk", "/guvenli-al"]) {
     await page.goto(p);
