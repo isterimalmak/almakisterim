@@ -1,6 +1,7 @@
 import { aiAdminRoutes } from "./modules/ai-admin.js";
 import { integrationRoutes } from "./modules/integrations.js";
 import { safeRoutes } from "./modules/safe.js";
+import { homeBlockRoutes } from "./modules/home-blocks.js";
 import { createPayments } from "./services/payments.js";
 import { Integrations, isLive } from "./services/integrations.js";
 import { HeuristicAi } from "./services/ai.js";
@@ -102,6 +103,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     aiAdminRoutes(api, deps);
     integrationRoutes(api, deps);
     safeRoutes(api, deps);
+    homeBlockRoutes(api, deps);
     // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.
     if (deps.config.NODE_ENV === "test" && deps.sms instanceof MemoryOutbox) {
       const outbox = deps.sms;

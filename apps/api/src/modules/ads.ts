@@ -6,7 +6,7 @@ import { HttpError } from "../lib/util.js";
 import { toPublic } from "./media.js";
 
 // Reklam alanları: yönetici resim veya video yükler, ana sayfada sol sütunda alt alta, sıralı gösterilir.
-type AdRow = { id: number; title: string; link_url: string | null; position: number; is_active: boolean; is_welcome: boolean; placement: "sol" | "orta"; created_at: string;
+type AdRow = { id: number; title: string; link_url: string | null; position: number; is_active: boolean; is_welcome: boolean; placement: "sol" | "orta" | "blok"; created_at: string;
   media_id: string; kind: "image" | "video"; content_type: string; storage_key: string };
 
 // Boş bırakılırsa bağlantısız reklam.
@@ -21,7 +21,7 @@ const Link = z.preprocess((v) => {
 const Title = z.string().trim().max(120).optional();
 
 // sol: ana sayfada soldaki kategorilerin altı; orta: ana sayfanın ortası (vitrin ve son talepler bölümlerinin yeri).
-const Placement = z.enum(["sol", "orta"]);
+const Placement = z.enum(["sol", "orta", "blok"]);
 const SELECT = `SELECT a.id, a.title, a.link_url, a.position, a.is_active, a.is_welcome, a.placement, a.created_at, m.id AS media_id, m.kind, m.content_type, m.storage_key
   FROM ads a JOIN media m ON m.id = a.media_id`;
 
@@ -36,12 +36,14 @@ export function adRoutes(app: FastifyInstance, deps: Deps) {
     const pub = rows.map(out).map(({ is_active: _a, position: _p, created_at: _c, is_welcome: _w, ...x }) => x);
     // Karşılama reklamı ayrıca döner: siteye girişte ekranın ortasında açılır.
     const w = rows.find((a) => a.is_welcome);
-    return { items: pub.filter((x) => x.placement === "sol"), center: pub.filter((x) => x.placement === "orta"), welcome: w ? pub.find((x) => x.id === Number(w.id)) ?? null : null };
+    // blok: ana sayfadaki "Afiş" bölümlerinin görselleri (yönetim → Ana Sayfa Düzeni'nde yönetilir).
+    return { items: pub.filter((x) => x.placement === "sol"), center: pub.filter((x) => x.placement === "orta"), blok: pub.filter((x) => x.placement === "blok"), welcome: w ? pub.find((x) => x.id === Number(w.id)) ?? null : null };
   });
 
   app.get("/admin/tanitim", async (req) => {
     requireAdmin(req);
-    const { rows } = await pool.query<AdRow>(`${SELECT} ORDER BY a.position, a.id`);
+    // Afiş bölümlerinin görselleri burada listelenmez; Ana Sayfa Düzeni'nde yönetilir.
+    const { rows } = await pool.query<AdRow>(`${SELECT} WHERE a.placement <> 'blok' ORDER BY a.position, a.id`);
     return { items: rows.map(out) };
   });
 

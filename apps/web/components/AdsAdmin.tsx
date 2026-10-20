@@ -1,5 +1,6 @@
 "use client";
 
+import { saveHomeBlocks, withHidden } from "@/lib/home";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, uploadFile, type Ad } from "@/lib/api";
 import { useSession } from "./Session";
@@ -8,12 +9,12 @@ const TYPES = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quic
 
 // Yönetim paneli: ana sayfada sol sütundaki reklam kutuları. İstenildiği kadar eklenir, sırası değiştirilir.
 export function AdsAdmin() {
-  const { toast, homeVitrin, homeLatest, refresh } = useSession();
+  const { toast, homeVitrin, homeLatest, homeBlocks, refresh } = useSession();
   // Yüklenecek dosyanın yeri: sol sütun ya da ana sayfanın ortası.
   const [target, setTarget] = useState<"sol" | "orta">("orta");
   const section = async (key: "home_vitrin" | "home_latest", on: boolean) => {
     try {
-      await api("/admin/settings", { method: "PUT", body: { [key]: on } });
+      await saveHomeBlocks(withHidden(homeBlocks, key === "home_vitrin" ? "vitrin" : "latest", !on));
       await refresh();
       toast(`${key === "home_vitrin" ? "Ana Sayfa Vitrini" : "Son Eklenen Talepler"} ${on ? "ana sayfada gösteriliyor." : "ana sayfada gizlendi."}`);
     } catch (e) { toast((e as Error).message); }

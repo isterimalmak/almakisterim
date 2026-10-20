@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { homeBlocks } from "./home-blocks.js";
 import type { Deps } from "../context.js";
 import type { Pool } from "../db.js";
 import { z } from "zod";
@@ -62,7 +63,9 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
       // Ana sayfadaki vitrin ve son talepler: yönetici gizleyebilir (varsayılan açık).
       home_vitrin: s.home_vitrin !== false,
       home_latest: s.home_latest !== false,
-      // Ana sayfa bölümlerinin sırası ve gizlenenler (yönetim → Ana Sayfa Düzeni).
+      // Ana sayfa bölümleri: sırası, gizlenenler, yöneticinin eklediği yazı/afiş/kayan yazı (yönetim → Ana Sayfa Düzeni).
+      home_blocks: await homeBlocks(pool),
+      // Eski biçim (önceki sürümle uyum için).
       home_order: Array.isArray(s.home_order) ? s.home_order : [],
       home_hidden: Array.isArray(s.home_hidden) ? s.home_hidden : [],
       // Dosya deposu bağlı değilken fotoğraf istenemez.
