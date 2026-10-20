@@ -76,6 +76,13 @@ export default function RequestPage() {
             </tbody></table>
           </div></div>
 
+          {!!r.group?.length && (
+            <section className="box det-sec">
+              <div className="box-h"><h2>Bu alıcının aynı aramadaki diğer araçları</h2></div>
+              <div className="box-b"><div className="chips">{r.group.map((g) => <Link key={g.id} className="chip" href={`/talep/${g.id}`}>{g.title}</Link>)}</div>
+                <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Alıcı birden fazla araç seçti; her araç ayrı talep olarak yayınlandı.</p></div>
+            </section>
+          )}
           <section className="box det-sec">
             <div className="box-h"><h2>Talep Açıklaması</h2><div style={{ display: "flex", gap: 4 }}><Labels r={r} /></div></div>
             <div className="box-b desc">{r.description || <span className="muted">Açıklama eklenmemiş.</span>}</div>

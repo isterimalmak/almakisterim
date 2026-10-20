@@ -15,8 +15,10 @@ import { attrsFor, CITIES, condsFor } from "@/lib/catalog";
 import { budgetTxt } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
-type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; hood: string; condition: string; attrs: Record<string, unknown>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[] };
-const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", hood: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [] };
+type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; hood: string; condition: string; attrs: Record<string, unknown>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[];
+  // Birden fazla araç seçildiyse her aracın kendi fotoğrafları ("Marka|Model" → medya); her araç ayrı talep olur.
+  carMedia: Record<string, Media[]> };
+const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", hood: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [], carMedia: {} };
 const KEY = "ak_taslak";
 
 function Create() {
@@ -97,13 +99,21 @@ function Create() {
   const sub = top?.subs.find((s) => s.id === d.sub);
   const vehicle = isVehicleSub(d.sub);
   const sch = vehicle ? [] : attrsFor(d.top, d.sub);
+  // Birden fazla araç: her biri ayrı talep olarak, kendi fotoğraflarıyla yayınlanır.
+  const cars = vehicle && Array.isArray(d.attrs.araclar) ? d.attrs.araclar as { marka: string; model: string | null }[] : [];
+  const multi = cars.length > 1;
+  const carKey = (c: { marka: string; model: string | null }) => `${c.marka}|${c.model ?? ""}`;
+  const carLabel = (c: { marka: string; model: string | null }) => c.model ? `${c.marka} ${c.model}` : `${c.marka} (tüm modeller)`;
 
   const validate = () => {
     if (d.title.trim().length < 3) return "Talep başlığı yazın.";
     if (!(Number(d.b1) > 0)) return "En fazla bütçeyi yazın.";
     if (d.b0 && Number(d.b0) > Number(d.b1)) return "En az bütçe, en fazla bütçeden büyük olamaz.";
     if (!d.city) return "İl seçin.";
-    if (photoRequired && !d.media.some((m) => m.kind === "image")) return "En az bir fotoğraf ekleyin: kendi fotoğrafınızı yükleyin ya da hazır görsellerden seçin.";
+    if (photoRequired && multi) {
+      const miss = cars.find((c) => !(d.carMedia[carKey(c)] ?? []).some((m) => m.kind === "image"));
+      if (miss) return `En az bir fotoğraf ekleyin: ${carLabel(miss)} için kendi fotoğrafınızı yükleyin ya da hazır görsellerden seçin.`;
+    } else if (photoRequired && !d.media.some((m) => m.kind === "image")) return "En az bir fotoğraf ekleyin: kendi fotoğrafınızı yükleyin ya da hazır görsellerden seçin.";
     return null;
   };
 
@@ -117,12 +127,16 @@ function Create() {
     }
     setBusy(true);
     try {
-      const res = await api<{ id: number; status: string; moderation: { reason: string } | null }>("/requests", { body: {
+      const res = await api<{ id: number; ids?: number[]; status: string; moderation: { reason: string } | null }>("/requests", { body: {
         category_id: d.sub, title: d.title, description: d.description, budget_min: d.b0 ? Number(d.b0) : null, budget_max: Number(d.b1),
         city: d.city, district: d.district, neighbourhood: d.hood, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "" && v !== undefined)),
-        is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, media_ids: d.media.map((m) => m.id), contact_consent: true,
+        is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, contact_consent: true,
+        media_ids: multi ? [] : d.media.map((m) => m.id),
+        ...(multi ? { vehicle_media: Object.fromEntries(cars.map((c) => [carKey(c), (d.carMedia[carKey(c)] ?? []).map((m) => m.id)])) } : {}),
       } });
-      toast(res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi."
+      const n = res.ids?.length ?? 1;
+      toast(n > 1 && res.status === "active" ? `${n} araç için ${n} ayrı talep yayınlandı. Her aracın satıcıları ayrı ayrı haberdar edildi.`
+        : res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi."
         : res.status === "rejected" ? `Talebiniz kurallara uymadığı için yayınlanmadı${res.moderation?.reason ? `: ${res.moderation.reason}` : "."}`
         : "Talebiniz incelemeye alındı. Onaylanınca yayınlanacak.");
       router.push(`/talep/${res.id}`);
@@ -181,11 +195,23 @@ function Create() {
                     : <input className="inp" id={`fa-${a.k}`} type="number" value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: { ...d.attrs, [a.k]: e.target.value ? Number(e.target.value) : "" } })} />}
                 </div>
               ))}
-              <div className="fg full"><label>Fotoğraf / video {photoRequired ? "*" : <span className="muted">(isteğe bağlı)</span>}</label>
+              {multi && user ? (
+                <div className="fg full car-photos">
+                  <div className="note n-info"><span><b>{cars.length} araç seçtiniz; her biri ayrı talep olarak yayınlanacak.</b> Böylece her aracın satıcısı yalnızca kendi aracına uyan talebi görür. Her araç için o modele uygun bir fotoğraf seçin.</span></div>
+                  {cars.map((c) => (
+                    <div key={carKey(c)} className="car-photo">
+                      <label>{carLabel(c)} fotoğrafı {photoRequired ? "*" : <span className="muted">(isteğe bağlı)</span>}</label>
+                      <MediaPicker value={d.carMedia[carKey(c)] ?? []} label={`${carLabel(c)} için fotoğraf ekle`}
+                        onChange={(media) => setD((x) => ({ ...x, carMedia: { ...x.carMedia, [carKey(c)]: media } }))} onError={toast}
+                        stock={{ category: d.sub, attrs: { ...d.attrs, araclar: [c] } }} />
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="fg full"><label>Fotoğraf / video {photoRequired ? "*" : <span className="muted">(isteğe bağlı)</span>}</label>
                 {user
                   ? <MediaPicker value={d.media} onChange={(media) => setD((x) => ({ ...x, media }))} onError={toast} stock={d.sub ? { category: d.sub, attrs: stockAttrs } : undefined} />
                   : <span className="hint">Örnek fotoğraf eklemek için <Link className="link" href="/giris?sonra=/talep-ver" onClick={() => { try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ } }}>giriş yapın</Link>.{photoRequired ? " Talep vermek için en az bir fotoğraf gerekir; giriş yapınca kendi fotoğrafınızı yükleyebilir ya da hazır görsellerden seçebilirsiniz." : " Fotoğrafsız da talep verebilirsiniz."}</span>}
-              </div>
+              </div>}
               <div className="fg"><label htmlFor="f-days">Talebin yayında kalma süresi</label><select className="sel" id="f-days" value={d.days} onChange={(e) => set({ days: Number(e.target.value) as D["days"] })}>{[7, 14, 30].map((n) => <option key={n} value={n}>{n} gün</option>)}</select></div>
               <div className="fg"><label>Seçenekler</label><label className="chk"><input type="checkbox" checked={d.urgent} onChange={(e) => set({ urgent: e.target.checked })} />Acil olarak işaretle</label><label className="chk"><input type="checkbox" checked={d.corporate} onChange={(e) => set({ corporate: e.target.checked })} />Firma adına faturalı alım</label></div>
             </div>
@@ -206,7 +232,15 @@ function Create() {
       {d.step === 3 && top && sub && (
         <div className="box"><div className="box-h"><h2>Talebinizin önizlemesi</h2><button className="link" onClick={() => set({ step: 2 })}>Düzenle</button></div><div className="box-b">
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>{d.title}</div>
-          {d.media.length > 0 && <div style={{ maxWidth: 420, marginBottom: 12 }}><Gallery media={d.media} fallback={null} /></div>}
+          {multi ? (
+            <div className="note n-info" style={{ marginBottom: 12, display: "block" }}>
+              <b>{cars.length} ayrı talep yayınlanacak:</b>
+              <div className="car-prev">{cars.map((c) => {
+                const m = (d.carMedia[carKey(c)] ?? []).find((x) => x.kind === "image");
+                return <div key={carKey(c)} className="car-prev-i">{m ? <img src={m.url} alt="" /> : <span className="car-prev-x"><Icon name="car" size={22} /></span>}<b>{carLabel(c)}</b></div>;
+              })}</div>
+            </div>
+          ) : d.media.length > 0 && <div style={{ maxWidth: 420, marginBottom: 12 }}><Gallery media={d.media} fallback={null} /></div>}
           <table className="info" style={{ maxWidth: 560 }}><tbody>
             <tr><th>Bütçe</th><td><span className="price-big">{budgetTxt(Number(d.b0) || Math.round(Number(d.b1) * 0.8), Number(d.b1))}</span></td></tr>
             <tr><th>Kategori</th><td>{top.name} › {sub.name}</td></tr>

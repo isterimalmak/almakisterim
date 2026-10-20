@@ -56,6 +56,26 @@ describe("ayrıntılı talep alarmı", () => {
     await expect.poll(() => notified("5331110002")).toEqual(['Alarmınıza uyan yeni talep: "BMW 3 serisi arıyorum"', 'Alarmınıza uyan yeni talep: "iPhone arıyorum"']);
   });
 
+  it("tek alarmla birden fazla araç ve il: araçlardan birine ve illerden birine uyan talep haber verilir; yakıt çoklu seçilir", async () => {
+    const seller = await login(ctx, "05331110004");
+    const buyer = await login(ctx, "05321110004");
+    const r = await alarm(seller, { category_id: "vasita", filters: { araclar: "bmw:3 serisi,Audi:,Fiat:Egea", city: "İstanbul,Ankara", district: "Kadıköy", arac_yakit: "Dizel,Hibrit" } });
+    expect(r.statusCode, r.body).toBe(201);
+    const saved = (await ctx.app.inject({ url: "/api/me/alarms", headers: { cookie: seller } })).json().items[0].filters;
+    // Yazım düzeltilir; birden fazla il seçilince ilçe sorulmaz.
+    expect(saved).toEqual({ araclar: "BMW:3 Serisi,Audi:,Fiat:Egea", city: "İstanbul,Ankara", arac_yakit: "Dizel,Hibrit" });
+    expect((await alarm(seller, { category_id: "vasita", filters: { city: "İstanbul,Atlantis" } })).statusCode).toBe(400);
+    expect((await alarm(seller, { category_id: "vasita", filters: { arac_yakit: "Dizel,Kömür" } })).statusCode).toBe(400);
+
+    const car = { category_id: "otomobil", condition: "İkinci El", city: "İstanbul", district: "", budget_min: 1000000, budget_max: 1500000 };
+    await createRequest(ctx, buyer, { ...car, title: "BMW 3 serisi dizel arıyorum", attrs: { araclar: [{ marka: "BMW", model: "3 Serisi" }], yakit: ["Dizel"] } });
+    await createRequest(ctx, buyer, { ...car, city: "Ankara", title: "Audi A6 Ankara'da arıyorum", attrs: { araclar: [{ marka: "Audi", model: "A6" }] } });
+    await createRequest(ctx, buyer, { ...car, title: "Benzinli Egea arıyorum", attrs: { araclar: [{ marka: "Fiat", model: "Egea" }], yakit: ["Benzin"] } });
+    await createRequest(ctx, buyer, { ...car, city: "İzmir", title: "İzmir'de BMW 3 serisi", attrs: { araclar: [{ marka: "BMW", model: "3 Serisi" }] } });
+    await createRequest(ctx, buyer, { ...car, title: "Toyota Corolla arıyorum", attrs: { araclar: [{ marka: "Toyota", model: "Corolla" }] } });
+    await expect.poll(() => notified("5331110004")).toEqual(['Alarmınıza uyan yeni talep: "BMW 3 serisi dizel arıyorum"', 'Alarmınıza uyan yeni talep: "Audi A6 Ankara\'da arıyorum"']);
+  });
+
   it("sayı alanları: satıcının m²'si, bina yaşı, kişi sayısı, boy, yıl ve numara alıcının istediğiyle karşılaştırılır", async () => {
     const seller = await login(ctx, "05331110004");
     const buyer = await login(ctx, "05321110004");

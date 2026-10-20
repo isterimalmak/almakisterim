@@ -69,24 +69,43 @@ export function cleanVehicleDraft(sub: string, raw: Record<string, unknown>): Ve
   }
 }
 
-// Satıcının elindeki araca uyan talepler: ?arac_marka=BMW&arac_model=3 Serisi&arac_yil=2019&arac_km=80000&arac_yakit=Dizel&arac_vites=Otomatik
+// Virgülle ayrılmış seçim listesi ("Dizel,Hibrit"): her değer izin verilenlerden olmalı.
+const multi = <T extends string>(allowed: readonly T[]) => z.string().max(200).optional().refine(
+  (v) => !v || v.split(",").every((x) => allowed.includes(x as T)), "Listeden seçin.");
+
+// Satıcının elindeki araca (ya da araçlarına) uyan talepler:
+// ?arac_marka=BMW&arac_model=3 Serisi (tek araç) veya ?araclar=BMW:3 Serisi,Audi:,Fiat:Egea (birden fazla; model boşsa markanın tümü)
+// &arac_yil=2019&arac_km=80000&arac_yakit=Dizel,Benzin&arac_vites=Otomatik
 // Alıcı bir alanı boş bıraktıysa ("farketmez") o alan her araca uyar.
 export const VehicleQuery = z.object({
   arac_marka: z.string().max(40).optional(), arac_model: z.string().max(40).optional(),
+  araclar: z.string().max(600).optional(),
   arac_yil: z.coerce.number().int().min(1950).max(2100).optional(),
   arac_km: z.coerce.number().int().min(0).max(5_000_000).optional(),
-  arac_yakit: z.enum(FUELS).optional(), arac_vites: z.enum(GEARS).optional(), arac_kasa: z.enum(BODIES).optional(),
+  arac_yakit: multi(FUELS), arac_vites: multi(GEARS), arac_kasa: multi(BODIES),
 });
+
+// "BMW:3 Serisi,Audi:" → [{marka: BMW, model: 3 Serisi}, {marka: Audi, model: null}] (tanınan yazıma çevrilir, en fazla 20).
+export function parseCarList(raw: string | undefined): { marka: string; model: string | null }[] {
+  const out: { marka: string; model: string | null }[] = [];
+  for (const part of (raw ?? "").split(",").slice(0, 20)) {
+    const [m, md] = part.split(":").map((x) => x.trim());
+    if (!m) continue;
+    const marka = matchBrand("otomobil", m) ?? matchBrand("motosiklet", m) ?? m;
+    const model = md ? (matchModel("otomobil", marka, md) ?? matchModel("motosiklet", marka, md) ?? md) : null;
+    if (!out.some((x) => x.marka === marka && x.model === model)) out.push({ marka, model });
+  }
+  return out;
+}
 
 export function vehicleFilters(q: z.infer<typeof VehicleQuery>, params: unknown[], where: string[]) {
   const p = (v: unknown) => { params.push(v); return `$${params.length}`; };
-  if (q.arac_marka) {
-    const marka = matchBrand("otomobil", q.arac_marka) ?? matchBrand("motosiklet", q.arac_marka) ?? q.arac_marka;
-    const model = q.arac_model ? (matchModel("otomobil", marka, q.arac_model) ?? matchModel("motosiklet", marka, q.arac_model) ?? q.arac_model) : null;
-    // Alıcı markanın tamamını ("model farketmez") veya tam bu modeli istemişse eşleşir.
-    where.push(model
-      ? `(r.attrs->'araclar' @> ${p(JSON.stringify([{ marka, model: null }]))}::jsonb OR r.attrs->'araclar' @> ${p(JSON.stringify([{ marka, model }]))}::jsonb)`
-      : `r.attrs->'araclar' @> ${p(JSON.stringify([{ marka }]))}::jsonb`);
+  const cars = q.araclar ? parseCarList(q.araclar) : q.arac_marka ? parseCarList(`${q.arac_marka}:${q.arac_model ?? ""}`) : [];
+  if (cars.length) {
+    // Alıcı markanın tamamını ("model farketmez") veya tam bu modeli istemişse eşleşir; araçlardan biri uyması yeter.
+    where.push(`(${cars.map(({ marka, model }) => model
+      ? `r.attrs->'araclar' @> ${p(JSON.stringify([{ marka, model: null }]))}::jsonb OR r.attrs->'araclar' @> ${p(JSON.stringify([{ marka, model }]))}::jsonb`
+      : `r.attrs->'araclar' @> ${p(JSON.stringify([{ marka }]))}::jsonb`).join(" OR ")})`);
   }
   if (q.arac_yil !== undefined) {
     const y = p(q.arac_yil);
@@ -94,7 +113,7 @@ export function vehicleFilters(q: z.infer<typeof VehicleQuery>, params: unknown[
   }
   if (q.arac_km !== undefined) where.push(`(NOT r.attrs ? 'km_max' OR (r.attrs->>'km_max')::int >= ${p(q.arac_km)})`);
   for (const [k, v] of [["yakit", q.arac_yakit], ["vites", q.arac_vites], ["kasa", q.arac_kasa]] as const) {
-    if (v) where.push(`(NOT r.attrs ? '${k}' OR r.attrs->'${k}' ? ${p(v)})`);
+    if (v) where.push(`(NOT r.attrs ? '${k}' OR r.attrs->'${k}' ?| ${p(v.split(","))}::text[])`);
   }
 }
 

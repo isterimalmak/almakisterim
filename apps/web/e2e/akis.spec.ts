@@ -375,13 +375,25 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await buyer.getByLabel("Model", { exact: true }).selectOption("C Serisi");
   await buyer.getByRole("button", { name: "+ Ekle" }).click();
   await expect(buyer.locator(".chip.on", { hasText: "Mercedes-Benz C Serisi" })).toBeVisible();
-  await addPhoto(buyer);
+  // Üç araç seçildi: her biri ayrı talep olacak, her araca kendi fotoğrafı eklenir (fotoğraf zorunlu).
+  await expect(buyer.getByText("3 araç seçtiniz; her biri ayrı talep olarak yayınlanacak.")).toBeVisible();
   await buyer.getByRole("button", { name: "Devam" }).click();
-  await expect(buyer.getByText("BMW 3 Serisi, Audi A4, Mercedes-Benz C Serisi")).toBeVisible();
+  await expect(buyer.getByText("BMW 3 Serisi için kendi fotoğrafınızı", { exact: false })).toBeVisible();
+  for (const [i, car] of ["BMW 3 Serisi", "Audi A4", "Mercedes-Benz C Serisi"].entries()) {
+    await buyer.getByLabel(`${car} için fotoğraf ekle`).setInputFiles({ name: `foto${i}.png`, mimeType: "image/png", buffer: PNG });
+    await expect(buyer.locator(".car-photo", { hasText: `${car} fotoğrafı` }).getByAltText("Eklenen fotoğraf 1")).toBeVisible();
+  }
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await expect(buyer.getByText("3 ayrı talep yayınlanacak:")).toBeVisible();
   await buyer.getByLabel(/kurallarını/).check();
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
-  await expect(buyer.getByRole("heading", { level: 1 })).toContainText(tag);
-  await expect(buyer.getByText("BMW 3 Serisi, Audi A4, Mercedes-Benz C Serisi")).toBeVisible();
+  // İlk aracın talebi açılır; diğer iki araç ayrı talep olarak bağlantılı görünür.
+  await expect(buyer.getByRole("heading", { level: 1 })).toContainText("BMW 3 Serisi");
+  await expect(buyer.getByRole("heading", { level: 1 })).not.toContainText("Audi");
+  const audi = buyer.getByRole("link", { name: /Audi A4/ });
+  await expect(audi).toBeVisible();
+  await expect(buyer.getByRole("link", { name: /Mercedes-Benz C Serisi/ })).toBeVisible();
+  const audiHref = (await audi.getAttribute("href"))!;
 
   const seller = await (await browser.newContext()).newPage();
   await seller.goto("/kategori/vasita");
@@ -391,10 +403,10 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await seller.getByLabel("Aracın markası").selectOption("Audi");
   await seller.getByLabel("Aracın modeli").selectOption("A4");
   await seller.getByLabel("Aracın yılı").fill("2020");
-  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toBeVisible();
+  await expect(seller.locator(`.tbl-wrap a[href="${audiHref}"]`).first()).toBeVisible();
   // 2015 model araç "2018 sonrası" talebine uymaz; ana listede çıkmaz (alttaki "diğer talepler"de görünebilir).
   await seller.getByLabel("Aracın yılı").fill("2015");
-  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
+  await expect(seller.locator(`.tbl-wrap a[href="${audiHref}"]`)).toHaveCount(0);
   await ctx.close();
 });
 
@@ -529,7 +541,7 @@ test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütç
   await page.goto("/bana-ozel?s=alarm");
   await page.getByLabel("Ana kategori *").selectOption("emlak");
   await page.getByLabel("Alt kategori").selectOption("arsa");
-  await page.getByLabel("İl", { exact: true }).selectOption("İzmir");
+  await page.getByLabel(/^İller/).selectOption("İzmir");
   await page.getByLabel("İlçe", { exact: true }).selectOption("Urla");
   await page.getByLabel("Alıcı bütçesi en az (TL)").fill("1000000");
   await page.getByLabel("Alıcı bütçesi en fazla (TL)").fill("5000000");
@@ -550,12 +562,26 @@ test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütç
   await expect(page.getByRole("button", { name: "m²: 600 filtresini kaldır" })).toBeVisible();
   await page.goto("/bana-ozel?s=alarm");
 
-  // Vasıta (tümü) seçilince de marka/model sorulur: yalnızca BMW 1 Serisi isteyen alıcılar için alarm.
+  // Vasıta: tek alarma birden fazla araç ve il; yakıtta birden fazla seçim, "Farketmez" ile temizlenir.
   await page.getByLabel("Ana kategori *").selectOption("vasita");
-  await page.getByLabel("Elinizdeki aracın markası").selectOption("BMW");
-  await page.getByLabel("Modeli").selectOption("1 Serisi");
+  await page.getByLabel("Marka", { exact: true }).selectOption("BMW");
+  await page.getByLabel("Model", { exact: true }).selectOption("1 Serisi");
+  await page.getByRole("button", { name: "+ Ekle" }).click();
+  await page.getByLabel("Marka", { exact: true }).selectOption("Audi");
+  await page.getByRole("button", { name: "+ Ekle" }).click();
+  await expect(page.getByRole("button", { name: "Audi (tüm modeller) aracını çıkar" })).toBeVisible();
+  await page.getByLabel(/^İller/).selectOption("İzmir");
+  await page.getByLabel(/^İller/).selectOption("Manisa");
+  await expect(page.getByLabel("İlçe", { exact: true })).toBeDisabled();
+  const fuel = page.getByRole("group", { name: "Yakıt" });
+  await fuel.getByRole("button", { name: "Dizel" }).click();
+  await fuel.getByRole("button", { name: "Hibrit" }).click();
+  await expect(fuel.getByRole("button", { name: "Farketmez" })).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "Alarm kur" }).click();
-  await expect(page.locator(".tbl tbody tr", { hasText: "Vasıta" }).getByText("BMW 1 Serisi")).toBeVisible();
+  const vrow = page.locator(".tbl tbody tr", { hasText: "Vasıta" });
+  await expect(vrow.getByText("BMW 1 Serisi, Audi (tüm modeller)")).toBeVisible();
+  await expect(vrow.getByText("İzmir, Manisa")).toBeVisible();
+  await expect(vrow.getByText("Yakıt: Dizel, Hibrit")).toBeVisible();
 
 });
 

@@ -16,17 +16,16 @@ const car = (attrs: Record<string, unknown>, over: Record<string, unknown> = {})
 const list = async (qs: string) => (await ctx.app.inject({ url: `/api/requests?${qs}` })).json().items.map((r: { title: string }) => r.title);
 
 describe("araç talepleri", () => {
-  it("birden fazla marka/model kaydedilir; adlar katalogdaki yazıma çevrilir, tekrarlar atılır", async () => {
+  it("birden fazla marka/model: adlar katalogdaki yazıma çevrilir, tekrarlar atılır, her araç ayrı talep olur", async () => {
     const u = await login(ctx, "05321112233");
     const id = await createRequest(ctx, u, car({
       araclar: [{ marka: "bmw", model: "3 serisi" }, { marka: "Audi", model: "A4" }, { marka: "BMW", model: "3 Serisi" }, { marka: "mercedes", model: null }],
       yil_min: 2018, yil_max: 2022, km_max: 100000, yakit: ["Dizel", "Hibrit"], vites: ["Otomatik"], hasarsiz: true,
     }));
-    const r = (await ctx.app.inject({ url: `/api/requests/${id}` })).json().request;
-    expect(r.attrs).toEqual({
-      araclar: [{ marka: "BMW", model: "3 Serisi" }, { marka: "Audi", model: "A4" }, { marka: "Mercedes-Benz", model: null }],
-      yil_min: 2018, yil_max: 2022, km_max: 100000, yakit: ["Dizel", "Hibrit"], vites: ["Otomatik"], hasarsiz: true,
-    });
+    const rest = { yil_min: 2018, yil_max: 2022, km_max: 100000, yakit: ["Dizel", "Hibrit"], vites: ["Otomatik"], hasarsiz: true };
+    expect((await ctx.app.inject({ url: `/api/requests/${id}` })).json().request.attrs).toEqual({ araclar: [{ marka: "BMW", model: "3 Serisi" }], ...rest });
+    const all = (await ctx.pool.query("SELECT attrs FROM requests ORDER BY id")).rows.map((x) => x.attrs);
+    expect(all).toEqual([{ marka: "BMW", model: "3 Serisi" }, { marka: "Audi", model: "A4" }, { marka: "Mercedes-Benz", model: null }].map((c) => ({ araclar: [c], ...rest })));
   });
 
   it("tanınmayan marka/model, ters yıl aralığı ve 5'ten fazla araç reddedilir", async () => {
@@ -42,7 +41,9 @@ describe("araç talepleri", () => {
 
   it("satıcı elindeki araca uyan talepleri bulur", async () => {
     const u = await login(ctx, "05321112233");
-    await createRequest(ctx, u, car({ araclar: [{ marka: "BMW", model: "3 Serisi" }, { marka: "Audi", model: "A4" }], yil_min: 2018, km_max: 100000, yakit: ["Dizel"] }, { title: "A: BMW 3 veya A4 dizel" }));
+    // Birden fazla araçlı talep araç başına bölünür; başlık her araca göre kurulduğundan testte tek araçla verilir.
+    await createRequest(ctx, u, car({ araclar: [{ marka: "BMW", model: "3 Serisi" }], yil_min: 2018, km_max: 100000, yakit: ["Dizel"] }, { title: "A: BMW 3 veya A4 dizel" }));
+    await createRequest(ctx, u, car({ araclar: [{ marka: "Audi", model: "A4" }], yil_min: 2018, km_max: 100000, yakit: ["Dizel"] }, { title: "A2: Audi A4 dizel" }));
     await createRequest(ctx, u, car({ araclar: [{ marka: "BMW", model: null }], yil_max: 2016 }, { title: "B: herhangi bir BMW, 2016 öncesi" }));
     await createRequest(ctx, u, car({ araclar: [{ marka: "Fiat", model: "Egea" }], vites: ["Manuel"] }, { title: "C: Egea manuel" }));
     await createRequest(ctx, u, car({}, { title: "D: marka farketmez" }));
@@ -54,8 +55,12 @@ describe("araç talepleri", () => {
     // A en fazla 100 bin km istiyor; km sınırı koymayan B uyar.
     expect(await list("arac_marka=BMW&arac_model=3 Serisi&arac_km=150000")).toEqual(["B: herhangi bir BMW, 2016 öncesi"]);
     expect((await list("arac_marka=Audi&arac_model=A4&arac_yakit=Benzin"))).toEqual([]);
+    expect(await list("arac_marka=Audi&arac_model=A4&arac_yakit=Dizel")).toEqual(["A2: Audi A4 dizel"]);
     expect((await list("arac_yil=2015")).sort()).toEqual(["B: herhangi bir BMW, 2016 öncesi", "C: Egea manuel", "D: marka farketmez"]);
-    expect((await list("arac_vites=Otomatik")).sort()).toEqual(["A: BMW 3 veya A4 dizel", "B: herhangi bir BMW, 2016 öncesi", "D: marka farketmez"]);
+    expect((await list("arac_vites=Otomatik")).sort()).toEqual(["A2: Audi A4 dizel", "A: BMW 3 veya A4 dizel", "B: herhangi bir BMW, 2016 öncesi", "D: marka farketmez"]);
+    // Satıcının birden fazla aracı: araçlardan birine uyan talepler; yakıt çoklu.
+    expect((await list("araclar=Fiat:Egea,Audi:A4")).sort()).toEqual(["A2: Audi A4 dizel", "C: Egea manuel"]);
+    expect((await list("arac_yakit=Benzin,Dizel")).length).toBe(5);
   });
 
   it("katalog uç noktası marka ve modelleri verir", async () => {
@@ -92,9 +97,9 @@ describe("araç kataloğu", () => {
 
   it("'Diğer' marka ve takma adlarla yazılan markalar kabul edilir", async () => {
     const u = await login(ctx, "05321112233");
-    const id = await createRequest(ctx, u, car({ araclar: [{ marka: "diğer", model: null }, { marka: "ssangyong", model: "Korando" }, { marka: "Haval", model: null }] }));
-    const r = (await ctx.app.inject({ url: `/api/requests/${id}` })).json().request;
-    expect(r.attrs.araclar).toEqual([{ marka: "Diğer", model: null }, { marka: "KGM / SsangYong", model: "Korando" }, { marka: "GWM / Haval", model: null }]);
+    await createRequest(ctx, u, car({ araclar: [{ marka: "diğer", model: null }, { marka: "ssangyong", model: "Korando" }, { marka: "Haval", model: null }] }));
+    const all = (await ctx.pool.query("SELECT attrs FROM requests ORDER BY id")).rows.flatMap((x) => x.attrs.araclar);
+    expect(all).toEqual([{ marka: "Diğer", model: null }, { marka: "KGM / SsangYong", model: "Korando" }, { marka: "GWM / Haval", model: null }]);
   });
 
   it("metin ayrıştırıcı yeni markaları tanır, günlük sözcükleri marka saymaz", () => {
