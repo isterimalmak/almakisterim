@@ -47,7 +47,7 @@ export function yearTxt(a: VehicleAttrs) {
 
 // Listede tek satırlık özet: "BMW 3 Serisi, Audi A4 · 2018 ve sonrası · en fazla 100.000 km · Dizel/Hibrit · Otomatik"
 export function vehicleLine(a: VehicleAttrs) {
-  const parts = [vehicleNames(a).join(", ") || "Marka farketmez", yearTxt(a)];
+  const parts = [vehicleNames(a).join(", "), yearTxt(a)];
   if (a.km_max !== undefined) parts.push(`en fazla ${fmt(a.km_max)} km`);
   if (a.yakit?.length) parts.push(a.yakit.join("/"));
   if (a.vites?.length) parts.push(a.vites.join("/"));

@@ -13,7 +13,7 @@ import { VehicleRows } from "@/components/VehicleFields";
 import { CatIcon, Labels } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type Contact, type RequestDetail } from "@/lib/api";
-import { attrsFor } from "@/lib/catalog";
+import { attrsFor, isAny } from "@/lib/catalog";
 import { ago, budgetTxt, dateTr, fmt, initials, leftParts } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
@@ -113,15 +113,16 @@ export default function RequestPage() {
             <div>
               <div className="rq-hl">
                 <div><Icon name="clock" size={18} /><small>Kalan süre</small><b>{lp.d > 0 ? `${lp.d} gün` : `${lp.h} saat`}</b></div>
-                <div><Icon name="check" size={18} /><small>Ürün durumu</small><b>{r.condition}</b></div>
+                {isAny(r.condition) ? <div><Icon name="pin" size={18} /><small>Konum</small><b>{r.district || r.city}</b></div>
+                  : <div><Icon name="check" size={18} /><small>Ürün durumu</small><b>{r.condition}</b></div>}
                 <div><Icon name="user" size={18} /><small>Alıcı</small><b>{r.is_corporate ? "Kurumsal" : "Bireysel"}</b></div>
               </div>
               <table className="info rq-info"><tbody>
                 <tr><th>Talep No</th><td className="rq-no">{r.id}</td></tr>
                 <tr><th>Talep Tarihi</th><td>{dateTr(r.created_at)}</td></tr>
                 <tr><th>Kategori</th><td>{r.top_name} › {r.category_name}</td></tr>
-                <tr><th>Ürün Durumu</th><td>{r.condition}</td></tr>
-                {sch.filter((a) => r.attrs[a.k] !== undefined).map((a) => <tr key={a.k}><th>{a.l}</th><td>{a.t === "num" && a.k !== "yil" ? fmt(Number(r.attrs[a.k])) : String(r.attrs[a.k])}</td></tr>)}
+                {!isAny(r.condition) && <tr><th>Ürün Durumu</th><td>{r.condition}</td></tr>}
+                {sch.filter((a) => !isAny(r.attrs[a.k])).map((a) => <tr key={a.k}><th>{a.l}</th><td>{a.t === "num" && a.k !== "yil" ? fmt(Number(r.attrs[a.k])) : String(r.attrs[a.k])}</td></tr>)}
                 {isVehicleSub(r.category_id) && <VehicleRows a={r.attrs as VehicleAttrs} />}
                 <tr><th>Konum</th><td>{place}{!r.district && <span className="muted"> (ilçe farketmez)</span>}</td></tr>
                 <tr><th>Alıcı Tipi</th><td>{r.is_corporate ? "Kurumsal (faturalı alım)" : "Bireysel"}</td></tr>
