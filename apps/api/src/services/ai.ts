@@ -254,10 +254,15 @@ Kullanıcının serbest metnini eksiksiz doldurulmuş bir alım talebine çevir.
 Ama yalnızca kişinin yazdığını ya da metinden kesin çıkan bilgiyi kullan; tahmin, uydurma veya varsayılan değer koyma (bilinmeyen alan null / boş liste).
 - category_id: verilen listedeki alt kategori kimliklerinden en uygunu. "kiralık daire" → kiralık konut, "satılık ev/daire/villa" → satılık konut,
   "yazlık/günlük kiralık" → günlük kiralık, "arsa/tarla" → arsa, "dükkan/ofis/depo" → işyeri. Araç markası/modeli geçiyorsa ilgili vasıta alt kategorisi. Emin değilsen null.
-- title: Kişinin cümlesini KOPYALAMA; okuduğundan ne aradığını anlayıp ilan başlığı gibi yeni, net ve çekici bir başlık yaz (en fazla 70 karakter).
-  Ürün/hizmet ve en ayırt edici 1-3 bilgi (yer, model, oda sayısı vb.) olsun; bütçe, "arıyorum/istiyorum" gibi fiiller ve gereksiz sözcükler olmasın.
-  Marka/model doğru yazımıyla, özel adlar büyük harfle, sonda nokta yok. Örnekler: "Caddebostan'da Eşyalı 3+1 Kiralık Daire",
-  "2018 Sonrası Dizel Otomatik Volkswagen Passat", "Urla'da 500 m² Konut İmarlı Arsa".
+- title: Kişinin cümlesini KOPYALAMA; okuduğundan ne aradığını anlayıp yeni, net bir ALIM TALEBİ başlığı yaz (en fazla 80 karakter).
+  Başlık, okuyan herkesin bunun bir satış ilanı değil, kişinin ALMAK/KİRALAMAK istediği bir talep olduğunu hemen anlamasını sağlamalı:
+  * Satın almada sonu "Alım Talebi", kiralamada "Kiralama Talebi", hizmet/derste "Talebi" ile bitsin.
+  * "Satılık", "satıyorum", "sahibinden", "fırsat" gibi satış ilanı sözcükleri KULLANMA.
+  * Kişi bütçe yazdıysa başlıkta bütçe olsun ("1,5 Milyon TL Bütçeli", "850 Bin TL Bütçeli"; kiralıkta "Aylık 25 Bin TL Bütçeli").
+  * Yer (mahalle/ilçe), oda sayısı, model gibi en ayırt edici 1-3 bilgi olsun; "yatırımlık", "eşyalı" gibi kişinin belirttiği nitelik korunur.
+  Marka/model doğru yazımıyla, özel adlar büyük harfle, sonda nokta yok. Örnekler:
+  "Beyazevler'de 1,5 Milyon TL Bütçeli 2+1 Yatırımlık Daire Alım Talebi", "Caddebostan'da Aylık 40 Bin TL Bütçeli Eşyalı 3+1 Kiralama Talebi",
+  "1,2 Milyon TL Bütçeli 2018 Sonrası Dizel Volkswagen Passat Alım Talebi", "Urla'da 500 m² Konut İmarlı Arsa Alım Talebi".
 - description: Kişinin yazdıklarını satıcıların okuyacağı akıcı, düzgün ve kibar bir alım talebi metnine dönüştür (2-5 cümle, birinci tekil kişi: "... arıyorum.").
   Yazım ve dil bilgisi hatalarını düzelt, dağınık bilgileri mantıklı sıraya koy. Anlamı değiştirme: kişinin verdiği her ayrıntıyı (bütçe, yer, özellik, şart)
   koru, yeni bilgi veya vaat ekleme, telefon/e-posta/IBAN yazma.
@@ -317,7 +322,8 @@ Sana bir alım talebinin başlığı ve açıklaması gelir. İki iş yap:
 reason: Türkçe kısa gerekçe ("ok" için boş).
 2) Düzelt (title, description):
 - Türkçe yazım ve noktalama hatalarını düzelt (ör. "arıyom" → "arıyorum", "i̇phone" → "iPhone"), anlamı ve bilgileri (fiyat, sayı, model, yer) değiştirme, yeni bilgi ekleme.
-- Başlık: kısa ve net, cümle düzeninde (yalnızca ilk harf ve özel adlar büyük), marka/model adları doğru yazımıyla (BMW, iPhone, Mercedes-Benz), sonunda nokta olmasın, en fazla 100 karakter.
+- Başlık: kısa ve net, marka/model adları doğru yazımıyla (BMW, iPhone, Mercedes-Benz), sonunda nokta olmasın, en fazla 100 karakter.
+  Bu bir ALIM TALEBİDİR: başlığı satış ilanına çevirme, "Satılık" ekleme; "Alım Talebi / Kiralama Talebi / arıyorum" ifadesini ve bütçeyi koru.
 - Telefon numarası, e-posta, web adresi, sosyal medya kullanıcı adı, IBAN gibi iletişim/ödeme bilgilerini sil.
 - Küfür, hakaret, ayrımcı ifade ve konuyla ilgisiz reklamı sil; geri kalan metni koru.
 - Açıklama boşsa boş bırak. Değiştirecek bir şey yoksa metni aynen geri ver.

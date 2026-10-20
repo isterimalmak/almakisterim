@@ -121,11 +121,40 @@ export function locative(place: string) {
 }
 
 const SUB_NOUN: Record<string, string> = {
-  kiralik: "Kiralık Daire", satilik: "Satılık Daire", gunluk: "Günlük Kiralık Ev", arsa: "Arsa", isyeri: "İşyeri",
+  kiralik: "Daire", satilik: "Daire", gunluk: "Günlük Kiralık Ev", arsa: "Arsa", isyeri: "İşyeri",
 };
+const RENT = new Set(["kiralik", "gunluk"]);
+const SERVICE_TOPS = /^(tadilat|nakliyat|temizlik|tesisat|lise|dil)$/;
+
+// 1500000 → "1,5 Milyon TL", 850000 → "850 Bin TL", 900 → "900 TL"
+export function budgetLabel(n: number) {
+  const tr = (x: number) => (Math.round(x * 10) / 10).toLocaleString("tr-TR");
+  return n >= 1_000_000 ? `${tr(n / 1_000_000)} Milyon TL` : n >= 1000 ? `${tr(n / 1000)} Bin TL` : `${n} TL`;
+}
+
+// Başlık her zaman bir ALIM TALEBİ olarak okunur (satış ilanı gibi değil): "Satılık" sözcüğü atılır, sonu "Alım Talebi" /
+// "Kiralama Talebi" / "Talebi" değilse eklenir; bütçe varsa ve başlıkta yoksa "… TL Bütçeli" eklenir.
+export function buyerTitle(raw: string, o: { sub: string | null; budgetMax?: number | null; max?: number } = { sub: null }) {
+  const max = o.max ?? 100;
+  let t = raw.replace(/\b[Ss]atılık\s+/g, "").replace(/\s*(satıyorum|sahibinden|acil satılık)\b/gi, "").replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
+  const rent = !!o.sub && RENT.has(o.sub);
+  if (/kiralık/i.test(t) && rent) t = t.replace(/\s*Kiralık\s+/i, " ").trim();
+  const hasBudget = /\b(TL|lira|bütçe)/i.test(t);
+  if (o.budgetMax && !hasBudget) {
+    const b = `${rent ? "Aylık " : ""}${budgetLabel(o.budgetMax)} Bütçeli`;
+    // "Beyazevler'de 2+1 Daire" → "Beyazevler'de 1,5 Milyon TL Bütçeli 2+1 Daire": yer adından sonra, yoksa başa.
+    const m = /^(\S+'(?:de|da|te|ta)\s)/.exec(t);
+    t = m ? `${m[1]}${b} ${t.slice(m[1]!.length)}` : `${b} ${t}`;
+  }
+  if (!/(alım talebi|kiralama talebi|talebi|arıyorum|istiyorum|aranıyor)$/i.test(t)) {
+    t += o.sub && SERVICE_TOPS.test(o.sub) ? " Talebi" : rent ? " Kiralama Talebi" : " Alım Talebi";
+  }
+  t = t.charAt(0).toLocaleUpperCase("tr") + t.slice(1);
+  return t.length > max ? t.slice(0, max).replace(/\s+\S*$/, "") : t;
+}
 
 // Yapay zekâ çalışmadığında başlık kişinin cümlesi kopyalanmadan, doldurulan alanlardan kurulur.
-export function buildTitle(o: { sub: string | null; subName: string | null; attrs: Record<string, unknown>; city: string | null; district: string; neighbourhood: string }): string | null {
+export function buildTitle(o: { sub: string | null; subName: string | null; attrs: Record<string, unknown>; city: string | null; district: string; neighbourhood: string; budgetMax?: number | null }): string | null {
   if (!o.sub || !o.subName) return null;
   const a = o.attrs;
   const val = (k: string) => (a[k] !== undefined && a[k] !== "Farketmez" ? String(a[k]) : "");
@@ -146,5 +175,5 @@ export function buildTitle(o: { sub: string | null; subName: string | null; attr
     parts.push(...sels, o.subName.replace(/\s*\(.*\)$/, ""));
   }
   const t = parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-  return t.length >= 5 ? t.slice(0, 100) : null;
+  return t.length >= 3 ? buyerTitle(t, { sub: o.sub, budgetMax: o.budgetMax }) : null;
 }

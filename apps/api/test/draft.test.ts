@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ATTRS, SUB_ATTRS } from "../src/data/attrs.js";
 import { ClaudeAi, HeuristicAi, type AiService, type Draft } from "../src/services/ai.js";
-import { buildTitle, fillAttrs, locative } from "../src/services/draft-fill.js";
+import { buildTitle, buyerTitle, fillAttrs, locative } from "../src/services/draft-fill.js";
 import { findNeighbourhoodInText } from "../src/data/locations.js";
 import { detectCategory } from "../src/services/category-detect.js";
 import { login, makeApp, resetData, type TestCtx } from "./helpers.js";
@@ -31,7 +31,7 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     expect(d.attrs).toEqual({ oda: "3+1", m2: 120, esya: "Eşyalı", isitma: "Kombi" });
     expect(d.description).toContain("Caddebostan");
     // Yapay zekâ yokken de başlık cümle kopyalanmadan kurulur.
-    expect(d.title).toBe("Caddebostan'da Eşyalı 3+1 Kiralık Daire");
+    expect(d.title).toBe("Caddebostan'da Aylık 40 Bin TL Bütçeli Eşyalı 3+1 Daire Kiralama Talebi");
   });
 
   it("arsa: imar, tapu ve m²; il yazılmasa da ilçeden bulunur", async () => {
@@ -39,12 +39,12 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     // Tek değer yazıldı: en az bütçe uydurulmaz.
     expect(d).toMatchObject({ category_id: "arsa", city: "İzmir", district: "Urla", budget_min: null, budget_max: 5000000 });
     expect(d.attrs).toEqual({ m2: 500, imar: "Konut", tapu: "Müstakil tapu" });
-    expect(d.title).toBe("Urla'da 500 m² Konut İmarlı Arsa");
+    expect(d.title).toBe("Urla'da 5 Milyon TL Bütçeli 500 m² Konut İmarlı Arsa Alım Talebi");
   });
 
   it("arazi: 'arazi' arsa sayılır; iki ilçe yazılınca eki alan seçilir; 'en fazla 500 m²' en az alanına yazılmaz", async () => {
     const d = await draft(ctx, "Bodrum Milas'ta köyiçi alanı içerisinde kalan en fazla 500 metre² olan en fazla 500.000 TL ödeyeceğim bir arazi arıyorum");
-    expect(d).toMatchObject({ category_id: "arsa", city: "Muğla", district: "Milas", budget_max: 500000, budget_min: null, title: "Milas'ta Arsa" });
+    expect(d).toMatchObject({ category_id: "arsa", city: "Muğla", district: "Milas", budget_max: 500000, budget_min: null, title: "Milas'ta 500 Bin TL Bütçeli Arsa Alım Talebi" });
     expect(d.attrs).toEqual({});
     expect(d.description).toContain("en fazla 500 metre²");
   });
@@ -77,7 +77,7 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
   });
 
   it("yapay zekânın yazdığı başlık ve açıklama korunur; hata olursa kaydedilir ve yedek çalışır", async () => {
-    const reply = { title: "Caddebostan'da Eşyalı 3+1 Kiralık Daire", description: "Caddebostan'da eşyalı, kombili 3+1 bir daire arıyorum.",
+    const reply = { title: "Caddebostan'da Aylık 40 Bin TL Bütçeli Eşyalı 3+1 Kiralama Talebi", description: "Caddebostan'da eşyalı, kombili 3+1 bir daire arıyorum.",
       category_id: "kiralik", budget_min: null, budget_max: 40000, city: "İstanbul", district: "Kadıköy", neighbourhood: "Caddebostan",
       condition: "Farketmez" as const, is_urgent: false, ozellikler: [{ alan: "oda", deger: "3+1" }],
       attrs: { araclar: [], yil_min: null, yil_max: null, km_max: null, yakit: [], vites: [], kasa: [], hasarsiz: null } };
@@ -143,13 +143,23 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     expect(c("bir şey arıyorum")).toBeNull();
   });
 
+  it("başlık her zaman alım talebi gibi okunur: 'Satılık' atılır, bütçe ve 'Alım/Kiralama Talebi' eklenir", () => {
+    expect(buyerTitle("Beyazevler'de 2+1 Satılık Yatırımlık Daire", { sub: "satilik", budgetMax: 1_500_000 })).toBe("Beyazevler'de 1,5 Milyon TL Bütçeli 2+1 Yatırımlık Daire Alım Talebi");
+    expect(buyerTitle("Kadıköy'de 3+1 Kiralık Daire", { sub: "kiralik", budgetMax: 35000 })).toBe("Kadıköy'de Aylık 35 Bin TL Bütçeli 3+1 Daire Kiralama Talebi");
+    expect(buyerTitle("iPhone 15 Pro", { sub: "telefon", budgetMax: 850 })).toBe("850 TL Bütçeli iPhone 15 Pro Alım Talebi");
+    expect(buyerTitle("Ev boya badana", { sub: "tadilat" })).toBe("Ev boya badana Talebi");
+    // Zaten alım talebi olan başlık değişmez.
+    expect(buyerTitle("Beyazevler'de 1,5 Milyon TL Bütçeli 2+1 Daire Alım Talebi", { sub: "satilik", budgetMax: 1_500_000 })).toBe("Beyazevler'de 1,5 Milyon TL Bütçeli 2+1 Daire Alım Talebi");
+    expect(buyerTitle("Passat arıyorum", { sub: "otomobil" })).toBe("Passat arıyorum");
+  });
+
   it("kurallı doldurucu ve mahalle bulucu", () => {
     expect(locative("Kadıköy")).toBe("Kadıköy'de");
     expect(locative("Urla")).toBe("Urla'da");
     expect(locative("Sinop")).toBe("Sinop'ta");
     expect(locative("Çeşme")).toBe("Çeşme'de");
     expect(buildTitle({ sub: "otomobil", subName: "Otomobil", attrs: { araclar: [{ marka: "Volkswagen", model: "Passat" }], yil_min: 2018, yakit: ["Dizel"] }, city: "İstanbul", district: "", neighbourhood: "" }))
-      .toBe("2018 ve Sonrası Dizel Volkswagen Passat");
+      .toBe("2018 ve Sonrası Dizel Volkswagen Passat Alım Talebi");
     expect(fillAttrs("256 gb iphone 13 garantili", SUB_ATTRS.telefon!, {})).toEqual({ marka: "Apple", hafiza: "256 GB", garanti: "Var" });
     expect(fillAttrs("42 numara erkek ayakkabı", SUB_ATTRS.ayakkabi!, {})).toEqual({ cinsiyet: "Erkek", numara: 42 });
     expect(fillAttrs("12 metre 2015 model tekne", SUB_ATTRS.deniz!, {})).toEqual({ tip: "Tekne", boy: 12, yil: 2015 });

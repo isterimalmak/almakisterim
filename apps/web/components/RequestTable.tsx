@@ -83,7 +83,10 @@ export function VitrinTile({ r }: { r: RequestItem }) {
         {r.cover_url ? <img src={r.cover_url} alt="" loading="lazy" /> : <Icon name={icon} size={34} sw={1.4} />}
         {r.is_featured && <span className="vt-star" aria-label="Öne çıkan">★</span>}
       </span>
+      {/* Telefonda resmin altında renkli şerit (Trendyol'daki "Tükeniyor!" gibi) */}
+      {r.is_urgent ? <span className="vt-band b-acil">Acil Talep!</span> : r.is_featured ? <span className="vt-band b-one">Öne Çıkan</span> : isNew(r.created_at) ? <span className="vt-band b-yeni">Yeni Talep</span> : null}
       <span className="vt-t">{r.title}</span>
+      {r.city && <span className="vt-l">{r.city}{r.district ? ` / ${r.district}` : ""}</span>}
       <span className="vt-p">{fmt(r.budget_max)} TL</span>
     </Link>
   );
