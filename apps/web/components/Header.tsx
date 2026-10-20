@@ -19,13 +19,16 @@ function SearchForm({ compact }: { compact?: boolean }) {
 }
 
 export function Header() {
-  const { user, browseCategories } = useSession();
+  const { user, browseCategories, siteName } = useSession();
+  // "almakisterim.com" → "almakisterim" + ".com" (uzantı farklı renkte, telefonda gizli)
+  const dot = siteName.lastIndexOf(".");
+  const [nameMain, nameExt] = dot > 0 ? [siteName.slice(0, dot), siteName.slice(dot)] : [siteName, ""];
   const path = usePathname();
   return (
     <>
       <header className="hdr">
         <div className="wrap hdr-in">
-          <Link href="/" className="logo" aria-label="almakisterim.com ana sayfa"><span className="logo-mark">a</span><span className="logo-txt">almakisterim<span>.com</span></span></Link>
+          <Link href="/" className="logo" aria-label={`${siteName} ana sayfa`}><img className="logo-mark" src="/logo.png" alt="" width={36} height={36} /><span className="logo-txt">{nameMain}{nameExt && <span>{nameExt}</span>}</span></Link>
           <SearchForm />
           <div className="hdr-right">
             {user ? (

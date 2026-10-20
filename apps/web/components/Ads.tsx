@@ -25,6 +25,11 @@ export function Ads({ cls = "" }: { cls?: string }) {
   );
 }
 
+// Tek reklam görseli: resim ya da sessiz başlayan video.
+export function AdMedia({ a }: { a: Ad }) {
+  return a.media.kind === "video" ? <AdVideo src={a.media.url} label={a.title || "Tanıtım videosu"} /> : <img src={a.media.url} alt={a.title || "Tanıtım"} loading="lazy" />;
+}
+
 // Ana sayfanın ortasındaki reklam alanı (vitrin ve son talepler bölümlerinin yeri): resim ve videolar yan yana kutular hâlinde.
 export function CenterAds() {
   const [ads, setAds] = useState<Ad[]>([]);

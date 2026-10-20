@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { homeBlocks } from "./home-blocks.js";
 import type { Deps } from "../context.js";
 import type { Pool } from "../db.js";
 import { z } from "zod";
@@ -50,7 +51,7 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
   });
 
   app.get("/categories", async () => {
-    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','home_urgent_box','photo_required','home_vitrin','home_latest','home_order','home_hidden')");
+    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','home_urgent_box','photo_required','home_vitrin','home_latest','home_order','home_hidden','site_name')");
     const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     return {
       categories: toTree(await listCategories(pool, true)),
@@ -62,7 +63,11 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
       // Ana sayfadaki vitrin ve son talepler: yönetici gizleyebilir (varsayılan açık).
       home_vitrin: s.home_vitrin !== false,
       home_latest: s.home_latest !== false,
-      // Ana sayfa bölümlerinin sırası ve gizlenenler (yönetim → Ana Sayfa Düzeni).
+      // Ana sayfa bölümleri: sırası, gizlenenler, yöneticinin eklediği yazı/afiş/kayan yazı (yönetim → Ana Sayfa Düzeni).
+      home_blocks: await homeBlocks(pool),
+      // Logonun yanındaki ad
+      site_name: typeof s.site_name === "string" && s.site_name.trim() ? s.site_name : "almakisterim.com",
+      // Eski biçim (önceki sürümle uyum için).
       home_order: Array.isArray(s.home_order) ? s.home_order : [],
       home_hidden: Array.isArray(s.home_hidden) ? s.home_hidden : [],
       // Dosya deposu bağlı değilken fotoğraf istenemez.

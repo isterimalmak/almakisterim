@@ -131,6 +131,21 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(1);
 
+  // Logonun yanındaki ad Ayarlar'dan değişir, üst kısımda hemen görünür; sonra eski hâline döner.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ayarlar" }).click();
+  await page.getByLabel("Logonun yanında yazan ad").fill("deneme-adi.net");
+  await page.getByRole("button", { name: "Kaydet" }).click();
+  await expect(page.getByText("Ayarlar kaydedildi.")).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "deneme-adi.net ana sayfa" })).toBeVisible();
+  await expect(page.locator(".logo img.logo-mark")).toHaveAttribute("src", "/logo.png");
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ayarlar" }).click();
+  await page.getByLabel("Logonun yanında yazan ad").fill("almakisterim.com");
+  await page.getByRole("button", { name: "Kaydet" }).click();
+  await expect(page.getByText("Ayarlar kaydedildi.")).toBeVisible();
+
   // Acil talepler vitrini yönetimden açılıp kapanır.
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Ayarlar" }).click();
@@ -311,22 +326,45 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.getByRole("button", { name: "Vitrini gizle" })).toBeVisible();
   await page.getByRole("button", { name: "Son talepleri göster" }).click();
   await expect(page.getByRole("button", { name: "Son talepleri gizle" })).toBeVisible();
-  // Ana Sayfa Düzeni: son talepler en üste taşınır, kurumsal bölüm gizlenir; ana sayfada sıra değişir.
+  // Ana Sayfa Düzeni (Marka Bahçem vitrini gibi): son talepler en üste taşınır; yazı ve kayan yazı bölümü eklenir.
+  const htag = rnd();
   await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
   for (let i = 0; i < 6; i++) await Promise.all([page.waitForResponse((r) => r.url().includes("/api/categories")), page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" }).click()]);
   await expect(page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" })).toBeDisabled();
+  await page.getByRole("button", { name: /Yazı \/ duyuru/ }).click();
+  await page.getByLabel("Başlık", { exact: true }).fill(`Hoş geldiniz ${htag}`);
+  await page.getByLabel("Metin").fill("Almak istediğinizi yazın, satıcılar size gelsin.");
+  await page.getByLabel("Düğme yazısı (isteğe bağlı)").fill("Ücretsiz talep ver");
+  await page.getByLabel("Düğmenin gideceği adres").fill("/talep-ver");
+  await page.getByRole("button", { name: "Kaydet", exact: true }).click();
+  await expect(page.getByText(`Yazı: Hoş geldiniz ${htag}`)).toBeVisible();
+  await page.getByRole("button", { name: /Kayan yazı bandı/ }).click();
+  await expect(page.getByText("Kayan yazı: Almak istediğinizi yazın", { exact: false })).toBeVisible();
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Son Eklenen Talepler" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Hoş geldiniz ${htag}` })).toBeVisible();
+  await expect(page.locator(".hb-text").getByRole("link", { name: "Ücretsiz talep ver" })).toHaveAttribute("href", "/talep-ver");
+  await expect(page.locator(".hb-mq").first()).toBeVisible();
   const [latestY, heroY] = await Promise.all([page.getByRole("heading", { name: "Son Eklenen Talepler" }).boundingBox(), page.getByRole("heading", { name: "Ne almak istiyorsunuz?" }).boundingBox()]);
   expect(latestY!.y).toBeLessThan(heroY!.y);
+  // Temizlik: eklenen bölümler silinir, hazır bölümler ilk sıraya döner.
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
-  await page.getByRole("button", { name: "İlk sıraya döndür" }).click();
+  await page.getByRole("button", { name: `Yazı: Hoş geldiniz ${htag} sil` }).click();
+  await expect(page.getByText(`Yazı: Hoş geldiniz ${htag}`)).toHaveCount(0);
+  await page.getByRole("button", { name: /^Kayan yazı: .* sil$/ }).first().click();
+  await expect(page.getByText("Bölüm silindi.").last()).toBeVisible();
+  await page.getByRole("button", { name: "Hazır bölümleri ilk sıraya döndür" }).click();
   await expect(page.getByRole("button", { name: "Talep kutusu (Ne almak istiyorsunuz?) yukarı taşı" })).toBeDisabled();
-  await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  await page.getByRole("button", { name: "Reklam Alanları", exact: true }).click();
   const row = page.locator(".yk-satir").filter({ has: page.locator("input[value='orta-reklam']") });
-  await row.getByRole("button", { name: "Sil" }).click();
+  await row.first().getByRole("button", { name: "Sil" }).click();
   await expect(page.getByText("Reklam silindi.")).toBeVisible();
+});
+
+test("telefonda yan kutular (Nasıl çalışır?, Güvenli alışveriş) bölüm listesinde, bilgisayarda sağ sütunda tek kez görünür", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Nasıl çalışır?" }).locator("visible=true")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Güvenli alışveriş" }).locator("visible=true")).toHaveCount(1);
 });
 
 test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page }) => {
