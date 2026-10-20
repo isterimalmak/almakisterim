@@ -358,9 +358,10 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByLabel("Metin").fill("Almak istediğinizi yazın, satıcılar size gelsin.");
   await page.getByLabel("Düğme yazısı (isteğe bağlı)").fill("Ücretsiz talep ver");
   await page.getByLabel("Düğmenin gideceği adres").fill("/talep-ver");
-  await page.getByRole("button", { name: "Kaydet", exact: true }).click();
+  // Kayıt sunucuya ulaşmadan sayfadan ayrılmamak için her kaydın cevabı beklenir.
+  await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/home-blocks") && r.request().method() === "PUT"), page.getByRole("button", { name: "Kaydet", exact: true }).click()]);
   await expect(page.getByText(`Yazı: Hoş geldiniz ${htag}`)).toBeVisible();
-  await page.getByRole("button", { name: /Kayan yazı bandı/ }).click();
+  await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/home-blocks") && r.request().method() === "PUT"), page.getByRole("button", { name: /Kayan yazı bandı/ }).click()]);
   await expect(page.getByText("Kayan yazı: Almak istediğinizi yazın", { exact: false })).toBeVisible();
   await page.goto("/");
   await expect(page.getByRole("heading", { name: `Hoş geldiniz ${htag}` })).toBeVisible();
