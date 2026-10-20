@@ -69,20 +69,22 @@ export default function Home() {
       </div>
 
       <div>
-        <section className="concept">
-          <h1>Burada ilanı alıcı verir, satıcı alıcıyı bulur.</h1>
-          <p>Almak istediğinizi yazın, satıcılar sizi arasın veya mesaj atsın. Satıyorsanız alıcıları listeleyin, ulaşın.</p>
-          <div className="hero-row">
-            <form className="quick" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
-              <div className="quick-in">
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Örn. ${HERO_EXAMPLES[ex]}`} aria-label="Ne almak istiyorsunuz?" />
-                <button type="submit">Talep Oluştur</button>
-              </div>
-              <p className="hero-ai"><span aria-hidden="true">✨</span> Konuşur gibi yazın: ne aradığınızı, bütçenizi, nerede istediğinizi ve olmazsa olmazlarınızı anlatın; formu yapay zekâ sizin için eksiksiz doldursun.</p>
-            </form>
-            <span className="hero-or">veya</span>
-            <Link className="btn btn-sell" href="/kategori">Satmak İstiyorum, Alıcıları Gör!</Link>
-          </div>
+        <section className="concept hero">
+          <span className="hero-badge">Ücretsiz · 1 dakikada</span>
+          <h1>Ne almak istiyorsunuz?</h1>
+          <p>İlanı siz verin, elinde ürünü olan satıcılar sizi arasın ya da mesaj atsın.</p>
+          <form className="hero-form" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
+            <div className="hero-in">
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Örn. ${HERO_EXAMPLES[ex]}`} aria-label="Ne almak istiyorsunuz?" />
+              <button type="submit">Talep Oluştur</button>
+            </div>
+          </form>
+          <p className="hero-ai"><span aria-hidden="true">✨</span> Konuşur gibi yazın: ne aradığınızı, bütçenizi, nerede istediğinizi ve olmazsa olmazlarınızı anlatın; formu yapay zekâ sizin için eksiksiz doldursun.</p>
+          <ul className="hero-steps" aria-label="Nasıl çalışır">
+            <li><b>1</b>Ne aradığınızı yazın</li>
+            <li><b>2</b>Satıcılar size ulaşsın</li>
+            <li><b>3</b>En uygununu seçin</li>
+          </ul>
         </section>
 
         {homeUrgentBox && !!urgent?.items.length && (

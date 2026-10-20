@@ -571,13 +571,6 @@ button.link{padding:0;font-size:inherit}
 .ct-acil-tile span:last-child{color:#C62828}
 
 /* ana sayfa üst bölüm: tek satırda "talep oluştur" ve "alıcıları gör" */
-.hero-row{display:flex;align-items:flex-start;gap:10px;margin-top:14px}
-.hero-row .quick{flex:1;min-width:0;margin:0;flex-direction:column}
-.hero-or{line-height:40px}
-.hero-or{color:#9FAAD1;font-size:12.5px;flex:none}
-.btn-sell{flex:none;height:40px;padding:0 16px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--navy);font-weight:700;border-radius:4px;font-size:14px;white-space:nowrap}
-.btn-sell:hover{background:#EAF0FC}
-@media (max-width:860px){.hero-row{flex-direction:column;align-items:stretch;gap:8px}.hero-or{text-align:center;line-height:1.4}}
 
 /* talep listesi üst çubuğu: sonuç sayısı, seçili filtre etiketleri, alarm ve sıralama */
 .res-bar{padding:10px 12px!important;align-items:flex-start!important}
@@ -761,7 +754,6 @@ button.link{padding:0;font-size:inherit}
 .ai-edit{margin-top:14px;border:1px solid var(--line);border-radius:8px;padding:14px;background:#FAFBFC}
 .ai-edit h3{margin:0 0 10px;font-size:15px;color:var(--navy)}
 @media (max-width:900px){.ai-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ai-row{flex-wrap:wrap}}
-.hero-ai{margin:7px 2px 0;color:#C9D2F0;font-size:12.5px;line-height:1.4}
 .ai-errs{margin:8px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5}
 .ai-errs li{margin-bottom:6px;word-break:break-word}
 
@@ -779,3 +771,29 @@ button.link{padding:0;font-size:inherit}
 .integ-b{padding:14px 16px}
 .integ-help{margin:0 0 10px;font-size:12.5px;color:#4A515B;line-height:1.5}
 .integ-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+/* Ana sayfa karşılama: tek odak, talep kutusu */
+.hero{position:relative;overflow:hidden;padding:26px 24px 22px;border-radius:10px;
+  background:radial-gradient(120% 140% at 100% 0%,rgba(255,122,26,.22) 0%,rgba(255,122,26,0) 45%),linear-gradient(135deg,#13235B 0%,#1B3480 100%)}
+.hero-badge{display:inline-block;background:rgba(255,255,255,.12);color:#FFD9BF;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;letter-spacing:.2px}
+.hero h1{font-size:26px;margin-top:10px}
+.hero>p{font-size:14.5px;margin-top:6px;max-width:560px}
+.hero-form{margin-top:16px}
+.hero-in{display:flex;background:#fff;border-radius:10px;padding:5px;box-shadow:0 8px 24px rgba(5,12,40,.35)}
+.hero-in input{flex:1;min-width:0;border:0;outline:0;padding:0 12px;height:46px;font-size:15px;color:var(--text);background:transparent}
+.hero-in button{flex:none;background:var(--orange);color:#fff;font-weight:700;font-size:15px;padding:0 20px;border-radius:7px;white-space:nowrap}
+.hero-in button:hover{background:var(--orange-d)}
+.hero-ai{margin:10px 2px 0;color:#C9D2F0;font-size:13px;line-height:1.5;max-width:640px}
+.hero-steps{display:flex;gap:18px;flex-wrap:wrap;list-style:none;margin:16px 0 0;padding:0;color:#E4E9F7;font-size:13px}
+.hero-steps li{display:flex;align-items:center;gap:7px}
+.hero-steps b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:12px}
+@media (max-width:640px){
+  .hero{padding:20px 16px 18px}
+  .hero h1{font-size:23px}
+  .hero-in{flex-direction:column;gap:6px;padding:6px}
+  .hero-in input{height:48px}
+  .hero-in button{height:48px}
+  .hero-steps{flex-direction:column;gap:8px}
+}
+/* Masaüstünde sağda "Nasıl çalışır?" kutusu zaten var; adımlar yalnızca telefonda karşılamada görünür. */
+@media (min-width:861px){.hero-steps{display:none}}
