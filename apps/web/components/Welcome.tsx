@@ -14,6 +14,9 @@ export function Welcome() {
   useEffect(() => {
     void api<{ welcome?: Ad | null }>("/tanitim").then((r) => {
       if (!r.welcome) return;
+      // Yalnız telefonda / yalnız bilgisayarda seçilen reklam öbür cihazda açılmaz.
+      const wide = window.matchMedia("(min-width: 861px)").matches;
+      if ((r.welcome.device === "mobile" && wide) || (r.welcome.device === "desktop" && !wide)) return;
       try { if (sessionStorage.getItem(KEY) === String(r.welcome.id)) return; } catch { /* yoksay */ }
       setAd(r.welcome);
     }).catch(() => {});

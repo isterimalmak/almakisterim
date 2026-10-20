@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { AdMedia } from "@/components/Ads";
 import { useSession } from "@/components/Session";
-import { api, uploadFile, type Ad } from "@/lib/api";
-import { BUILTIN_NAMES, BUILTIN_TEXTS, blockName, saveHomeBlocks, SHOW_TXT, SIDE_IDS, type BuiltinId, type HomeBlock, type Show, type Tone } from "@/lib/home";
+import { api, uploadFile, type Ad, type RequestItem } from "@/lib/api";
+import { fmt } from "@/lib/format";
+import { BUILTIN_NAMES, BUILTIN_TEXTS, blockName, saveHomeBlocks, SHOW_TXT, SIDE_IDS, SPEEDS, type BuiltinId, type HomeBlock, type Show, type Tone } from "@/lib/home";
 
 type Custom = Exclude<HomeBlock, { type: "builtin" }>;
 const TYPES = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"];
@@ -13,6 +14,7 @@ const newId = (p: string) => `${p}_${Date.now().toString(36)}${Math.random().toS
 const ADD: { type: Custom["type"]; icon: string; name: string; desc: string; make: () => Custom }[] = [
   { type: "text", icon: "📝", name: "Yazı / duyuru", desc: "Başlık, metin ve düğme", make: () => ({ type: "text", id: newId("yazi"), hidden: false, title: "Duyuru", text: "", cta: "", href: null, tone: "lacivert", align: "orta" }) },
   { type: "banner", icon: "🖼", name: "Afiş (resim / video)", desc: "Tek geniş görsel ya da yan yana kutular", make: () => ({ type: "banner", id: newId("afis"), hidden: false, title: "", ad_ids: [] }) },
+  { type: "showcase", icon: "🛍", name: "Kayan vitrin", desc: "Seçtiğiniz talepler tek satırda sağdan sola akar", make: () => ({ type: "showcase", id: newId("vitrin"), hidden: false, title: "Öne Çıkan Talepler", request_ids: [], speed: 2 }) },
   { type: "marquee", icon: "〰️", name: "Kayan yazı bandı", desc: "\"Ücretsiz talep ver • …\" diye akan şerit", make: () => ({ type: "marquee", id: newId("bant"), hidden: false, text: "Almak istediğinizi yazın, satıcılar size gelsin", bg: "#F26B1D", fg: "#FFFFFF", href: "/talep-ver" }) },
 ];
 
@@ -159,6 +161,8 @@ function Editor({ b, ads, onSave, onAds }: { b: Custom; ads: Ad[]; onSave: (b: H
     </div>
   );
 
+  if (d.type === "showcase") return <ShowcaseEditor b={d} onSave={(x) => { setD(x); onSave(x); }} />;
+
   // Afiş: görseller reklam olarak ('blok') yüklenir; bağlantı her görsel için ayrı.
   const items = d.ad_ids.map((id) => ads.find((a) => a.id === id)).filter((a): a is Ad => !!a);
   const upload = async (files: FileList | null) => {
@@ -202,6 +206,69 @@ function Editor({ b, ads, onSave, onAds }: { b: Custom; ads: Ad[]; onSave: (b: H
       <button type="button" className="btn btn-or" disabled={!!busy} onClick={() => input.current?.click()}>+ Resim veya video ekle</button>
       {busy && <span className="muted" style={{ marginLeft: 10 }}>{busy}</span>}
       <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Tek görsel geniş afiş olur; birden fazla görsel yan yana kutular hâlinde dizilir. Video sessiz başlar.</p>
+    </div>
+  );
+}
+
+// Kayan vitrin: adı, talepleri (başlık veya talep no ile aranır) ve hızı yönetici seçer.
+function ShowcaseEditor({ b, onSave }: { b: Extract<HomeBlock, { type: "showcase" }>; onSave: (b: Extract<HomeBlock, { type: "showcase" }>) => void }) {
+  const { toast } = useSession();
+  const [title, setTitle] = useState(b.title);
+  const [q, setQ] = useState("");
+  const [found, setFound] = useState<RequestItem[] | null>(null);
+  const [chosen, setChosen] = useState<RequestItem[]>([]);
+  const key = b.request_ids.join(",");
+  useEffect(() => {
+    if (!key) { setChosen([]); return; }
+    void api<{ items: RequestItem[] }>(`/requests?ids=${key}&per=40`)
+      .then((r) => setChosen(b.request_ids.map((id) => r.items.find((x) => x.id === id)).filter((x): x is RequestItem => !!x))).catch(() => {});
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const search = async () => {
+    try { setFound((await api<{ items: RequestItem[] }>(`/requests?per=12${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : "&sort=vitrin"}`)).items); }
+    catch (e) { toast((e as Error).message); }
+  };
+  useEffect(() => { void search(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const put = (ids: number[]) => onSave({ ...b, title, request_ids: ids });
+  const addR = (r: RequestItem) => {
+    if (b.request_ids.includes(r.id)) return;
+    if (b.request_ids.length >= 40) return toast("Bir vitrine en fazla 40 talep eklenebilir.");
+    put([...b.request_ids, r.id]);
+  };
+  // Seçilmiş ama artık yayında olmayan talepler (süresi doldu, kapandı) listede görünmez; vitrinde de çıkmaz.
+  const gone = b.request_ids.length - chosen.length;
+  return (
+    <div>
+      <div className="form-grid">
+        <div className="fg"><label htmlFor={`sct-${b.id}`}>Vitrinin adı</label><input id={`sct-${b.id}`} className="inp" maxLength={80} value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title !== b.title && put(b.request_ids)} placeholder="Örn. Öne Çıkan Talepler" /></div>
+        <div className="fg"><label>Kayma hızı</label>
+          <div className="seg" role="group" aria-label="Kayma hızı">{SPEEDS.map(([n, l]) => (
+            <button key={n} type="button" className={b.speed === n ? "on" : ""} aria-pressed={b.speed === n} onClick={() => onSave({ ...b, title, speed: n })}>{l}</button>
+          ))}</div></div>
+      </div>
+      <b style={{ display: "block", margin: "12px 0 6px" }}>Vitrindeki talepler ({chosen.length})</b>
+      {!chosen.length ? <p className="muted" style={{ fontSize: 12.5 }}>Henüz talep eklenmedi. Aşağıdan arayıp <b>Ekle</b>&apos;ye basın.</p> : (
+        <ul className="sc-pick">{chosen.map((r, i) => (
+          <li key={r.id}>
+            <span className="sc-pick-t"><b>{r.title}</b><small>No {r.id} · {fmt(r.budget_max)} TL · {r.city}</small></span>
+            <button type="button" className="btn btn-wh btn-sm" disabled={i === 0} aria-label={`${r.title} sola al`} onClick={() => { const ids = chosen.map((x) => x.id); [ids[i - 1], ids[i]] = [ids[i]!, ids[i - 1]!]; put(ids); }}>↑</button>
+            <button type="button" className="btn btn-gh btn-sm" aria-label={`${r.title} vitrinden çıkar`} onClick={() => put(b.request_ids.filter((x) => x !== r.id))}>Çıkar</button>
+          </li>
+        ))}</ul>
+      )}
+      {gone > 0 && <p className="muted" style={{ fontSize: 12 }}>{gone} talep artık yayında değil; vitrinde görünmüyor.</p>}
+      <form className="sc-search" onSubmit={(e) => { e.preventDefault(); void search(); }}>
+        <input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Başlık veya talep no ile ara" aria-label="Vitrine eklenecek talebi ara" />
+        <button type="submit" className="btn btn-bl">Ara</button>
+      </form>
+      {found && (!found.length ? <p className="muted" style={{ fontSize: 12.5 }}>Talep bulunamadı.</p> : (
+        <ul className="sc-pick">{found.map((r) => (
+          <li key={r.id}>
+            <span className="sc-pick-t"><b>{r.title}</b><small>No {r.id} · {fmt(r.budget_max)} TL · {r.city}</small></span>
+            {b.request_ids.includes(r.id) ? <span className="muted" style={{ fontSize: 12 }}>Eklendi</span>
+              : <button type="button" className="btn btn-or btn-sm" aria-label={`${r.title} vitrine ekle`} onClick={() => addR(r)}>Ekle</button>}
+          </li>
+        ))}</ul>
+      ))}
     </div>
   );
 }

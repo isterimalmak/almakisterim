@@ -65,6 +65,11 @@ describe("reklam alanları", () => {
     expect((await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim/order", headers: { cookie: admin }, payload: { ids: [c.id, b.id, a.id] } })).statusCode).toBe(200);
     expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${c.id}`, headers: { cookie: admin }, payload: { is_active: true } })).json().is_active).toBe(true);
     expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${a.id}`, headers: { cookie: admin }, payload: { link_url: "" } })).json().link_url).toBeNull();
+    // Hangi cihazda: varsayılan her yerde; yalnız telefonda / bilgisayarda seçilebilir, geçersiz değer reddedilir.
+    expect(pub[0].device).toBe("all");
+    expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${b.id}`, headers: { cookie: admin }, payload: { device: "mobile" } })).json().device).toBe("mobile");
+    expect((await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${b.id}`, headers: { cookie: admin }, payload: { device: "tablet" } })).statusCode).toBe(400);
+    expect((await ctx.app.inject({ url: "/api/tanitim" })).json().items.find((x: { id: number }) => x.id === b.id).device).toBe("mobile");
     // "www…" diye yazılan adresin başına https:// eklenir.
     const patchLink = (link_url: string) => ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${a.id}`, headers: { cookie: admin }, payload: { link_url } });
     expect((await patchLink("www.ornek.com/kampanya")).json().link_url).toBe("https://www.ornek.com/kampanya");
@@ -88,6 +93,14 @@ describe("reklam alanları", () => {
     expect((await ctx.app.inject({ method: "DELETE", url: `/api/admin/tanitim/${b.id}`, headers: { cookie: admin } })).statusCode).toBe(200);
     expect((await ctx.app.inject({ url: "/api/admin/tanitim", headers: { cookie: admin } })).json().items).toHaveLength(2);
     expect((await ctx.pool.query("SELECT count(*)::int AS n FROM media")).rows[0].n).toBe(2);
+  });
+
+  it("reklam eklerken cihaz seçilir: yalnız bilgisayarda", async () => {
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    const r = await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload: { media_id: (await upload(admin)).id, title: "Yalnız web", device: "desktop" } });
+    expect(r.statusCode).toBe(201);
+    expect(r.json().device).toBe("desktop");
+    expect((await ctx.app.inject({ url: "/api/tanitim" })).json().items[0].device).toBe("desktop");
   });
 
   it("yalnızca yönetici ekler; geçersiz bağlantı ve başkasının dosyası reddedilir", async () => {

@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { login, makeApp, resetData, type TestCtx } from "./helpers.js";
+import { createRequest, login, makeApp, resetData, type TestCtx } from "./helpers.js";
 
 let ctx: TestCtx;
 beforeEach(async () => {
@@ -77,5 +77,27 @@ describe("ana sayfa bölümleri", () => {
     await ctx.pool.query("UPDATE ads SET created_at = now() - interval '2 hours'");
     expect((await put(blocks.filter((b) => b.type !== "banner"))).statusCode).toBe(200);
     expect((await ctx.pool.query("SELECT count(*)::int AS n FROM ads")).rows[0].n).toBe(0);
+  });
+
+  it("kayan vitrin: yönetici adını, taleplerini ve hızını seçer; ana sayfa yalnız yayındaki seçili talepleri sırasıyla çeker", async () => {
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    const buyer = await login(ctx, "05321112233");
+    const a = await createRequest(ctx, buyer, { title: "Vitrin talebi bir" });
+    const b = await createRequest(ctx, buyer, { title: "Vitrin talebi iki" });
+    const c = await createRequest(ctx, buyer, { title: "Vitrin talebi üç" });
+    const base = (await cats()).home_blocks;
+    const put = (blocks: unknown[]) => ctx.app.inject({ method: "PUT", url: "/api/admin/home-blocks", headers: { cookie: admin }, payload: { blocks } });
+    const sc = { type: "showcase", id: "vitrin_ozel", title: "Haftanın Talepleri", request_ids: [c, a], speed: 4 };
+    let r = await put([sc, ...base]);
+    expect(r.statusCode).toBe(200);
+    expect((await cats()).home_blocks[0]).toMatchObject({ type: "showcase", title: "Haftanın Talepleri", request_ids: [c, a], speed: 4, show: "all" });
+    // Hız 1–5 arası; en fazla 40 talep.
+    expect((await put([{ ...sc, speed: 9 }, ...base])).statusCode).toBe(400);
+    expect((await put([{ ...sc, request_ids: Array.from({ length: 41 }, (_, i) => i + 1) }, ...base])).statusCode).toBe(400);
+    // Seçili talepler numarayla çekilir; kapanan talep düşer.
+    await ctx.app.inject({ method: "POST", url: `/api/requests/${a}/close`, headers: { cookie: buyer } });
+    r = await ctx.app.inject({ url: `/api/requests?ids=${c},${a},${b}&per=40` });
+    expect(r.json().items.map((x: { id: number }) => x.id).sort()).toEqual([b, c].sort());
+    expect((await ctx.app.inject({ url: "/api/requests?ids=1;DROP" })).statusCode).toBe(400);
   });
 });

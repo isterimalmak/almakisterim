@@ -44,7 +44,7 @@ export function AdsAdmin() {
     await load();
   };
 
-  const patch = async (a: Ad, body: Partial<Pick<Ad, "title" | "link_url" | "is_active" | "is_welcome" | "placement">>) => {
+  const patch = async (a: Ad, body: Partial<Pick<Ad, "title" | "link_url" | "is_active" | "is_welcome" | "placement" | "device">>) => {
     try { await api(`/admin/tanitim/${a.id}`, { method: "PATCH", body }); await load(); }
     catch (e) { toast((e as Error).message); }
   };
@@ -91,6 +91,7 @@ export function AdsAdmin() {
                 <label>Başlık<input className="inp" defaultValue={a.title} aria-label={`${i + 1}. reklam başlığı`} onBlur={(e) => e.target.value !== a.title && void patch(a, { title: e.target.value })} /></label>
                 <label>Tıklayınca gideceği adres (isteğe bağlı)<input className="inp" defaultValue={a.link_url ?? ""} placeholder="www.siteniz.com veya /kategori/vasita" aria-label={`${i + 1}. reklam bağlantısı`} onBlur={(e) => e.target.value !== (a.link_url ?? "") && void patch(a, { link_url: e.target.value })} /></label>
                 <label>Nerede görünsün<select className="sel" value={a.placement ?? "sol"} aria-label={`${i + 1}. reklamın yeri`} onChange={(e) => void patch(a, { placement: e.target.value as "sol" | "orta" })}><option value="orta">Ana sayfanın ortası (vitrin yeri)</option><option value="sol">Sol sütun (kategorilerin altı)</option></select></label>
+                <label>Hangi cihazda<select className="sel" value={a.device ?? "all"} aria-label={`${i + 1}. reklamın cihazı`} onChange={(e) => void patch(a, { device: e.target.value as "all" | "mobile" | "desktop" })}><option value="all">Her yerde (telefon ve bilgisayar)</option><option value="mobile">Yalnız telefonda</option><option value="desktop">Yalnız bilgisayarda (web)</option></select></label>
                 <label className="chk"><input type="checkbox" checked={!!a.is_welcome} onChange={(e) => { const on = e.target.checked; setItems((xs) => xs && xs.map((x) => ({ ...x, is_welcome: x.id === a.id ? on : on ? false : x.is_welcome }))); void patch(a, { is_welcome: on }); }} aria-label={`${i + 1}. reklam açılışta göster`} />Açılışta göster (siteye girince ekranın ortasında çıkar)</label>
               </div>
               <div className="yk-is">

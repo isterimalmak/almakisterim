@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
-import type { Ad } from "@/lib/api";
-import type { HomeBlock } from "@/lib/home";
-import { AdMedia } from "./Ads";
+import { useEffect, useState, type ReactNode } from "react";
+import { api, type Ad, type RequestItem } from "@/lib/api";
+import { SPEEDS, type HomeBlock } from "@/lib/home";
+import { AdMedia, adDevice } from "./Ads";
+import { VitrinTile } from "./RequestTable";
 
 // Yöneticinin ana sayfaya eklediği bölümler: yazı/duyuru, afiş (resim/video) ve kayan yazı bandı.
 
@@ -15,7 +16,33 @@ function Go({ href, className, children, label }: { href: string | null; classNa
     : <a className={className} href={href} target="_blank" rel="noopener noreferrer" aria-label={label}>{children}</a>;
 }
 
+// Kayan vitrin: yöneticinin seçtiği talepler tek satırda sağdan sola akar; üstüne gelince durur.
+// Yayından kalkan (süresi dolan, kapanan) talepler kendiliğinden düşer.
+function Showcase({ b }: { b: Extract<HomeBlock, { type: "showcase" }> }) {
+  const [items, setItems] = useState<RequestItem[] | null>(null);
+  const key = b.request_ids.join(",");
+  useEffect(() => {
+    if (!key) { setItems([]); return; }
+    void api<{ items: RequestItem[] }>(`/requests?ids=${key}&per=40`)
+      .then((r) => setItems(key.split(",").map((id) => r.items.find((x) => String(x.id) === id)).filter((x): x is RequestItem => !!x)))
+      .catch(() => setItems([]));
+  }, [key]);
+  if (!items?.length) return null;
+  // Şerit boşluksuz dönsün diye kartlar en az 8 olacak kadar çoğaltılır, sonra iki kez art arda dizilir.
+  const row = Array.from({ length: Math.ceil(8 / items.length) }, () => items).flat();
+  const secs = (SPEEDS.find((x) => x[0] === b.speed)?.[2] ?? 5) * row.length;
+  return (
+    <section className="box hsec sc" aria-label={b.title || "Vitrin"}>
+      <div className="box-h"><h2>{b.title || "Vitrin"}</h2></div>
+      <div className="sc-wrap"><div className="sc-track" style={{ animationDuration: `${secs}s` }}>
+        {[...row, ...row].map((r, i) => <div key={i} className="sc-i" aria-hidden={i >= row.length || undefined}><VitrinTile r={r} /></div>)}
+      </div></div>
+    </section>
+  );
+}
+
 export function CustomBlock({ b, ads }: { b: Exclude<HomeBlock, { type: "builtin" }>; ads: Ad[] }) {
+  if (b.type === "showcase") return <Showcase b={b} />;
   if (b.type === "text") {
     if (!b.title && !b.text) return null;
     return (
@@ -36,7 +63,7 @@ export function CustomBlock({ b, ads }: { b: Exclude<HomeBlock, { type: "builtin
   return (
     <section className={"hb-banner" + (items.length === 1 ? " tek" : "")} aria-label={b.title || "Afiş"}>
       {b.title && <h2 className="hb-banner-h">{b.title}</h2>}
-      <div className="hb-banner-g">{items.map((a) => <Go key={a.id} href={a.link_url} className="yk">{<AdMedia a={a} />}</Go>)}</div>
+      <div className="hb-banner-g">{items.map((a) => <Go key={a.id} href={a.link_url} className={"yk" + adDevice(a)}>{<AdMedia a={a} />}</Go>)}</div>
     </section>
   );
 }

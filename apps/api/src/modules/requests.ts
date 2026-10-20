@@ -33,6 +33,8 @@ export const ListQuery = z.object({
   city: z.string().optional(), district: z.string().max(60).optional(), neighbourhood: z.string().max(80).optional(), bmin: z.coerce.number().int().optional(), bmax: z.coerce.number().int().optional(),
   cond: z.string().optional(), urgent: z.enum(["1"]).optional(), no_offers: z.enum(["1"]).optional(), featured: z.enum(["1"]).optional(),
   buyer: z.enum(["bireysel", "kurumsal"]).optional(),
+  // Seçili talepler (ana sayfadaki kayan vitrin): ?ids=1048201,1048205
+  ids: z.string().regex(/^\d{1,12}(,\d{1,12}){0,39}$/, "Talep numaraları virgülle ayrılmalı.").optional(),
   sort: z.enum(["new", "old", "budget_desc", "budget_asc", "few_offers", "ending", "vitrin"]).default("new"),
   page: z.coerce.number().int().min(1).max(500).default(1), per: z.coerce.number().int().min(1).max(50).default(20),
 }).passthrough();
@@ -102,6 +104,7 @@ export function listFilters(raw: Record<string, unknown>) {
   if (q.no_offers) where.push("NOT EXISTS (SELECT 1 FROM offers o WHERE o.request_id = r.id AND o.status <> 'withdrawn')");
   if (q.buyer === "kurumsal") where.push("r.is_corporate");
   if (q.buyer === "bireysel") where.push("NOT r.is_corporate");
+  if (q.ids) add("r.id = ANY($?::bigint[])", q.ids.split(",").map(Number));
   // Kategoriye özel özellik filtreleri: ?a_imar=Konut,Ticari. Alıcı o özelliği seçmemiş ya da "Farketmez" demişse de uyar.
   for (const [k, v] of Object.entries(q)) {
     if (/^a_[a-z0-9_]{1,20}$/.test(k) && typeof v === "string") {

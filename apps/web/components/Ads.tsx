@@ -16,16 +16,19 @@ export function Ads({ cls = "" }: { cls?: string }) {
           ? <AdVideo src={a.media.url} label={a.title || "Tanıtım videosu"} />
           : <img src={a.media.url} alt={a.title || "Tanıtım"} loading="lazy" />;
         const inner = body;
-        if (!a.link_url) return <div key={a.id} className="yk">{inner}</div>;
+        if (!a.link_url) return <div key={a.id} className={"yk" + adDevice(a)}>{inner}</div>;
         return a.link_url.startsWith("/")
-          ? <Link key={a.id} className="yk" href={a.link_url}>{inner}</Link>
-          : <a key={a.id} className="yk" href={a.link_url} target="_blank" rel="sponsored noopener noreferrer">{inner}</a>;
+          ? <Link key={a.id} className={"yk" + adDevice(a)} href={a.link_url}>{inner}</Link>
+          : <a key={a.id} className={"yk" + adDevice(a)} href={a.link_url} target="_blank" rel="sponsored noopener noreferrer">{inner}</a>;
       })}
     </div>
   );
 }
 
 // Tek reklam görseli: resim ya da sessiz başlayan video.
+// Reklam yalnız telefonda ya da yalnız bilgisayarda görünsün (Yönetim → Reklam Alanları → Hangi cihazda).
+export const adDevice = (a: Ad) => (a.device === "mobile" ? " ad-m" : a.device === "desktop" ? " ad-d" : "");
+
 export function AdMedia({ a }: { a: Ad }) {
   return a.media.kind === "video" ? <AdVideo src={a.media.url} label={a.title || "Tanıtım videosu"} /> : <img src={a.media.url} alt={a.title || "Tanıtım"} loading="lazy" />;
 }
@@ -41,10 +44,10 @@ export function CenterAds() {
         const body = a.media.kind === "video"
           ? <AdVideo src={a.media.url} label={a.title || "Tanıtım videosu"} />
           : <img src={a.media.url} alt={a.title || "Tanıtım"} loading="lazy" />;
-        if (!a.link_url) return <div key={a.id} className="yk">{body}</div>;
+        if (!a.link_url) return <div key={a.id} className={"yk" + adDevice(a)}>{body}</div>;
         return a.link_url.startsWith("/")
-          ? <Link key={a.id} className="yk" href={a.link_url}>{body}</Link>
-          : <a key={a.id} className="yk" href={a.link_url} target="_blank" rel="sponsored noopener noreferrer">{body}</a>;
+          ? <Link key={a.id} className={"yk" + adDevice(a)} href={a.link_url}>{body}</Link>
+          : <a key={a.id} className={"yk" + adDevice(a)} href={a.link_url} target="_blank" rel="sponsored noopener noreferrer">{body}</a>;
       })}
     </section>
   );
