@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AdMedia } from "@/components/Ads";
 import { useSession } from "@/components/Session";
 import { api, uploadFile, type Ad } from "@/lib/api";
-import { BUILTIN_NAMES, blockName, saveHomeBlocks, SIDE_IDS, type BuiltinId, type HomeBlock, type Tone } from "@/lib/home";
+import { BUILTIN_NAMES, BUILTIN_TEXTS, blockName, saveHomeBlocks, SHOW_TXT, SIDE_IDS, type BuiltinId, type HomeBlock, type Show, type Tone } from "@/lib/home";
 
 type Custom = Exclude<HomeBlock, { type: "builtin" }>;
 const TYPES = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"];
@@ -40,11 +40,16 @@ export function HomeLayoutAdmin() {
   const flip = (b: HomeBlock) => void save(blocks.map((x) => (x.id === b.id ? { ...x, hidden: !x.hidden } : x)), `${blockName(b)} ${b.hidden ? "ana sayfada gösteriliyor." : "ziyaretçilerden gizlendi."}`);
   const remove = (b: HomeBlock) => { if (confirm(`"${blockName(b)}" bölümü silinsin mi?`)) void save(blocks.filter((x) => x.id !== b.id), "Bölüm silindi."); };
   const add = (make: () => Custom) => { const b = make(); setOpen(b.id); void save([b, ...blocks], "Bölüm en üste eklendi; aşağıdan düzenleyin, oklarla yerini seçin."); };
-  const update = (b: Custom) => void save(blocks.map((x) => (x.id === b.id ? b : x)), "Kaydedildi.");
+  const update = (b: HomeBlock) => void save(blocks.map((x) => (x.id === b.id ? b : x)), "Kaydedildi.");
+  const setShow = (b: HomeBlock, show: Show) => void save(blocks.map((x) => (x.id === b.id ? { ...x, show } : x)), `${blockName(b)}: ${SHOW_TXT[show].toLowerCase()} görünür.`);
+  // Önizleme: kaydedince yenilenir (Marka Bahçem'deki gibi telefon/bilgisayar).
+  const [view, setView] = useState<"mobile" | "desktop">("mobile");
+  const [stamp, setStamp] = useState(0);
+  useEffect(() => { setStamp((x) => x + 1); }, [homeBlocks]);
   const reset = () => {
     if (!confirm("Hazır bölümler ilk sıraya dönsün mü? Eklediğiniz bölümler en üstte kalır.")) return;
     const custom = blocks.filter((b) => b.type !== "builtin");
-    void save([...custom, ...(Object.keys(BUILTIN_NAMES) as BuiltinId[]).map((id) => ({ type: "builtin" as const, id, hidden: blocks.find((b) => b.id === id)?.hidden ?? false }))], "Hazır bölümler ilk sıraya döndü.");
+    void save([...custom, ...(Object.keys(BUILTIN_NAMES) as BuiltinId[]).map((id) => blocks.find((b) => b.id === id) ?? { type: "builtin" as const, id, hidden: false })], "Hazır bölümler ilk sıraya döndü.");
   };
 
   return (
@@ -62,28 +67,70 @@ export function HomeLayoutAdmin() {
         ))}</div>
       </div>
 
+      <div className="hl-wrap">
       <ol className="hl-list">
         {blocks.map((b, i) => (
-          <li key={b.id} className={(b.hidden ? "off" : "") + (b.type !== "builtin" ? " custom" : "")}>
+          <li key={b.id} className={(b.hidden ? "off" : "") + (b.type !== "builtin" ? " custom" : "") + (open === b.id ? " open" : "")}>
             <div className="hl-row">
               <span className="hl-n">{i + 1}</span>
-              <span className="hl-t"><b>{blockName(b)}</b><small>{b.hidden ? "Gizli" : "Görünüyor"}{b.type === "builtin" && SIDE_IDS.includes(b.id) ? " · bilgisayarda sağ sütunda" : ""}</small></span>
+              {/* Bölümün adına tıklayınca düzenleme kutusu açılır */}
+              <button type="button" className="hl-t" aria-expanded={open === b.id} aria-label={`${blockName(b)} düzenle`} onClick={() => setOpen(open === b.id ? null : b.id)}>
+                <b>{blockName(b)}</b>
+                <small>{b.hidden ? "Gizli" : "Görünüyor"} · {SHOW_TXT[b.show ?? "all"]}{b.type === "builtin" && SIDE_IDS.includes(b.id) ? " · bilgisayarda sağ sütunda" : ""}</small>
+              </button>
               <button type="button" className="btn btn-wh btn-sm" disabled={i === 0} aria-label={`${blockName(b)} yukarı taşı`} onClick={() => move(i, -1)}>↑</button>
               <button type="button" className="btn btn-wh btn-sm" disabled={i === blocks.length - 1} aria-label={`${blockName(b)} aşağı taşı`} onClick={() => move(i, 1)}>↓</button>
               <button type="button" className={"btn btn-sm " + (b.hidden ? "btn-or" : "btn-wh")} aria-label={`${blockName(b)} ${b.hidden ? "göster" : "gizle"}`} onClick={() => flip(b)}>{b.hidden ? "Göster" : "Gizle"}</button>
-              {b.type !== "builtin" && <button type="button" className="btn btn-wh btn-sm" aria-expanded={open === b.id} onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? "Kapat" : "Düzenle"}</button>}
               {b.type !== "builtin" && <button type="button" className="btn btn-gh btn-sm" aria-label={`${blockName(b)} sil`} onClick={() => remove(b)}>Sil</button>}
             </div>
-            {open === b.id && b.type !== "builtin" && <Editor b={b} ads={ads} onSave={update} onAds={loadAds} />}
+            {open === b.id && (
+              <div className="hl-ed">
+                <div className="fg" style={{ marginBottom: 10 }}><label>Nerede görünsün</label>
+                  <div className="seg" role="group" aria-label={`${blockName(b)} nerede görünsün`}>{(["all", "mobile", "desktop"] as Show[]).map((k) => (
+                    <button key={k} type="button" className={(b.show ?? "all") === k ? "on" : ""} aria-pressed={(b.show ?? "all") === k} onClick={() => setShow(b, k)}>{SHOW_TXT[k]}</button>
+                  ))}</div></div>
+                {b.type === "builtin" ? <BuiltinEditor b={b} onSave={update} /> : <Editor b={b} ads={ads} onSave={update} onAds={loadAds} />}
+              </div>
+            )}
           </li>
         ))}
       </ol>
+      <aside className="hl-prev" aria-label="Önizleme">
+        <div className="seg">{([["mobile", "📱 Telefon"], ["desktop", "🖥 Bilgisayar"]] as const).map(([k, l]) => <button key={k} type="button" className={view === k ? "on" : ""} onClick={() => setView(k)}>{l}</button>)}
+          <button type="button" onClick={() => setStamp((x) => x + 1)}>↻ Yenile</button></div>
+        <div className={"hl-frame " + view}><iframe key={`${view}-${stamp}`} src="/?onizleme=1" title="Ana sayfa önizlemesi" /></div>
+        <small className="muted">Değişiklikler kaydedilince önizleme yenilenir. Ziyaretçiler de aynı anda yeni hâli görür.</small>
+      </aside>
+      </div>
       <button type="button" className="btn btn-gh btn-sm" style={{ marginTop: 10 }} onClick={reset}>Hazır bölümleri ilk sıraya döndür</button>
     </div></div>
   );
 }
 
-function Editor({ b, ads, onSave, onAds }: { b: Custom; ads: Ad[]; onSave: (b: Custom) => void; onAds: () => Promise<void> }) {
+// Hazır bölümün yazıları: boş bırakılan alan varsayılan yazıyla görünür.
+function BuiltinEditor({ b, onSave }: { b: Extract<HomeBlock, { type: "builtin" }>; onSave: (b: HomeBlock) => void }) {
+  const fields = BUILTIN_TEXTS[b.id] ?? [];
+  const [t, setT] = useState<Record<string, string>>(b.texts ?? {});
+  if (!fields.length) return <p className="muted" style={{ fontSize: 12.5 }}>Bu bölümün yazısı yok; yalnızca yerini, nerede görüneceğini ve görünürlüğünü değiştirebilirsiniz.{b.id === "center_ads" || b.id === "ads_m" ? " Görselleri Reklam Alanları bölümünden eklersiniz." : ""}</p>;
+  return (
+    <div className="form-grid">
+      {fields.map((f) => (
+        <div key={f.k} className={"fg" + (f.long ? " full" : "")}><label htmlFor={`bt-${b.id}-${f.k}`}>{f.l}</label>
+          {f.long
+            ? <textarea id={`bt-${b.id}-${f.k}`} className="txa" rows={2} maxLength={400} value={t[f.k] ?? ""} placeholder={f.d} onChange={(e) => setT({ ...t, [f.k]: e.target.value })} />
+            : <input id={`bt-${b.id}-${f.k}`} className="inp" maxLength={400} value={t[f.k] ?? ""} placeholder={f.d} onChange={(e) => setT({ ...t, [f.k]: e.target.value })} />}
+        </div>
+      ))}
+      <div className="fg full" style={{ flexDirection: "row", gap: 8 }}>
+        <button type="button" className="btn btn-or" onClick={() => onSave({ ...b, texts: Object.fromEntries(Object.entries(t).filter(([, v]) => v.trim())) })}>Kaydet</button>
+        <button type="button" className="btn btn-gh btn-sm" onClick={() => { setT({}); onSave({ ...b, texts: {} }); }}>Varsayılan yazılara dön</button>
+      </div>
+      <span className="hint full" style={{ gridColumn: "1/-1" }}>Boş bıraktığınız alanlarda soluk yazan varsayılan metin görünür.</span>
+    </div>
+  );
+}
+
+function Editor({ b, ads, onSave, onAds }: { b: Custom; ads: Ad[]; onSave: (b: HomeBlock) => void; onAds: () => Promise<void> }) {
   const { toast } = useSession();
   const [d, setD] = useState<Custom>(b);
   const [busy, setBusy] = useState<string | null>(null);
@@ -92,7 +139,7 @@ function Editor({ b, ads, onSave, onAds }: { b: Custom; ads: Ad[]; onSave: (b: C
   const href = (v: string) => (v.trim() ? v.trim() : null);
 
   if (d.type === "text") return (
-    <div className="hl-ed form-grid">
+    <div className="form-grid">
       <div className="fg full"><label htmlFor={`t-${d.id}`}>Başlık</label><input id={`t-${d.id}`} className="inp" maxLength={120} value={d.title} onChange={(e) => set({ title: e.target.value })} /></div>
       <div className="fg full"><label htmlFor={`x-${d.id}`}>Metin</label><textarea id={`x-${d.id}`} className="txa" rows={3} maxLength={1000} value={d.text} onChange={(e) => set({ text: e.target.value })} /></div>
       <div className="fg"><label htmlFor={`c-${d.id}`}>Düğme yazısı (isteğe bağlı)</label><input id={`c-${d.id}`} className="inp" maxLength={40} value={d.cta} onChange={(e) => set({ cta: e.target.value })} placeholder="Örn. Ücretsiz talep ver" /></div>
@@ -103,7 +150,7 @@ function Editor({ b, ads, onSave, onAds }: { b: Custom; ads: Ad[]; onSave: (b: C
     </div>
   );
   if (d.type === "marquee") return (
-    <div className="hl-ed form-grid">
+    <div className="form-grid">
       <div className="fg full"><label htmlFor={`m-${d.id}`}>Kayan yazı</label><input id={`m-${d.id}`} className="inp" maxLength={160} value={d.text} onChange={(e) => set({ text: e.target.value })} /></div>
       <div className="fg"><label htmlFor={`bg-${d.id}`}>Zemin rengi</label><input id={`bg-${d.id}`} type="color" className="inp" value={d.bg} onChange={(e) => set({ bg: e.target.value.toUpperCase() })} /></div>
       <div className="fg"><label htmlFor={`fg-${d.id}`}>Yazı rengi</label><input id={`fg-${d.id}`} type="color" className="inp" value={d.fg} onChange={(e) => set({ fg: e.target.value.toUpperCase() })} /></div>
@@ -138,7 +185,7 @@ function Editor({ b, ads, onSave, onAds }: { b: Custom; ads: Ad[]; onSave: (b: C
     catch (e) { toast((e as Error).message); }
   };
   return (
-    <div className="hl-ed">
+    <div>
       <div className="form-grid">
         <div className="fg full"><label htmlFor={`bt-${d.id}`}>Başlık (isteğe bağlı)</label><input id={`bt-${d.id}`} className="inp" maxLength={120} value={d.title} onChange={(e) => set({ title: e.target.value })} onBlur={() => onSave(d)} /></div>
       </div>

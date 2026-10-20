@@ -353,6 +353,22 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.getByText(`Yazı: Hoş geldiniz ${htag}`)).toHaveCount(0);
   await page.getByRole("button", { name: /^Kayan yazı: .* sil$/ }).first().click();
   await expect(page.getByText("Bölüm silindi.").last()).toBeVisible();
+  // Hazır bölümün adına tıklayınca düzenleme açılır: talep kutusunun başlığı değişir, ana sayfada görünür, sonra varsayılana döner.
+  await page.getByRole("button", { name: "Talep kutusu (Ne almak istiyorsunuz?) düzenle" }).click();
+  await page.getByLabel("Başlık", { exact: true }).fill(`Neyi arıyorsunuz ${htag}?`);
+  await page.getByRole("button", { name: "Kaydet", exact: true }).click();
+  await expect(page.getByText("Kaydedildi.").last()).toBeVisible();
+  await expect(page.locator(".hl-frame iframe")).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1, name: `Neyi arıyorsunuz ${htag}?` })).toBeVisible();
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
+  await page.getByRole("button", { name: "Talep kutusu (Ne almak istiyorsunuz?) düzenle" }).click();
+  await page.getByRole("group", { name: /nerede görünsün/ }).getByRole("button", { name: "Bilgisayarda" }).click();
+  await expect(page.getByText("bilgisayarda görünür.", { exact: false }).last()).toBeVisible();
+  await page.getByRole("group", { name: /nerede görünsün/ }).getByRole("button", { name: "Her yerde" }).click();
+  await page.getByRole("button", { name: "Varsayılan yazılara dön" }).click();
+  await expect(page.getByLabel("Başlık", { exact: true })).toHaveValue("");
   await page.getByRole("button", { name: "Hazır bölümleri ilk sıraya döndür" }).click();
   await expect(page.getByRole("button", { name: "Talep kutusu (Ne almak istiyorsunuz?) yukarı taşı" })).toBeDisabled();
   await page.getByRole("button", { name: "Reklam Alanları", exact: true }).click();

@@ -63,6 +63,11 @@ describe("ana sayfa bölümleri", () => {
     expect((await ctx.app.inject({ url: "/api/admin/tanitim", headers: { cookie: admin } })).json().items).toHaveLength(0);
     expect((await ctx.app.inject({ url: "/api/tanitim" })).json().blok.map((x: { id: number }) => x.id)).toEqual([ad.id]);
 
+    // Hazır bölümün yazıları ve "nerede görünsün" kaydedilir.
+    expect((await put([{ type: "builtin", id: "hero", show: "mobile", texts: { title: "Neyi arıyorsunuz?" } }])).statusCode).toBe(200);
+    expect((await cats()).home_blocks[0]).toMatchObject({ id: "hero", show: "mobile", texts: { title: "Neyi arıyorsunuz?" } });
+    expect((await put([{ type: "builtin", id: "hero", show: "tablet" }])).statusCode).toBe(400);
+    expect((await put([{ type: "builtin", id: "hero", texts: { title: "x".repeat(401) } }])).statusCode).toBe(400);
     expect((await put([{ type: "builtin", id: "uydurma" }])).statusCode).toBe(400);
     expect((await put([{ type: "text", id: "a1" }, { type: "text", id: "a1" }])).json().error).toBe("tekrar");
     expect((await put([{ type: "banner", id: "afis_2", ad_ids: [999999] }])).json().error).toBe("gorsel_yok");

@@ -14,15 +14,20 @@ export const SIDE = ["launch", "how", "safe"];
 const Href = z.string().trim().max(500).regex(/^(https?:\/\/|\/)/, "Bağlantı https:// veya / ile başlamalı.").nullable().default(null);
 const Id = z.string().regex(/^[a-z0-9_]{2,40}$/);
 const Color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Renk #RRGGBB biçiminde olmalı.");
+// Nerede görünsün: her yerde, yalnızca telefonda, yalnızca bilgisayarda.
+const Show = z.enum(["all", "mobile", "desktop"]).default("all");
+// Hazır bölümlerin değiştirilebilen yazıları (başlık, düğme…); boş bırakılan alan varsayılan yazıyla görünür.
+const Texts = z.record(z.string().regex(/^[a-z0-9_]{1,20}$/), z.string().trim().max(400)).default({})
+  .refine((t) => Object.keys(t).length <= 20, "En fazla 20 yazı alanı olabilir.");
 const Block = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("builtin"), id: z.enum(BUILTINS), hidden: z.boolean().default(false) }),
+  z.object({ type: z.literal("builtin"), id: z.enum(BUILTINS), hidden: z.boolean().default(false), show: Show, texts: Texts }),
   z.object({ type: z.literal("text"), id: Id, hidden: z.boolean().default(false), title: z.string().trim().max(120).default(""),
     text: z.string().trim().max(1000).default(""), cta: z.string().trim().max(40).default(""), href: Href,
-    tone: z.enum(["acik", "lacivert", "turuncu", "yesil"]).default("acik"), align: z.enum(["sol", "orta"]).default("orta") }),
+    tone: z.enum(["acik", "lacivert", "turuncu", "yesil"]).default("acik"), align: z.enum(["sol", "orta"]).default("orta"), show: Show }),
   z.object({ type: z.literal("marquee"), id: Id, hidden: z.boolean().default(false), text: z.string().trim().min(1, "Kayan yazı boş olamaz.").max(160),
-    bg: Color.default("#F26B1D"), fg: Color.default("#FFFFFF"), href: Href }),
+    bg: Color.default("#F26B1D"), fg: Color.default("#FFFFFF"), href: Href, show: Show }),
   z.object({ type: z.literal("banner"), id: Id, hidden: z.boolean().default(false), title: z.string().trim().max(120).default(""),
-    ad_ids: z.array(z.number().int()).max(8).default([]) }),
+    ad_ids: z.array(z.number().int()).max(8).default([]), show: Show }),
 ]);
 export type HomeBlock = z.infer<typeof Block>;
 const Blocks = z.array(Block).max(40);
@@ -39,10 +44,10 @@ export async function homeBlocks(pool: Pool): Promise<HomeBlock[]> {
     const order = Array.isArray(s.home_order) ? (s.home_order as string[]) : [];
     const hidden = Array.isArray(s.home_hidden) ? (s.home_hidden as string[]) : [];
     list = order.filter((x): x is (typeof BUILTINS)[number] => (BUILTINS as readonly string[]).includes(x))
-      .map((id) => ({ type: "builtin" as const, id, hidden: hidden.includes(id) || (id === "vitrin" && s.home_vitrin === false) || (id === "latest" && s.home_latest === false) }));
+      .map((id) => ({ type: "builtin" as const, id, show: "all" as const, texts: {}, hidden: hidden.includes(id) || (id === "vitrin" && s.home_vitrin === false) || (id === "latest" && s.home_latest === false) }));
   }
   for (const id of BUILTINS) if (!list.some((b) => b.type === "builtin" && b.id === id)) {
-    list.push({ type: "builtin", id, hidden: (id === "vitrin" && s.home_vitrin === false) || (id === "latest" && s.home_latest === false) });
+    list.push({ type: "builtin", id, show: "all", texts: {}, hidden: (id === "vitrin" && s.home_vitrin === false) || (id === "latest" && s.home_latest === false) });
   }
   return list;
 }
