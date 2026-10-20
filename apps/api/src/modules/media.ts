@@ -136,6 +136,7 @@ export async function cleanupOrphans(pool: Pool, storage: MediaStorage) {
   const { rows } = await pool.query<{ storage_key: string; shared: boolean }>(
     `DELETE FROM media m WHERE request_id IS NULL AND offer_id IS NULL AND created_at < now() - interval '1 day'
        AND NOT EXISTS (SELECT 1 FROM ads a WHERE a.media_id = m.id) AND NOT EXISTS (SELECT 1 FROM stock_images s WHERE s.media_id = m.id)
+       AND NOT EXISTS (SELECT 1 FROM mail_templates t WHERE strpos(t.blocks::text, m.storage_key) > 0)
      RETURNING storage_key, shared`);
   for (const r of rows) if (!r.shared) await storage.remove(r.storage_key).catch(() => {});
   return rows.length;

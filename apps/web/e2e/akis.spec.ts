@@ -528,6 +528,29 @@ test("yönetici kayan vitrin ekler: adını, talebini ve hızını seçer; ana s
   const { home_blocks } = await (await page.request.get("/api/categories")).json();
   const r = await page.request.put("/api/admin/home-blocks", { data: { blocks: home_blocks.filter((b: { type: string }) => b.type !== "showcase") } });
   expect(r.ok()).toBeTruthy();
+
+  // Aynı yönetici oturumuyla E-posta Stüdyosu: hazır şablondan e-posta açar, başlık ekleyip yazısını değiştirir, önizlemede görür, kaydeder.
+  await page.goto("/yonetim");
+  await page.getByRole("link", { name: "E-posta Stüdyosu" }).click();
+  await expect(page).toHaveURL(/\/yonetim\/eposta$/);
+  await page.getByRole("button", { name: /Şablonlar/ }).click();
+  await page.locator(".ms-starters button", { hasText: "Hoş geldiniz" }).click();
+  await page.waitForURL(/\/yonetim\/eposta\/\d+$/);
+  const preview = page.frameLocator('iframe[title="E-posta önizlemesi"]');
+  await expect(preview.getByText(/Aramıza hoş geldiniz/)).toBeVisible();
+  await page.locator(".ms-pal button", { hasText: "Başlık" }).click();
+  const heading = `Bu hafta size özel ${rnd()}`;
+  await page.getByLabel("Başlık", { exact: true }).fill(heading);
+  await expect(preview.getByText(heading)).toBeVisible();
+  const savedMail = page.waitForResponse((r) => /\/api\/admin\/mail\/templates\/\d+$/.test(r.url()) && r.request().method() === "PUT");
+  await page.getByRole("button", { name: "💾 Kaydet" }).click();
+  expect((await savedMail).ok()).toBeTruthy();
+  await expect(page.getByText("✓ Kaydedildi")).toBeVisible();
+  const id = page.url().match(/(\d+)$/)![1];
+  const tpl = (await (await page.request.get(`/api/admin/mail/templates/${id}`)).json()).template;
+  expect(tpl.blocks.some((b: { type: string; text?: string }) => b.type === "heading" && b.text === heading)).toBeTruthy();
+  // Temizlik: şablon silinir.
+  expect((await page.request.delete(`/api/admin/mail/templates/${id}`)).ok()).toBeTruthy();
 });
 
 test("telefonda ana sayfa: üstte arama ve bildirim, kategoriler ve vitrin yana kayar", async ({ page }, info) => {

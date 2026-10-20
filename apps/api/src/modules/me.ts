@@ -18,12 +18,14 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
     const used = await freeUnlocksUsed(pool, req.user.id);
     const unread = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND read_at IS NULL", [req.user.id])).rows[0]!.n;
     const unreadMsg = await unreadMessages(pool, req.user.id);
-    return { user: { ...req.user, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg } };
+    // Kampanya e-postası izni (E-posta Stüdyosu)
+    const marketing = !!(await pool.query("SELECT 1 FROM users WHERE id = $1 AND marketing_at IS NOT NULL", [req.user.id])).rowCount;
+    return { user: { ...req.user, marketing, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg } };
   });
 
   app.patch("/me", async (req) => {
     const user = requireUser(req);
-    const b = z.object({ name: z.string().trim().min(2).max(80).optional(), is_corporate: z.boolean().optional() }).parse(req.body);
+    const b = z.object({ name: z.string().trim().min(2).max(80).optional(), is_corporate: z.boolean().optional(), marketing: z.boolean().optional() }).parse(req.body);
     if (b.name && b.name !== user.name && (await aiSettings(pool)).names) {
       const r = await deps.ai.checkName(b.name);
       if (r.verdict === "block") {
@@ -33,6 +35,8 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
     }
     await pool.query("UPDATE users SET name = COALESCE($2, name), is_corporate = COALESCE($3, is_corporate) WHERE id = $1",
       [user.id, b.name ?? null, b.is_corporate ?? null]);
+    // Kampanya e-postası izni: açılınca izin zamanı yazılır, kapatılınca silinir (sıradaki kampanya e-postaları gönderilirken atlanır).
+    if (b.marketing !== undefined) await pool.query("UPDATE users SET marketing_at = CASE WHEN $2 THEN coalesce(marketing_at, now()) ELSE NULL END WHERE id = $1", [user.id, b.marketing]);
     return { ok: true };
   });
 

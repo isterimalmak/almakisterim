@@ -1,5 +1,6 @@
 import { aiSettings, logAiAction } from "../services/ai-guard.js";
 import { welcomeEmail } from "./notifications.js";
+import { mailEvent } from "./mailstudio.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireUser, SESSION_COOKIE, SESSION_DAYS, setSessionCookie, type Deps } from "../context.js";
@@ -137,7 +138,11 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
        RETURNING id, (xmax = 0) AS inserted`,
       [target, (body.name ?? "").trim(), roleFor(email, phone)],
     );
-    if (user.rows[0]!.inserted) void welcomeEmail(deps, user.rows[0]!.id).catch(() => {});
+    if (user.rows[0]!.inserted) {
+      void welcomeEmail(deps, user.rows[0]!.id).catch(() => {});
+      // E-posta Stüdyosu: "Yeni üye olunca" görevleri sıraya girer (hata girişi bozmaz)
+      await mailEvent(pool, "signup", user.rows[0]!.id);
+    }
     const token = await createSession(pool, user.rows[0]!.id);
     setSessionCookie(reply, token, config.isProd);
     return { ok: true };
@@ -200,6 +205,7 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
           [g.sub, g.email, g.name, roleFor(g.email, null)]);
         userId = ins.rows[0]!.id;
         void welcomeEmail(deps, userId).catch(() => {});
+        await mailEvent(pool, "signup", userId);
       }
       setSessionCookie(reply, await createSession(pool, userId), config.isProd);
       return reply.redirect(`${config.APP_URL}/`);

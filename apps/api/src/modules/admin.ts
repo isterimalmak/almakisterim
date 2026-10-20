@@ -8,6 +8,7 @@ import { listCategories, toTree } from "./categories.js";
 import { cleanupOrphans, mediaFor } from "./media.js";
 import { expiryReminders, notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 import { autoBlog, recheckHeld } from "./ai-admin.js";
+import { mailEvent, mailTick } from "./mailstudio.js";
 
 // Ana sayfanın orta sütunundaki bölümler (web/app/page.tsx ile aynı adlar).
 const HOME_SECTIONS = ["hero", "urgent", "cats", "ads_m", "center_ads", "vitrin", "latest", "corp"] as const;
@@ -239,7 +240,9 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
   app.post("/jobs/expire", async (req) => {
     const token = String(req.headers["x-job-token"] ?? "");
     if (!config.JOB_TOKEN || !safeEqual(token, config.JOB_TOKEN)) throw new HttpError(401, "yetkisiz", "Yetkisiz.");
-    const r = await pool.query("UPDATE requests SET status = 'expired' WHERE status = 'active' AND expires_at <= now()");
+    const r = await pool.query<{ id: number; buyer_id: string }>("UPDATE requests SET status = 'expired' WHERE status = 'active' AND expires_at <= now() RETURNING id, buyer_id");
+    // E-posta Stüdyosu: "Talebin süresi dolunca" görevleri sıraya girer
+    for (const x of r.rows) await mailEvent(pool, "request_expired", x.buyer_id, x.id);
     const s = await pool.query("DELETE FROM sessions WHERE expires_at <= now()");
     const c = await pool.query("DELETE FROM auth_codes WHERE created_at < now() - interval '2 days'");
     const m = await cleanupOrphans(pool, deps.storage);
@@ -250,6 +253,8 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     const recheck = await recheckHeld(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "yeniden denetim yapılamadı"); return { checked: 0, published: 0 }; });
     // Güvenli Al: onay süresi dolan kargolar tamamlanır, kargolanmayanlar iade edilir.
     const safe = await safeJobs(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "güvenli al işleri yapılamadı"); return null; });
-    return { safe, expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null, rechecked: recheck };
+    // E-posta Stüdyosu: tarihi gelen kampanyalar, talep vermeyen hatırlatmaları ve vakti gelen gönderimler
+    const mail = await mailTick(deps, req.log).catch((e) => { req.log.warn({ err: (e as Error).message }, "e-posta işi yapılamadı"); return null; });
+    return { safe, mail, expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null, rechecked: recheck };
   });
 }

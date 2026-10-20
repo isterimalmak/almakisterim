@@ -31,6 +31,7 @@ const P: Record<string, React.ReactNode> = {
   share: <><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   wallet: <><path d="M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4z" /><path d="M4 7V6a2 2 0 012-2h10" /><path d="M16 13.5h.01" strokeWidth="2.6" /></>,
+  mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3.5 6.5L12 13l8.5-6.5" /></>,
   chevl: <path d="M15 5l-7 7 7 7" />,
   chevr: <path d="M9 5l7 7-7 7" />,
 };

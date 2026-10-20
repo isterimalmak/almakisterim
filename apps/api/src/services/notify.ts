@@ -2,8 +2,10 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Config } from "../config.js";
 import { HttpError } from "../lib/util.js";
 
+// html ve başlıklar isteğe bağlı (E-posta Stüdyosu: tasarlanmış e-posta, "abonelikten çık" başlıkları).
+export type MailOpts = { html?: string; headers?: Record<string, string> };
 export interface Mailer {
-  send(to: string, subject: string, text: string): Promise<void>;
+  send(to: string, subject: string, text: string, opts?: MailOpts): Promise<void>;
 }
 export interface Sms {
   send(phone: string, text: string): Promise<void>;
@@ -12,11 +14,11 @@ export interface Sms {
 // Resend ile e-posta gönderimi. https://resend.com/docs/api-reference/emails/send-email
 export class ResendMailer implements Mailer {
   constructor(private apiKey: string, private from: string) {}
-  async send(to: string, subject: string, text: string) {
+  async send(to: string, subject: string, text: string, opts: MailOpts = {}) {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: this.from, to: [to], subject, text }),
+      body: JSON.stringify({ from: this.from, to: [to], subject, text, ...(opts.html ? { html: opts.html } : {}), ...(opts.headers ? { headers: opts.headers } : {}) }),
     });
     if (!res.ok) throw new Error(`Resend hata kodu ${res.status}`);
   }
@@ -40,10 +42,10 @@ export class NetgsmSms implements Sms {
 
 // Geliştirme ve testte gerçek gönderim yapılmaz; gönderilenler bellekte tutulur.
 export class MemoryOutbox implements Mailer, Sms {
-  sent: { to: string; subject?: string; text: string }[] = [];
+  sent: { to: string; subject?: string; text: string; html?: string; headers?: Record<string, string> }[] = [];
   constructor(private log?: FastifyBaseLogger) {}
-  async send(to: string, a: string, b?: string) {
-    const item = b === undefined ? { to, text: a } : { to, subject: a, text: b };
+  async send(to: string, a: string, b?: string, opts?: MailOpts) {
+    const item = b === undefined ? { to, text: a } : { to, subject: a, text: b, ...(opts?.html ? { html: opts.html } : {}), ...(opts?.headers ? { headers: opts.headers } : {}) };
     this.sent.push(item);
     this.log?.info({ to }, "geliştirme: mesaj gönderilmiş sayıldı");
     if (process.env.NODE_ENV === "development") console.log(`[geliştirme] ${to}: ${item.text}`);

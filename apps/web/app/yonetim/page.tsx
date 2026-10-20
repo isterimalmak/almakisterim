@@ -23,7 +23,7 @@ type UnlockStats = { summary: { today: number; month: number; month_credits: num
 type ContactReport = { id: number; side: "seller" | "buyer"; reason_text: string; note: string; status: string; created_at: string; credits: number; request_id: number; title: string;
   seller_name: string; seller_phone: string | null; buyer_name: string; buyer_phone: string | null; seller_complaints: number; buyer_complaints: number };
 type UserRow = { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; created_at: string; is_corporate?: boolean; requests?: number; unlocks?: number };
-type Section = "pano" | "talep" | "kul" | "kredi" | "den" | "num" | "bil" | "kat" | "rek" | "gor" | "ent" | "yz" | "gal" | "duz" | "ayar";
+type Section = "pano" | "talep" | "kul" | "kredi" | "den" | "num" | "bil" | "kat" | "rek" | "gor" | "ent" | "yz" | "gal" | "duz" | "ayar" | "eposta";
 const TITLES: Record<Section, [string, string]> = {
   pano: ["Genel Bakış", "Sitenin özeti · bugün ve bu ay"], talep: ["Talepler", "Bütün talepler · arama, vitrin, yayından kaldırma"],
   kul: ["Üyeler ve Kredi", "Üye arama ve elle kredi tanımlama"], den: ["İçerik Denetimi", "İnceleme bekleyen talepler ve şikâyetler"],
@@ -34,13 +34,14 @@ const TITLES: Record<Section, [string, string]> = {
   yz: ["Yapay Zekâ", "Otomatik denetim, düzeltme, e-postalar ve blog"],
   duz: ["Ana Sayfa Düzeni", "Bölümlerin sırası; gizle / göster"],
   gal: ["Güvenli Al", "Bekletilen ödemeler, sorunlu satışlar, satıcı ödemeleri ve komisyon"],
+  eposta: ["E-posta Stüdyosu", "Bloklarla e-posta tasarımı, görevler ve gönderim kaydı"],
 };
 
 export default function Admin() {
   const { user, ready, refresh, toast } = useSession();
   const [tab, setTabState] = useState<Section>("pano");
   // Açık bölüm adreste (#talep gibi) durur; sayfa yenilenince aynı bölüm açılır.
-  useEffect(() => { const h = window.location.hash.slice(1) as Section; if (h in TITLES) setTabState(h); }, []);
+  useEffect(() => { const h = window.location.hash.slice(1) as Section; if (h === "eposta") window.location.replace("/yonetim/eposta"); else if (h in TITLES) setTabState(h); }, []);
   const setTab = (s: string) => { setTabState(s as Section); history.replaceState(null, "", `#${s}`); window.scrollTo(0, 0); };
   const [menuOpen, setMenuOpen] = useState(false);
   const [unl, setUnl] = useState<UnlockStats | null>(null);
@@ -93,7 +94,7 @@ export default function Admin() {
   const pend = (mod?.pending.length ?? 0) + (mod?.reports.length ?? 0);
   const groups: [string, [Section, string, string, number?][]][] = [
     ["PLATFORM", [["pano", "Genel Bakış", "home"], ["talep", "Talepler", "list"], ["kul", "Üyeler ve Kredi", "user"], ["kredi", "Kredi Hareketleri", "bolt"], ["den", "İçerik Denetimi", "check", pend], ["num", "Numaralar ve Şikâyetler", "phone", creps.length], ["gal", "Güvenli Al", "shield"], ["bil", "Bildirim Gönder", "bell"]]],
-    ["İÇERİK", [["duz", "Ana Sayfa Düzeni", "home"], ["kat", "Kategoriler", "box"], ["rek", "Reklam Alanları", "play"], ["gor", "Hazır Görseller", "camera"]]],
+    ["İÇERİK", [["duz", "Ana Sayfa Düzeni", "home"], ["kat", "Kategoriler", "box"], ["rek", "Reklam Alanları", "play"], ["gor", "Hazır Görseller", "camera"], ["eposta", "E-posta Stüdyosu", "mail"]]],
     ["SİSTEM", [["yz", "Yapay Zekâ", "bolt"], ["ent", "Entegrasyonlar", "lock"], ["ayar", "Ayarlar", "gear"]]],
   ];
   const [title, sub] = TITLES[tab];
@@ -103,7 +104,10 @@ export default function Admin() {
         <div className="ap-brand"><Link href="/">almakisterim</Link><small>Yönetim Paneli</small></div>
         {groups.map(([g, items]) => (
           <div key={g} className="ap-grp"><div className="ap-gh">{g}</div>
-            {items.map(([k, label, icon, n]) => (
+            {items.map(([k, label, icon, n]) => k === "eposta" ? (
+              // E-posta Stüdyosu kendi sayfasında açılır (liste ve düzenleyici: /yonetim/eposta)
+              <Link key={k} className="ap-nav" href="/yonetim/eposta"><Icon name={icon} size={16} /><span>{label}</span></Link>
+            ) : (
               <button key={k} type="button" className={"ap-nav" + (tab === k ? " on" : "")} aria-current={tab === k ? "page" : undefined} onClick={() => { setTab(k); setMenuOpen(false); }}>
                 <Icon name={icon} size={16} /><span>{label}</span>{!!n && <em>{n}</em>}
               </button>
