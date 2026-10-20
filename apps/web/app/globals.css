@@ -36,7 +36,7 @@ input,select,textarea{font:inherit;color:inherit}
 .hdr{background:var(--navy);color:#fff}
 .hdr-in{display:flex;align-items:center;gap:20px;height:66px}
 .logo{display:flex;align-items:center;gap:9px;flex:none}
-.logo-mark{width:36px;height:36px;border-radius:8px;background:var(--orange);display:grid;place-items:center;font-weight:800;font-size:21px;color:#fff;line-height:1}
+.logo-mark{width:36px;height:36px;border-radius:8px;display:block;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
 .logo-txt{font-weight:700;font-size:21px;letter-spacing:-.02em}
 .logo-txt span{color:#FFB48A;font-weight:600}
 .search{flex:1;display:flex;max-width:560px;height:40px}

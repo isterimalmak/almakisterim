@@ -131,6 +131,21 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.goto("/talep-ver");
   await expect(page.locator(".cat-col").getByRole("button", { name: "Moda & Giyim" })).toHaveCount(1);
 
+  // Logonun yanındaki ad Ayarlar'dan değişir, üst kısımda hemen görünür; sonra eski hâline döner.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ayarlar" }).click();
+  await page.getByLabel("Logonun yanında yazan ad").fill("deneme-adi.net");
+  await page.getByRole("button", { name: "Kaydet" }).click();
+  await expect(page.getByText("Ayarlar kaydedildi.")).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "deneme-adi.net ana sayfa" })).toBeVisible();
+  await expect(page.locator(".logo img.logo-mark")).toHaveAttribute("src", "/logo.png");
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ayarlar" }).click();
+  await page.getByLabel("Logonun yanında yazan ad").fill("almakisterim.com");
+  await page.getByRole("button", { name: "Kaydet" }).click();
+  await expect(page.getByText("Ayarlar kaydedildi.")).toBeVisible();
+
   // Acil talepler vitrini yönetimden açılıp kapanır.
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Ayarlar" }).click();

@@ -19,6 +19,16 @@ async function upload(cookie: string) {
 const cats = async () => (await ctx.app.inject({ url: "/api/categories" })).json();
 
 describe("ana sayfa bölümleri", () => {
+  it("logonun yanındaki ad yönetimden değişir; boş ya da çok uzun ad kabul edilmez", async () => {
+    expect((await cats()).site_name).toBe("almakisterim.com");
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    const put = (site_name: string) => ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { site_name } });
+    expect((await put("  Almak İsterim  ")).statusCode).toBe(200);
+    expect((await cats()).site_name).toBe("Almak İsterim");
+    expect((await put("a")).statusCode).toBe(400);
+    expect((await put("x".repeat(41))).statusCode).toBe(400);
+  });
+
   it("varsayılan liste eski ayarlardan kurulur; yan kutular dahil bütün hazır bölümler vardır", async () => {
     await ctx.pool.query("UPDATE settings SET value = 'false' WHERE key = 'home_vitrin'");
     await ctx.pool.query(`UPDATE settings SET value = '["latest", "hero"]' WHERE key = 'home_order'`);

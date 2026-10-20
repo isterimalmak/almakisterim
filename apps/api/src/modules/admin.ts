@@ -155,6 +155,7 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
       launch_mode: z.boolean().optional(),
       phone_required: z.boolean().optional(),
       home_urgent_box: z.boolean().optional(),
+      site_name: z.string().trim().min(2, "Site adı en az 2 karakter olmalı.").max(40).optional(),
       home_vitrin: z.boolean().optional(),
       home_latest: z.boolean().optional(),
       home_order: z.array(z.enum(HOME_SECTIONS)).max(HOME_SECTIONS.length).optional(),

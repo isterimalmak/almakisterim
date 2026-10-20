@@ -21,13 +21,15 @@ type Ctx = {
   homeUrgentBox: boolean;
   // Ana sayfa bölümleri (sırası, gizlenenler, eklenen yazı/afiş/kayan yazı); vitrin ve son talepler görünür mü
   homeBlocks: HomeBlock[];
+  // Logonun yanında yazan ad (yönetim → Ayarlar)
+  siteName: string;
   homeVitrin: boolean;
   homeLatest: boolean;
   refresh: () => Promise<void>;
   toast: (msg: string) => void;
 };
 
-const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, photoRequired: false, homeUrgentBox: false, homeBlocks: [], homeVitrin: true, homeLatest: true, refresh: async () => {}, toast: () => {} });
+const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, photoRequired: false, homeUrgentBox: false, homeBlocks: [], siteName: "almakisterim.com", homeVitrin: true, homeLatest: true, refresh: async () => {}, toast: () => {} });
 export const useSession = () => useContext(SessionCtx);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -40,12 +42,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [photoRequired, setPhotoRequired] = useState(false);
   const [homeUrgentBox, setHomeUrgentBox] = useState(false);
   const [homeBlocks, setHomeBlocks] = useState<HomeBlock[]>([]);
+  const [siteName, setSiteName] = useState("almakisterim.com");
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
 
   const refresh = useCallback(async () => {
     const [me, cats] = await Promise.all([
       api<{ user: User | null }>("/me").catch(() => ({ user: null })),
-      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_blocks?: HomeBlock[] }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, photo_required: false, home_urgent_box: false, home_blocks: [] as HomeBlock[] })),
+      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_blocks?: HomeBlock[]; site_name?: string }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, photo_required: false, home_urgent_box: false, home_blocks: [] as HomeBlock[], site_name: undefined })),
     ]);
     setUser(me.user);
     setCategories(cats.categories);
@@ -55,6 +58,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setPhotoRequired(!!cats.photo_required);
     setHomeUrgentBox(!!cats.home_urgent_box);
     setHomeBlocks(cats.home_blocks ?? []);
+    if (cats.site_name) setSiteName(cats.site_name);
     setReady(true);
   }, []);
 
@@ -72,7 +76,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const count = useCallback((n: number | undefined | null) => (n != null && n >= browse.show_counts_min ? n : null), [browse.show_counts_min]);
 
   return (
-    <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, photoRequired, homeUrgentBox, homeBlocks, homeVitrin: !isHidden(homeBlocks, "vitrin"), homeLatest: !isHidden(homeBlocks, "latest"), refresh, toast }}>
+    <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, photoRequired, homeUrgentBox, homeBlocks, siteName, homeVitrin: !isHidden(homeBlocks, "vitrin"), homeLatest: !isHidden(homeBlocks, "latest"), refresh, toast }}>
       {children}
       <div className="toasts" aria-live="polite">{toasts.map((t) => <div key={t.id} className="toast">{t.msg}</div>)}</div>
     </SessionCtx.Provider>
