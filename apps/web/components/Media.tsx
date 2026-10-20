@@ -129,6 +129,11 @@ export function Gallery({ media, fallback }: { media: Media[]; fallback: React.R
         {cur.kind === "image"
           ? <a href={cur.url} target="_blank" rel="noreferrer"><img src={cur.url} alt="Talep fotoğrafı" /></a>
           : <video src={cur.url} controls playsInline preload="metadata" aria-label="Talep videosu" />}
+        {media.length > 1 && <>
+          <button type="button" className="gal-nav l" aria-label="Önceki görsel" onClick={() => setI((k) => (k - 1 + media.length) % media.length)}><Icon name="chevl" size={20} sw={2.4} /></button>
+          <button type="button" className="gal-nav r" aria-label="Sonraki görsel" onClick={() => setI((k) => (k + 1) % media.length)}><Icon name="chevr" size={20} sw={2.4} /></button>
+        </>}
+        <span className="gal-count"><Icon name="camera" size={13} sw={2} /> {Math.min(i, media.length - 1) + 1}/{media.length}</span>
       </div>
       {media.length > 1 && (
         <div className="gal-thumbs">

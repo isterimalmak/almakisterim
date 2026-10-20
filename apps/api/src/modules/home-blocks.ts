@@ -28,6 +28,9 @@ const Block = z.discriminatedUnion("type", [
     bg: Color.default("#F26B1D"), fg: Color.default("#FFFFFF"), href: Href, show: Show }),
   z.object({ type: z.literal("banner"), id: Id, hidden: z.boolean().default(false), title: z.string().trim().max(120).default(""),
     ad_ids: z.array(z.number().int()).max(8).default([]), show: Show }),
+  // Yöneticinin seçtiği talepler tek satırda sağdan sola kayar; hız 1 (çok yavaş) – 5 (çok hızlı).
+  z.object({ type: z.literal("showcase"), id: Id, hidden: z.boolean().default(false), title: z.string().trim().max(80).default("Vitrin"),
+    request_ids: z.array(z.number().int().positive()).max(40).default([]), speed: z.number().int().min(1).max(5).default(2), show: Show }),
 ]);
 export type HomeBlock = z.infer<typeof Block>;
 const Blocks = z.array(Block).max(40);

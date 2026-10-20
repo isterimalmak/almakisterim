@@ -225,6 +225,21 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(img).toBeVisible();
   await img.click();
   await page.waitForURL(/\/kategori\/vasita/);
+  // Hangi cihazda: "Yalnız telefonda" seçilen reklam bilgisayarda görünmez, telefonda görünür; sonra "Her yerde"ye döner.
+  const device = async (v: string) => {
+    await page.goto("/yonetim");
+    await page.getByRole("button", { name: "Reklam Alanları" }).click();
+    await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/tanitim/") && r.request().method() === "PATCH"), page.getByLabel(`${n}. reklamın cihazı`).selectOption({ label: v })]);
+  };
+  await device("Yalnız telefonda");
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator(".home-left .yk-list").getByAltText(ad)).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.locator(".yk-m").getByAltText(ad)).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await device("Her yerde (telefon ve bilgisayar)");
   // Karşılama: "Açılışta göster" işaretlenen reklam siteye girişte ortada açılır; kapatılınca aynı oturumda tekrar çıkmaz.
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Reklam Alanları" }).click();
@@ -266,7 +281,8 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.getByText("Yapay zekâ bağlı değil.")).toBeVisible();
   const msgSw = page.getByRole("switch", { name: "Mesajları denetle" });
   await expect(msgSw).toHaveAttribute("aria-checked", "true");
-  await msgSw.click();
+  // Ayar sunucuya kaydedilmeden sayfa yenilenmesin.
+  await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/") && r.request().method() !== "GET"), msgSw.click()]);
   await expect(msgSw).toHaveAttribute("aria-checked", "false");
   await page.reload();
   await expect(page.getByRole("switch", { name: "Mesajları denetle" })).toHaveAttribute("aria-checked", "false");
@@ -454,6 +470,64 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
   await expect(tile).toBeVisible();
   await tile.click();
   await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  // Talep sayfası: başlık kartında "Alım Talebi" etiketi ve bütçe; aşağı kaydırınca özet çubuğu belirir; galeride sayaç.
+  await expect(page.locator(".rq-head").getByText("Alım Talebi")).toBeVisible();
+  await expect(page.locator(".rq-head .rq-budget")).toContainText("TL");
+  await expect(page.locator(".gal-count")).toHaveText(/1\/1/);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.locator(".rq-stick")).not.toHaveClass(/\bon\b/);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(page.locator(".rq-stick")).toHaveClass(/\bon\b/);
+  await expect(page.locator(".rq-stick")).toContainText(title);
+});
+
+test("yönetici kayan vitrin ekler: adını, talebini ve hızını seçer; ana sayfada talepler sağdan sola akar", async ({ page, browser }, info) => {
+  // Yönetim paneli testleri yalnızca masaüstünde çalışır.
+  test.skip(info.project.name !== "masaustu");
+  // Vitrine eklenecek talep
+  const title = `Kayan vitrin bisiklet ${rnd()}`;
+  const buyerCtx = await browser.newContext();
+  const buyer = await buyerCtx.newPage();
+  await loginSms(buyer, `0536${rnd().slice(0, 7)}`, "Vitrin Alıcı");
+  await buyer.goto(`/talep-ver?metin=${encodeURIComponent(`${title}, bütçem 9 bin TL, Ankara`)}`);
+  await expect(buyer.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await buyer.getByLabel("Talep başlığı *").fill(title);
+  await addPhoto(buyer);
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await buyer.getByLabel(/kurallarını/).check();
+  await smsOnay(buyer);
+  await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  await buyerCtx.close();
+
+  const name = `Haftanın Talepleri ${rnd()}`;
+  const saved = () => page.waitForResponse((r) => r.url().includes("/api/admin/home-blocks") && r.request().method() === "PUT");
+  await loginEmail(page, "yonetici@almakisterim.com");
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
+  await Promise.all([saved(), page.getByRole("button", { name: /Kayan vitrin/ }).click()]);
+  await page.getByLabel("Vitrinin adı").fill(name);
+  await Promise.all([saved(), page.getByLabel("Vitrinin adı").blur()]);
+  await Promise.all([saved(), page.getByRole("button", { name: "Hızlı", exact: true }).click()]);
+  await page.getByLabel("Vitrine eklenecek talebi ara").fill(title);
+  await page.getByRole("button", { name: "Ara", exact: true }).last().click();
+  await Promise.all([saved(), page.getByRole("button", { name: `${title} vitrine ekle` }).click()]);
+  await expect(page.getByRole("button", { name: `${title} vitrinden çıkar` })).toBeVisible();
+  await expect(page.getByText(`Kayan vitrin: ${name} (1 talep)`)).toBeVisible();
+
+  await page.goto("/");
+  const sec = page.getByRole("region", { name });
+  await expect(sec.getByRole("heading", { name })).toBeVisible();
+  await expect(sec.getByTitle(title).first()).toBeVisible();
+  // Şerit hareket ediyor: kayma animasyonu var ve süresi seçilen hıza göre.
+  const anim = await sec.locator(".sc-track").evaluate((e) => ({ name: getComputedStyle(e).animationName, dur: parseFloat(getComputedStyle(e).animationDuration) }));
+  expect(anim.name).toBe("sc-move");
+  expect(anim.dur).toBeCloseTo(2.4 * 8, 1);
+
+  // Temizlik: kayan vitrin silinir.
+  const { home_blocks } = await (await page.request.get("/api/categories")).json();
+  const r = await page.request.put("/api/admin/home-blocks", { data: { blocks: home_blocks.filter((b: { type: string }) => b.type !== "showcase") } });
+  expect(r.ok()).toBeTruthy();
 });
 
 test("telefonda ana sayfa: üstte arama ve bildirim, kategoriler ve vitrin yana kayar", async ({ page }, info) => {
@@ -585,7 +659,9 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await ctx.close();
 });
 
-test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir; satıcı mesajla ulaşır", async ({ browser }) => {
+test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir; satıcı mesajla ulaşır", async ({ browser }, info) => {
+  // Yönetici ayarı değiştirildiği için (yönetici e-postasına saatte 5 kod) yalnızca masaüstünde çalışır.
+  test.skip(info.project.name !== "masaustu");
   // Bu senaryo için talep verirken SMS onayı kapatılır, sonda yeniden açılır.
   await adminSetting(browser, { publish_sms: false });
   try { await phoneless(browser); } finally { await adminSetting(browser, { publish_sms: true }); }

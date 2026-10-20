@@ -6,7 +6,7 @@ import { HttpError } from "../lib/util.js";
 import { toPublic } from "./media.js";
 
 // Reklam alanları: yönetici resim veya video yükler, ana sayfada sol sütunda alt alta, sıralı gösterilir.
-type AdRow = { id: number; title: string; link_url: string | null; position: number; is_active: boolean; is_welcome: boolean; placement: "sol" | "orta" | "blok"; created_at: string;
+type AdRow = { id: number; title: string; link_url: string | null; position: number; is_active: boolean; is_welcome: boolean; placement: "sol" | "orta" | "blok"; device: "all" | "mobile" | "desktop"; created_at: string;
   media_id: string; kind: "image" | "video"; content_type: string; storage_key: string };
 
 // Boş bırakılırsa bağlantısız reklam.
@@ -22,12 +22,14 @@ const Title = z.string().trim().max(120).optional();
 
 // sol: ana sayfada soldaki kategorilerin altı; orta: ana sayfanın ortası (vitrin ve son talepler bölümlerinin yeri).
 const Placement = z.enum(["sol", "orta", "blok"]);
-const SELECT = `SELECT a.id, a.title, a.link_url, a.position, a.is_active, a.is_welcome, a.placement, a.created_at, m.id AS media_id, m.kind, m.content_type, m.storage_key
+// Hangi cihazda görünsün: her yerde, yalnız telefonda, yalnız bilgisayarda.
+const Device = z.enum(["all", "mobile", "desktop"]);
+const SELECT = `SELECT a.id, a.title, a.link_url, a.position, a.is_active, a.is_welcome, a.placement, a.device, a.created_at, m.id AS media_id, m.kind, m.content_type, m.storage_key
   FROM ads a JOIN media m ON m.id = a.media_id`;
 
 export function adRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, storage } = deps;
-  const out = (a: AdRow) => ({ id: Number(a.id), title: a.title, link_url: a.link_url, position: a.position, is_active: a.is_active, is_welcome: a.is_welcome, placement: a.placement,
+  const out = (a: AdRow) => ({ id: Number(a.id), title: a.title, link_url: a.link_url, position: a.position, is_active: a.is_active, is_welcome: a.is_welcome, placement: a.placement, device: a.device,
     created_at: a.created_at, media: toPublic(storage, { id: a.media_id, kind: a.kind, content_type: a.content_type, storage_key: a.storage_key }) });
 
   // Önbelleğe alınmaz: yönetici eklediği reklamı hemen görsün.
@@ -50,14 +52,14 @@ export function adRoutes(app: FastifyInstance, deps: Deps) {
   // Yönetici önce dosyayı normal yükleme akışıyla yükler (/media/uploads → /complete), sonra reklam olarak ekler.
   app.post("/admin/tanitim", async (req, reply) => {
     const admin = requireAdmin(req);
-    const b = z.object({ media_id: z.uuid(), title: Title, link_url: Link, is_active: z.boolean().default(true), placement: Placement.default("sol") }).parse(req.body);
+    const b = z.object({ media_id: z.uuid(), title: Title, link_url: Link, is_active: z.boolean().default(true), placement: Placement.default("sol"), device: Device.default("all") }).parse(req.body);
     const id = await tx(pool, async (c) => {
       const m = (await c.query("SELECT 1 FROM media WHERE id = $1 AND owner_id = $2 AND status = 'ready' AND request_id IS NULL AND offer_id IS NULL FOR UPDATE", [b.media_id, admin.id])).rowCount;
       if (!m) throw new HttpError(400, "medya_gecersiz", "Dosya bulunamadı. Lütfen yeniden yükleyin.");
       if ((await c.query("SELECT 1 FROM ads WHERE media_id = $1", [b.media_id])).rowCount) throw new HttpError(409, "zaten_ekli", "Bu dosya zaten bir reklamda kullanılıyor.");
       const r = await c.query<{ id: number }>(
-        "INSERT INTO ads (media_id, title, link_url, is_active, placement, position) VALUES ($1, $2, $3, $4, $5, (SELECT coalesce(max(position), 0) + 1 FROM ads)) RETURNING id",
-        [b.media_id, b.title ?? "", b.link_url ?? null, b.is_active, b.placement]);
+        "INSERT INTO ads (media_id, title, link_url, is_active, placement, device, position) VALUES ($1, $2, $3, $4, $5, $6, (SELECT coalesce(max(position), 0) + 1 FROM ads)) RETURNING id",
+        [b.media_id, b.title ?? "", b.link_url ?? null, b.is_active, b.placement, b.device]);
       return Number(r.rows[0]!.id);
     });
     reply.code(201);
@@ -68,13 +70,14 @@ export function adRoutes(app: FastifyInstance, deps: Deps) {
   app.patch("/admin/tanitim/:id", async (req) => {
     requireAdmin(req);
     const { id } = z.object({ id: z.coerce.number().int() }).parse(req.params);
-    const b = z.object({ title: Title, link_url: Link, is_active: z.boolean().optional(), is_welcome: z.boolean().optional(), placement: Placement.optional() }).parse(req.body);
+    const b = z.object({ title: Title, link_url: Link, is_active: z.boolean().optional(), is_welcome: z.boolean().optional(), placement: Placement.optional(), device: Device.optional() }).parse(req.body);
     const sets: string[] = [], params: unknown[] = [id];
     if (b.title !== undefined) { params.push(b.title); sets.push(`title = $${params.length}`); }
     if (b.link_url !== undefined) { params.push(b.link_url); sets.push(`link_url = $${params.length}`); }
     if (b.is_active !== undefined) { params.push(b.is_active); sets.push(`is_active = $${params.length}`); }
     if (b.is_welcome !== undefined) { params.push(b.is_welcome); sets.push(`is_welcome = $${params.length}`); }
     if (b.placement !== undefined) { params.push(b.placement); sets.push(`placement = $${params.length}`); }
+    if (b.device !== undefined) { params.push(b.device); sets.push(`device = $${params.length}`); }
     if (sets.length) {
       await tx(pool, async (c) => {
         // Aynı anda tek karşılama reklamı olur: yenisi işaretlenince eskisi kalkar.
