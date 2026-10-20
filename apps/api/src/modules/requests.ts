@@ -1,3 +1,4 @@
+import { codeService } from "./auth.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser, type Deps } from "../context.js";
@@ -55,6 +56,9 @@ const CreateBody = z.object({
   condition: z.enum(CONDITIONS),
   // Araç kategorilerinde ayrıntılı alanlar (birden fazla marka/model, yıl aralığı...) ayrıca doğrulanır.
   attrs: z.record(z.string().max(30), z.unknown()).default({}),
+  // Yayın onayı: cep telefonuna gelen 6 haneli kod (Yönetim → Ayarlar → "Talep verirken SMS onayı" açıksa zorunlu).
+  phone: z.string().max(30).optional(),
+  phone_code: z.string().regex(/^\d{6}$/, "Doğrulama kodu 6 haneli olmalı.").optional(),
   is_urgent: z.boolean().default(false),
   is_corporate: z.boolean().default(false),
   days: z.union([z.literal(7), z.literal(14), z.literal(30)]).default(14),
@@ -132,6 +136,7 @@ export async function requestMatches(pool: Deps["pool"], requestId: number, filt
 
 export function requestRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, ai, storage } = deps;
+  const codes = codeService(deps);
   // Listede ilk fotoğraf kapak olarak gösterilir.
   const pub = (row: Row) => {
     const { cover_key, ...r } = publicRow(row) as Record<string, unknown>;
@@ -254,7 +259,11 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     }
     // Sahte taleplerle satıcıları kendine aratmayı önlemek için kişi başı açık talep sınırı.
     const { maxActive, phoneRequired } = await unlockSettings(pool);
-    if (!user.phone && phoneRequired) throw new HttpError(409, "telefon_gerekli", "Talep vermek için önce telefon numaranızı doğrulayın.");
+    // Talep verirken SMS onayı: kayıtlı numaraya gelen kod girilmeden talep yayınlanmaz.
+    const publishSms = !!(await pool.query("SELECT 1 FROM settings WHERE key = 'publish_sms' AND value = 'true'")).rowCount;
+    const pubPhone = publishSms ? await codes.publishPhone(user, b.phone) : null;
+    if (publishSms && !b.phone_code) throw new HttpError(400, "telefon_onayi_gerekli", "Talebi yayınlamak için cep telefonunuza gelen doğrulama kodunu girin.");
+    if (!user.phone && !pubPhone && phoneRequired) throw new HttpError(409, "telefon_gerekli", "Talep vermek için önce telefon numaranızı doğrulayın.");
     // Birden fazla araçla verilip ayrı taleplere bölünen gönderim tek talep sayılır.
     const active = (await pool.query<{ n: number }>(
       "SELECT count(DISTINCT coalesce(group_id::text, id::text))::int AS n FROM requests WHERE buyer_id = $1 AND status IN ('active','pending_review') AND expires_at > now()", [user.id])).rows[0]!.n;
@@ -285,6 +294,11 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     }
     const budgetMin = b.budget_min ?? Math.round(b.budget_max * 0.8);
     if (budgetMin > b.budget_max) throw new HttpError(400, "butce_gecersiz", "En az bütçe, en fazla bütçeden büyük olamaz.");
+    // Kod, bütün kontroller geçtikten sonra harcanır; numarası olmayan üyenin doğruladığı numara hesabına eklenir.
+    if (pubPhone) {
+      await codes.consumeCode("sms", pubPhone, b.phone_code!);
+      if (!user.phone) await pool.query("UPDATE users SET phone = $2 WHERE id = $1 AND phone IS NULL", [user.id, pubPhone]);
+    }
     let title = maskContacts(b.title).text, description = maskContacts(b.description).text;
     // Yapay zekâ: denetler ve (açıksa) yazımı düzeltir, başlığı düzgün yazar, iletişim bilgisi/uygunsuz ifadeyi siler.
     const s = await aiSettings(pool);

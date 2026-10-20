@@ -27,16 +27,16 @@ async function createSession(db: Pool | Client, userId: string): Promise<string>
   return token;
 }
 
-export function authRoutes(app: FastifyInstance, deps: Deps) {
-  const { config, pool, mailer, sms, google } = deps;
+// Tek kullanımlık SMS/e-posta kodları: girişte, telefon eklemede ve talep yayınlarken (requests.ts) kullanılır.
+export function codeService(deps: Deps) {
+  const { config, pool, mailer, sms } = deps;
   const hashCode = (target: string, code: string) => sha256(`${config.CODE_PEPPER}:${target}:${code}`);
-  const roleFor = (email: string | null, phone: string | null) =>
-    (email && config.adminEmails.has(email)) || (phone && config.adminPhones.has(phone)) ? "admin" : "user";
 
   // Kod üretir, gönderir; aynı hedefe dakikada 1, saatte 5 kod.
   async function issueCode(req: FastifyRequest, channel: "email" | "sms", target: string, purpose: string) {
     const recent = await pool.query<{ last_min: number; hour_count: number }>(
-      `SELECT COALESCE(EXTRACT(EPOCH FROM now() - max(created_at)) / 60, 999)::float AS last_min,
+      // "1 dakika bekleyin" yalnız henüz kullanılmamış kod için: girişten hemen sonra talep onay kodu istenebilsin.
+      `SELECT COALESCE(EXTRACT(EPOCH FROM now() - max(created_at) FILTER (WHERE consumed_at IS NULL)) / 60, 999)::float AS last_min,
               count(*) FILTER (WHERE created_at > now() - interval '1 hour')::int AS hour_count
          FROM auth_codes WHERE channel = $1 AND target = $2`,
       [channel, target],
@@ -81,6 +81,25 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
     }
     await pool.query("UPDATE auth_codes SET consumed_at = now() WHERE id = $1", [row.id]);
   }
+
+  // Talep yayınlarken: hesapta numara varsa yalnız o numara yazılabilir; yoksa yazılan numara başka hesaba bağlı olmamalı.
+  async function publishPhone(user: { id: string; phone: string | null }, raw: string | undefined) {
+    if (!raw?.trim()) throw new HttpError(400, "telefon_onayi_gerekli", "Talebi yayınlamak için cep telefonunuza gelen doğrulama kodunu girin.");
+    const phone = normalize("sms", raw);
+    if (user.phone && user.phone !== phone) throw new HttpError(400, "numara_farkli", `Hesabınızda kayıtlı numarayı yazın (${maskTarget("sms", user.phone)}).`);
+    if (!user.phone && (await pool.query("SELECT 1 FROM users WHERE phone = $1 AND id <> $2", [phone, user.id])).rowCount)
+      throw new HttpError(409, "numara_kullanimda", "Bu numara başka bir hesaba bağlı. O numarayla SMS ile giriş yapabilirsiniz.");
+    return phone;
+  }
+
+  return { issueCode, consumeCode, publishPhone };
+}
+
+export function authRoutes(app: FastifyInstance, deps: Deps) {
+  const { config, pool, google } = deps;
+  const { issueCode, consumeCode, publishPhone } = codeService(deps);
+  const roleFor = (email: string | null, phone: string | null) =>
+    (email && config.adminEmails.has(email)) || (phone && config.adminPhones.has(phone)) ? "admin" : "user";
 
   // 1) Kod iste: SMS veya e-posta ile 6 haneli kod gönderilir.
   app.post("/auth/code", { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } }, async (req) => {
@@ -144,6 +163,13 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
     await pool.query("UPDATE users SET phone = $2, role = CASE WHEN $3 THEN 'admin' ELSE role END WHERE id = $1",
       [user.id, phone, config.adminPhones.has(phone)]);
     return { ok: true, phone: maskTarget("sms", phone) };
+  });
+
+  // Talep yayınlamadan önce: kayıtlı numaraya (numarası olmayan üyede yazdığı numaraya) onay kodu gider.
+  app.post("/me/publish-code", { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } }, async (req) => {
+    const user = requireUser(req);
+    const phone = await publishPhone(user, z.object({ phone: z.string().max(30) }).parse(req.body).phone);
+    return issueCode(req, "sms", phone, "talep onay");
   });
 
   // 3) Google ile devam et.

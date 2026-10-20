@@ -51,7 +51,7 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
   });
 
   app.get("/categories", async () => {
-    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','home_urgent_box','photo_required','home_vitrin','home_latest','home_order','home_hidden','site_name')");
+    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','publish_sms','home_urgent_box','photo_required','home_vitrin','home_latest','home_order','home_hidden','site_name')");
     const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     return {
       categories: toTree(await listCategories(pool, true)),
@@ -59,6 +59,7 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
       browse: { min_requests: Number(s.browse_min_requests ?? 1), show_counts_min: Number(s.show_counts_min ?? 0) },
       launch_mode: s.launch_mode === true,
       phone_required: s.phone_required === true,
+      publish_sms: s.publish_sms === true,
       home_urgent_box: s.home_urgent_box === true,
       // Ana sayfadaki vitrin ve son talepler: yönetici gizleyebilir (varsayılan açık).
       home_vitrin: s.home_vitrin !== false,
