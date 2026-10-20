@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, uploadFile, type Media } from "@/lib/api";
 import { Icon } from "./Icon";
 import { StockPicker, StockStrip, useStockImages, type StockPhoto, type StockItem } from "./StockPicker";
@@ -119,15 +119,51 @@ export function MediaPicker({ value, onChange, label = "Fotoğraf / video ekle",
   );
 }
 
+// Tam ekran görüntüleyici: sayfadan çıkmadan büyük fotoğraf; oklar, kaydırma, Esc ve × ile kapanır.
+export function Lightbox({ media, start, onClose }: { media: Media[]; start: number; onClose: () => void }) {
+  const [i, setI] = useState(start);
+  const n = media.length;
+  const go = (d: number) => setI((k) => (k + d + n) % n);
+  const touch = useRef<number | null>(null);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); else if (e.key === "ArrowRight") go(1); else if (e.key === "ArrowLeft") go(-1); };
+    window.addEventListener("keydown", key);
+    const o = document.body.style.overflow; document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", key); document.body.style.overflow = o; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const cur = media[i]!;
+  return (
+    <div className="lbx" role="dialog" aria-modal="true" aria-label="Fotoğraf görüntüleyici" onClick={(e) => e.target === e.currentTarget && onClose()}
+      onTouchStart={(e) => { touch.current = e.touches[0]!.clientX; }}
+      onTouchEnd={(e) => { const x = touch.current; touch.current = null; if (x === null || n < 2) return; const dx = e.changedTouches[0]!.clientX - x; if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); }}>
+      <div className="lbx-top"><span>{i + 1} / {n}</span><button type="button" className="lbx-x" aria-label="Kapat" onClick={onClose}>×</button></div>
+      <div className="lbx-stage" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        {cur.kind === "image" ? <img src={cur.url} alt={`Fotoğraf ${i + 1}`} /> : <video src={cur.url} controls autoPlay playsInline aria-label="Video" />}
+      </div>
+      {n > 1 && <>
+        <button type="button" className="lbx-nav l" aria-label="Önceki" onClick={() => go(-1)}><Icon name="chevl" size={26} sw={2.4} /></button>
+        <button type="button" className="lbx-nav r" aria-label="Sonraki" onClick={() => go(1)}><Icon name="chevr" size={26} sw={2.4} /></button>
+        <div className="lbx-thumbs">{media.map((m, k) => (
+          <button key={m.id} type="button" className={k === i ? "on" : ""} aria-label={`${k + 1}. görsel`} onClick={() => setI(k)}>
+            {m.kind === "image" ? <img src={m.url} alt="" /> : <span className="gal-vid"><Icon name="play" size={14} /></span>}
+          </button>
+        ))}</div>
+      </>}
+    </div>
+  );
+}
+
 export function Gallery({ media, fallback }: { media: Media[]; fallback: React.ReactNode }) {
   const [i, setI] = useState(0);
+  const [big, setBig] = useState(false);
   if (!media.length) return <>{fallback}</>;
   const cur = media[Math.min(i, media.length - 1)]!;
   return (
     <div className="gal">
+      {big && <Lightbox media={media} start={Math.min(i, media.length - 1)} onClose={() => setBig(false)} />}
       <div className="gal-main">
         {cur.kind === "image"
-          ? <a href={cur.url} target="_blank" rel="noreferrer"><img src={cur.url} alt="Talep fotoğrafı" /></a>
+          ? <button type="button" className="gal-open" aria-label="Fotoğrafı büyüt" onClick={() => setBig(true)}><img src={cur.url} alt="Talep fotoğrafı" /></button>
           : <video src={cur.url} controls playsInline preload="metadata" aria-label="Talep videosu" />}
         {media.length > 1 && <>
           <button type="button" className="gal-nav l" aria-label="Önceki görsel" onClick={() => setI((k) => (k - 1 + media.length) % media.length)}><Icon name="chevl" size={20} sw={2.4} /></button>
@@ -148,15 +184,17 @@ export function Gallery({ media, fallback }: { media: Media[]; fallback: React.R
   );
 }
 
-// Satırlarda küçük önizlemeler; tıklayınca dosya yeni sekmede açılır.
+// Satırlarda küçük önizlemeler; tıklayınca tam ekran görüntüleyici açılır.
 export function Thumbs({ media }: { media: Media[] }) {
+  const [open, setOpen] = useState<number | null>(null);
   if (!media.length) return null;
   return (
     <div className="o-media">
+      {open !== null && <Lightbox media={media} start={open} onClose={() => setOpen(null)} />}
       {media.map((m, k) => (
-        <a key={m.id} href={m.url} target="_blank" rel="noreferrer" aria-label={`Ek ${m.kind === "image" ? "fotoğrafı" : "videosu"} ${k + 1}`}>
+        <button key={m.id} type="button" onClick={(e) => { e.stopPropagation(); setOpen(k); }} aria-label={`Ek ${m.kind === "image" ? "fotoğrafı" : "videosu"} ${k + 1}`}>
           {m.kind === "image" ? <img src={m.url} alt="" /> : <span className="gal-vid"><Icon name="play" size={14} /></span>}
-        </a>
+        </button>
       ))}
     </div>
   );

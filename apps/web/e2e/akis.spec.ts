@@ -599,6 +599,14 @@ test("alıcı fotoğraf ekler; satıcı talepte fotoğrafı görür, iletişimi 
   await loginSms(seller, `0535${rnd().slice(0, 7)}`, "Can Yıldız");
   await seller.goto(url);
   await expect(seller.getByAltText("Talep fotoğrafı")).toBeVisible();
+  // Fotoğrafa dokununca ayrı sayfaya gitmez; sayfanın içinde tam ekran açılır, × ile kapanır.
+  const before = seller.url();
+  await seller.getByRole("button", { name: "Fotoğrafı büyüt" }).click();
+  const lbx = seller.getByRole("dialog", { name: "Fotoğraf görüntüleyici" });
+  await expect(lbx.getByAltText("Fotoğraf 1")).toBeVisible();
+  expect(seller.url()).toBe(before);
+  await lbx.getByRole("button", { name: "Kapat" }).click();
+  await expect(lbx).toHaveCount(0);
   await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
   await expect(seller.locator(".phone-open")).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
