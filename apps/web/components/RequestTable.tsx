@@ -30,7 +30,7 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
   const router = useRouter();
   if (!items.length) return <div className="empty">{empty}</div>;
   return (
-    <table className="tbl">
+    <table className="tbl rq-tbl">
       <thead><tr><th>Talep</th><th>Bütçe</th><th>Kalan Süre</th><th>Talep Tarihi</th><th>İl / İlçe</th></tr></thead>
       <tbody>
         {items.map((r) => (
@@ -46,9 +46,9 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
               </div>
             </td>
             <td className="budget-cell"><div className="budget">{budgetTxt(r.budget_min, r.budget_max)}<small>bütçe</small></div></td>
-            <td data-m="Kalan" className="nowrap">{leftTxt(r.expires_at)}</td>
-            <td data-m="Tarih" className="nowrap muted">{dateTr(r.created_at)}</td>
-            <td data-m="Konum" className="loc">{r.city}{r.district && <span className="loc-d muted">{r.district}{r.neighbourhood && ` / ${r.neighbourhood}`}</span>}</td>
+            <td data-m="Kalan" className="nowrap m-pill"><Icon name="clock" size={13} /> <span>{leftTxt(r.expires_at)}</span></td>
+            <td data-m="Tarih" className="nowrap muted m-pill"><Icon name="calendar" size={13} /> <span>{dateTr(r.created_at)}</span></td>
+            <td data-m="Konum" className="loc m-pill"><Icon name="pin" size={13} /> {r.city}{r.district && <span className="loc-d muted">{r.district}{r.neighbourhood && ` / ${r.neighbourhood}`}</span>}</td>
           </tr>
         ))}
       </tbody>
