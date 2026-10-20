@@ -9,6 +9,9 @@ import { cleanupOrphans, mediaFor } from "./media.js";
 import { expiryReminders, notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 import { autoBlog, recheckHeld } from "./ai-admin.js";
 
+// Ana sayfanın orta sütunundaki bölümler (web/app/page.tsx ile aynı adlar).
+const HOME_SECTIONS = ["hero", "urgent", "cats", "ads_m", "center_ads", "vitrin", "latest", "corp"] as const;
+
 export function adminRoutes(app: FastifyInstance, deps: Deps) {
   const { pool, config } = deps;
 
@@ -154,6 +157,8 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
       home_urgent_box: z.boolean().optional(),
       home_vitrin: z.boolean().optional(),
       home_latest: z.boolean().optional(),
+      home_order: z.array(z.enum(HOME_SECTIONS)).max(HOME_SECTIONS.length).optional(),
+      home_hidden: z.array(z.enum(HOME_SECTIONS)).max(HOME_SECTIONS.length).optional(),
       photo_required: z.boolean().optional(),
       store_monthly_price_try: z.number().int().min(0).optional(),
       credit_packages: z.array(z.object({ id: z.string(), credits: z.number().int().min(1), price_try: z.number().int().min(0) })).max(10).optional(),

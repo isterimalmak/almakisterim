@@ -886,3 +886,11 @@ button.link{padding:0;font-size:inherit}
 .yk-bol-i small{color:var(--muted);font-size:12px}
 .sec-act{display:inline-flex;align-items:center;gap:10px}
 .sec-hidden{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;margin-bottom:14px;border:1px dashed #C9CED6;border-radius:6px;font-size:12.5px;color:var(--muted);background:#fff}
+.hl-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.hl-list li{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.hl-list li.off{background:#F6F7F9}
+.hl-list li.off .hl-t b{color:var(--muted)}
+.hl-n{flex:none;width:24px;height:24px;border-radius:50%;background:#EEF0F3;display:grid;place-items:center;font-size:12px;font-weight:700}
+.hl-t{flex:1;min-width:0}
+.hl-t b{display:block;font-size:13.5px}
+.hl-t small{font-size:12px;color:var(--muted)}

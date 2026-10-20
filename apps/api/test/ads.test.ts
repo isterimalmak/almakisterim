@@ -26,6 +26,11 @@ describe("reklam alanları", () => {
     expect((await ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { home_vitrin: false, home_latest: false } })).statusCode).toBe(200);
     cats = (await ctx.app.inject({ url: "/api/categories" })).json();
     expect(cats).toMatchObject({ home_vitrin: false, home_latest: false });
+    // Bölüm sırası ve gizlenenler; bilinmeyen bölüm adı reddedilir.
+    expect(cats.home_order).toEqual(["hero", "urgent", "cats", "ads_m", "center_ads", "vitrin", "latest", "corp"]);
+    expect((await ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { home_order: ["latest", "hero"], home_hidden: ["corp"] } })).statusCode).toBe(200);
+    expect((await ctx.app.inject({ url: "/api/categories" })).json()).toMatchObject({ home_order: ["latest", "hero"], home_hidden: ["corp"] });
+    expect((await ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { home_order: ["uydurma"] } })).statusCode).toBe(400);
 
     const post = (payload: Record<string, unknown>) => ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload });
     const mid = (await post({ media_id: (await upload(admin)).id, title: "Orta reklam", placement: "orta" })).json();
