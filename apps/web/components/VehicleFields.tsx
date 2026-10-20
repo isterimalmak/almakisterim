@@ -78,7 +78,7 @@ export function VehicleFields({ sub, value, onChange, onDraft }: { sub: string; 
 // Talep sayfası ve önizleme için satırlar.
 export function VehicleRows({ a }: { a: VehicleAttrs }) {
   const rows: [string, string][] = [
-    ["Araç", vehicleNames(a).join(", ") || "Marka farketmez"],
+    ["Araç", vehicleNames(a).join(", ")],
     ["Model yılı", yearTxt(a)],
     ["Kilometre", a.km_max !== undefined ? `en fazla ${a.km_max.toLocaleString("tr-TR")} km` : ""],
     ["Yakıt", (a.yakit ?? []).join(", ")], ["Vites", (a.vites ?? []).join(", ")], ["Kasa tipi", (a.kasa ?? []).join(", ")],

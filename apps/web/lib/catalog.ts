@@ -95,13 +95,17 @@ export const DELIVERY: Record<string, string[]> = {
 
 export const CITIES = ["Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksaray", "Amasya", "Ankara", "Antalya", "Ardahan", "Artvin", "Aydın", "Balıkesir", "Bartın", "Batman", "Bayburt", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Düzce", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Iğdır", "Isparta", "İstanbul", "İzmir", "Kahramanmaraş", "Karabük", "Karaman", "Kars", "Kastamonu", "Kayseri", "Kilis", "Kırıkkale", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Mardin", "Mersin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Osmaniye", "Rize", "Sakarya", "Samsun", "Şanlıurfa", "Siirt", "Sinop", "Şırnak", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Uşak", "Van", "Yalova", "Yozgat", "Zonguldak"];
 
+// "Farketmez" seçilen alanlar listede ve talep sayfasında yazılmaz; yalnız alıcının kesin istediği bilgiler görünür.
+export const isAny = (v: unknown) => v === undefined || v === null || v === "" || (typeof v === "string" && /^farketmez$/i.test(v.trim()));
+
 export function attrLine(top: string, condition: string, attrs: Record<string, unknown>, sub?: string): string {
+  const cond = isAny(condition) ? "" : condition;
   // Araç taleplerinde ayrıntılı özet (birden fazla marka/model, aralıklar).
-  if (Array.isArray(attrs.araclar) || "yil_min" in attrs || "km_max" in attrs || "yakit" in attrs) return `${condition} · ${vehicleLine(attrs as VehicleAttrs)}`;
-  const parts = [condition];
+  if (Array.isArray(attrs.araclar) || "yil_min" in attrs || "km_max" in attrs || "yakit" in attrs) return [cond, vehicleLine(attrs as VehicleAttrs)].filter(Boolean).join(" · ");
+  const parts = cond ? [cond] : [];
   for (const a of attrsFor(top, sub)) {
     const v = attrs[a.k];
-    if (v === undefined || v === "") continue;
+    if (isAny(v)) continue;
     parts.push(a.k === "yil" ? `${v} ve üstü` : a.k === "boy" ? `en az ${v} m` : a.k === "bina_yasi" ? `en fazla ${v} yaşında` : a.k === "kisi" ? `${v} kişilik` : a.k === "numara" ? `${v} numara` : a.k === "km" ? `en fazla ${Number(v).toLocaleString("tr-TR")} km` : a.k === "m2" ? `en az ${v} m²` : String(v));
   }
   return parts.join(" · ");
