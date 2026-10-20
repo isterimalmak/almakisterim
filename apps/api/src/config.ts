@@ -14,6 +14,11 @@ const schema = z.object({
 
   RESEND_API_KEY: z.string().default(""),
   MAIL_FROM: z.string().default("almakisterim <bildirim@almakisterim.com>"),
+  // Kendi e-posta sunucusu (SMTP): girilirse e-postalar Resend yerine buradan gider.
+  SMTP_HOST: z.string().default(""),
+  SMTP_PORT: z.string().default("465"),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASS: z.string().default(""),
 
   NETGSM_USERCODE: z.string().default(""),
   NETGSM_PASSWORD: z.string().default(""),

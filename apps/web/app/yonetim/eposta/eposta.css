@@ -72,6 +72,7 @@
    E-posta Stüdyosu (yönetim)
    ========================================================= */
 .ms-warn { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, #c0782c 14%, var(--surface)); border: 1px solid color-mix(in srgb, #c0782c 40%, var(--line)); font-size: .9rem; line-height: 1.5; }
+.ms-ok { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 14px; background: #E7F5EE; border: 1px solid #BFE3CF; color: #18794E; font-size: .9rem; line-height: 1.5; margin-bottom: 4px; }
 .ms-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .ms-kpis > div { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
 .ms-kpis small { color: var(--muted); font-size: .75rem; }
