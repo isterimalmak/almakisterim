@@ -12,7 +12,8 @@ function SearchForm({ compact }: { compact?: boolean }) {
   const [q, setQ] = useState("");
   return (
     <form className="search" onSubmit={(e) => { e.preventDefault(); router.push(`/kategori?q=${encodeURIComponent(q.trim())}`); }}>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={compact ? "Talep ara" : "Kelime, talep no veya kategori ile ara"} aria-label="Talep ara" />
+      {compact && <Icon name="search" size={18} sw={2.2} style={{ color: "#8A93A6" }} />}
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={compact ? "Talep ara…" : "Kelime, talep no veya kategori ile ara"} aria-label="Talep ara" />
       <button type="submit">{!compact && <Icon name="search" size={16} sw={2.4} />}Ara</button>
     </form>
   );
