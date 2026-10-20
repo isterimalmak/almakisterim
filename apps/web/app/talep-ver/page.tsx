@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Gallery, MediaPicker } from "@/components/Media";
 import { CatIcon } from "@/components/RequestTable";
@@ -51,7 +51,8 @@ function Create() {
     // Adres ?adim=3 ile açıldıysa (yenileme, paylaşılan bağlantı) ve elde taslak yoksa ilk adımdan başlanır.
     if (urlStep > 1 && !pushed.current) { const p = new URLSearchParams(window.location.search); p.delete("adim"); window.history.replaceState(null, "", p.size ? `?${p}` : window.location.pathname); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
+  // Adres, yeni adım ekrana çizilmeden önce güncellenir; hemen geri tuşuna basılsa da bir önceki adıma dönülür.
+  useLayoutEffect(() => {
     reached.current = Math.max(reached.current, d.step);
     if (d.step === urlStep) return;
     if (d.step > urlStep) {

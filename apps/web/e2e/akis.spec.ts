@@ -396,6 +396,7 @@ test("talep verirken tarayıcının geri tuşu bir önceki adıma döner, bilgil
   await addPhoto(page);
   await page.getByRole("button", { name: "Devam" }).click();
   await expect(page.getByRole("heading", { name: "Talebinizin önizlemesi" })).toBeVisible();
+  await expect(page).toHaveURL(/adim=3/);
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Talep Detayları" })).toBeVisible();
   await expect(page.getByLabel("Talep başlığı *")).toHaveValue(title);
