@@ -55,10 +55,13 @@ describe("e-posta gönderimi: kendi sunucu (SMTP)", () => {
     const f = fakeSmtp("dogru-sifre");
     const port = await f.listen();
     try {
-      const n = createNotifiers({ ...base, SMTP_HOST: "127.0.0.1", SMTP_PORT: String(port), SMTP_USER: "bildirim@almakisterim.com", SMTP_PASS: "dogru-sifre", MAIL_FROM: "almakisterim <bildirim@almakisterim.com>", isProd: true, NETGSM_USERCODE: "", NETGSM_PASSWORD: "", NETGSM_HEADER: "" } as never);
-      expect(n.mailer).toBeInstanceOf(SmtpMailer);
+      const n = createNotifiers({ ...base, APP_URL: "https://almakisterim.com", SMTP_HOST: "127.0.0.1", SMTP_PORT: String(port), SMTP_USER: "bildirim@almakisterim.com", SMTP_PASS: "dogru-sifre", MAIL_FROM: "almakisterim <bildirim@almakisterim.com>", isProd: true, NETGSM_USERCODE: "", NETGSM_PASSWORD: "", NETGSM_HEADER: "" } as never);
       await n.mailer.send("alici@example.com", "Merhaba", "Düz metin", { html: "<b>Kalın</b>" });
-      expect(f.got).toHaveLength(1);
+      // html verilmeyen sistem e-postası marka şablonuyla gider
+      await n.mailer.send("alici@example.com", "almakisterim giriş kodunuz", "almakisterim giriş kodunuz: 123456. Kod 10 dakika geçerlidir.");
+      expect(f.got).toHaveLength(2);
+      expect(f.got[1]!.data).toContain("text/html");
+      expect(f.got[1]!.data).toContain("123456");
       expect(f.got[0]!.authOk).toBe(true);
       expect(f.got[0]!.to).toContain("alici@example.com");
       expect(f.got[0]!.from).toContain("bildirim@almakisterim.com");

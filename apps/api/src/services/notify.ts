@@ -2,6 +2,7 @@ import type { FastifyBaseLogger } from "fastify";
 import nodemailer, { type Transporter } from "nodemailer";
 import type { Config } from "../config.js";
 import { HttpError } from "../lib/util.js";
+import { brandHtml } from "./mail-html.js";
 
 // html ve başlıklar isteğe bağlı (E-posta Stüdyosu: tasarlanmış e-posta, "abonelikten çık" başlıkları).
 export type MailOpts = { html?: string; headers?: Record<string, string> };
@@ -87,13 +88,18 @@ export class UnavailableSender implements Mailer, Sms {
   }
 }
 
+// Bütün e-postalar marka şablonuyla gider: html verilmemişse düz metinden logolu, düğmeli HTML üretilir (Marka Bahçem'deki gibi).
+export function branded(m: Mailer, origin: string): Mailer {
+  return { send: (to, subject, text, opts = {}) => m.send(to, subject, text, opts.html ? opts : { ...opts, html: brandHtml(subject, text, origin) }) };
+}
+
 export function createNotifiers(config: Config, log?: FastifyBaseLogger): { mailer: Mailer; sms: Sms } {
   const outbox = new MemoryOutbox(log);
   const mailFallback = config.isProd ? new UnavailableSender("E-posta ile giriş") : outbox;
   const smsFallback = config.isProd ? new UnavailableSender("SMS ile giriş") : outbox;
   return {
-    mailer: mailProvider(config) === "smtp" ? new SmtpMailer(config.SMTP_HOST.trim(), Number(config.SMTP_PORT) || 465, config.SMTP_USER.trim(), config.SMTP_PASS, smtpFrom(config))
-      : config.RESEND_API_KEY ? new ResendMailer(config.RESEND_API_KEY, config.MAIL_FROM) : mailFallback,
+    mailer: mailProvider(config) === "smtp" ? branded(new SmtpMailer(config.SMTP_HOST.trim(), Number(config.SMTP_PORT) || 465, config.SMTP_USER.trim(), config.SMTP_PASS, smtpFrom(config)), config.APP_URL)
+      : config.RESEND_API_KEY ? branded(new ResendMailer(config.RESEND_API_KEY, config.MAIL_FROM), config.APP_URL) : mailFallback,
     sms: config.NETGSM_USERCODE && config.NETGSM_PASSWORD && config.NETGSM_HEADER
       ? new NetgsmSms(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER)
       : smsFallback,
