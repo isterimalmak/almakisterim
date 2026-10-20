@@ -73,7 +73,7 @@ test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevap
   await buyer.reload();
   await expect(buyer.locator(".phone-hidden")).toContainText("1 / 10 satıcı gördü");
   await expect(buyer.getByRole("button", { name: "Rahatsız etti" })).toBeVisible();
-  await expect(buyer.locator(".tabbar .badge, .hdr .badge").first()).toBeVisible();
+  await expect(buyer.locator(".tabbar .badge, .hdr .badge").locator("visible=true").first()).toBeVisible();
   await expect(buyer.locator(".bub", { hasText: "kutulu PS5 var" })).toBeVisible();
   await buyer.getByLabel(/satıcısına cevap/).fill("Kollar orijinal mi?");
   await buyer.getByRole("button", { name: "Gönder", exact: true }).click();
@@ -138,8 +138,8 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByRole("button", { name: "Kaydet" }).click();
   await expect(page.getByText("Ayarlar kaydedildi.")).toBeVisible();
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "deneme-adi.net ana sayfa" })).toBeVisible();
-  await expect(page.locator(".logo img.logo-mark")).toHaveAttribute("src", "/logo.png");
+  await expect(page.getByRole("link", { name: "deneme-adi.net ana sayfa" }).locator("visible=true")).toBeVisible();
+  await expect(page.locator(".logo img.logo-mark").first()).toHaveAttribute("src", "/logo.png");
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Ayarlar" }).click();
   await page.getByLabel("Logonun yanında yazan ad").fill("almakisterim.com");

@@ -348,9 +348,10 @@ footer{background:#fff;border-top:1px solid var(--line);padding:24px 0;font-size
   .vitrin{grid-template-columns:repeat(3,1fr)}
 }
 @media (max-width:860px){
-  .hdr-in{height:56px;gap:12px}
-  .hdr .hdr-in .search{display:none}
-  .mob-search{display:block;background:var(--navy);padding:0 12px 10px}
+  .hdr .hdr-in{display:none}
+  .mob-search{display:flex;align-items:center;gap:10px;background:var(--navy);padding:10px 12px}
+  .mob-search .logo-mark{width:40px;height:40px}
+  .mob-search .search{flex:1}
   .mob-search .search{max-width:none}
   .hdr-right a.t,.credit{display:none}
   .home{grid-template-columns:1fr;padding:12px}

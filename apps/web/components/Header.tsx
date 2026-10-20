@@ -45,7 +45,8 @@ export function Header() {
             <Link href="/talep-ver" className="btn btn-or"><span>+ <span className="lg">Ücretsiz </span>Talep Ver</span></Link>
           </div>
         </div>
-        <div className="mob-search"><SearchForm compact /></div>
+        {/* Telefonda tek satır: logo arama kutusunun başında, adı yazmaz (hesap ve bildirimler alt menüde). */}
+        <div className="mob-search"><Link href="/" className="logo" aria-label={`${siteName} ana sayfa`}><img className="logo-mark" src="/logo.png" alt="" width={40} height={40} /></Link><SearchForm compact /></div>
       </header>
       {/* Telefonda "Ana Sayfa" alt menüde var; başka bağlantı yoksa bu şerit hiç gösterilmez. */}
       <nav className={"subnav" + (browseCategories.length || user?.role === "admin" ? "" : " sn-empty")} aria-label="Kategoriler">
