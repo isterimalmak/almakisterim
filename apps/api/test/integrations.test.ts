@@ -47,6 +47,7 @@ describe("yönetim → entegrasyonlar", () => {
     expect(await test("sms")).toMatchObject({ ok: false, message: expect.stringContaining("üçü de") });
     expect(await test("google")).toMatchObject({ ok: false, message: expect.stringContaining("girilmeli") });
     expect(await test("mail")).toMatchObject({ ok: false, message: "API anahtarı girilmemiş." });
+    expect(await test("pay")).toMatchObject({ ok: false, message: expect.stringContaining("ikisi de") });
     await ctx.app.inject({ method: "PUT", url: "/api/admin/integrations/RESEND_API_KEY", headers: { cookie: admin }, payload: { value: "re_deneme" } });
     const before = ctx.outbox.sent.length;
     expect(await test("mail")).toMatchObject({ ok: true });

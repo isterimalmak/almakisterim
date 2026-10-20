@@ -1,5 +1,7 @@
 import { aiAdminRoutes } from "./modules/ai-admin.js";
 import { integrationRoutes } from "./modules/integrations.js";
+import { safeRoutes } from "./modules/safe.js";
+import { createPayments } from "./services/payments.js";
 import { Integrations, isLive } from "./services/integrations.js";
 import { HeuristicAi } from "./services/ai.js";
 import { GuardedAi } from "./services/ai-guard.js";
@@ -39,6 +41,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     deps = { ...deps, integrations: new Integrations(deps.pool, deps.config) };
     await deps.integrations!.refresh(true).catch(() => {});
   }
+  if (!deps.payments) deps = { ...deps, payments: createPayments(deps.config) };
   const app = Fastify({
     logger: deps.config.NODE_ENV === "test" ? false : { level: deps.config.isProd ? "info" : "debug", redact: REDACT },
     trustProxy: true,
@@ -55,6 +58,11 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     // Cloudflare arkasında gerçek istemci adresi bu başlıkta gelir.
     keyGenerator: (req) => String(req.headers["cf-connecting-ip"] ?? req.ip),
     errorResponseBuilder: () => ({ statusCode: 429, error: "cok_fazla_istek", message: "Çok fazla istek gönderildi, biraz sonra tekrar deneyin." }),
+  });
+
+  // Ödeme sağlayıcısı sonucu form olarak gönderir (yalnızca Güvenli Al dönüş adresi kullanır).
+  app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_req, body, done) => {
+    done(null, Object.fromEntries(new URLSearchParams(String(body))));
   });
 
   app.decorateRequest("user", null);
@@ -93,6 +101,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     adminRoutes(api, deps);
     aiAdminRoutes(api, deps);
     integrationRoutes(api, deps);
+    safeRoutes(api, deps);
     // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.
     if (deps.config.NODE_ENV === "test" && deps.sms instanceof MemoryOutbox) {
       const outbox = deps.sms;

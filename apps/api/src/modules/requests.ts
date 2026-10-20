@@ -59,6 +59,8 @@ const CreateBody = z.object({
   is_corporate: z.boolean().default(false),
   days: z.union([z.literal(7), z.literal(14), z.literal(30)]).default(14),
   media_ids: MediaIds,
+  // Birden fazla araç seçildiyse her aracın kendi görselleri: "Marka|Model" → medya kimlikleri (model yoksa "Marka|").
+  vehicle_media: z.record(z.string().max(90), MediaIds).optional(),
   // Numaranın ücret ödeyen satıcılarla paylaşılması zorunludur; alıcı bunu açıkça onaylar.
   contact_consent: z.literal(true, { error: "Talep vermek için numaranızın satıcılarla paylaşılmasını onaylamalısınız." }),
 });
@@ -81,7 +83,10 @@ export function listFilters(raw: Record<string, unknown>) {
     if (/^\d{7,}$/.test(q.q.trim())) add("r.id = $?", Number(q.q.trim()));
     else add("(r.title ILIKE $? OR r.description ILIKE $?)", `%${q.q.replace(/[%_\\]/g, "\\$&")}%`);
   }
-  if (q.city) add("r.city = $?", q.city);
+  // Birden fazla il virgülle ayrılır (alarmda "İzmir,Manisa"); o zaman ilçe/mahalle sorulmaz.
+  const cities = q.city ? q.city.split(",").map((x) => x.trim()).filter(Boolean) : [];
+  if (cities.length > 1) { add("r.city = ANY($?)", cities); q.district = undefined; q.neighbourhood = undefined; }
+  else if (q.city) add("r.city = $?", q.city);
   // İlçe/mahalle: alıcı o ilçeyi seçmişse ya da ilçe "farketmez" demişse (boş) uyar.
   if (q.city && q.district) add("(r.district = '' OR r.district = $?)", matchDistrict(q.city, q.district) ?? q.district);
   if (q.city && q.district && q.neighbourhood) add("(r.neighbourhood = '' OR r.neighbourhood = $?)", q.neighbourhood);
@@ -196,7 +201,10 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
       // Alıcı, numarasını kimlerin gördüğünü görür ve rahatsız edeni şikâyet edebilir.
       viewers: isOwner || isAdmin ? unlockRows.map((u) => ({ unlock_id: u.id, seller_name: publicName(u.seller_name), created_at: u.created_at, reported: u.reported })) : undefined,
     };
-    return { request: { ...pub(rest as Row), media, is_owner: isOwner, is_favorite: !!fav, moderation_note: isOwner || isAdmin ? moderation_note : undefined }, offers, contact };
+    // Aynı gönderimden çıkan diğer araç talepleri (alıcı birden fazla araç seçtiyse).
+    const group = (await pool.query<{ id: number; title: string }>(
+      `SELECT x.id, x.title FROM requests x JOIN requests r ON r.group_id = x.group_id WHERE r.id = $1 AND x.id <> $1 AND x.status IN ('active','pending_review') ${isOwner || isAdmin ? "" : "AND x.status = 'active'"} ORDER BY x.id`, [id])).rows;
+    return { request: { ...pub(rest as Row), media, is_owner: isOwner, is_favorite: !!fav, moderation_note: isOwner || isAdmin ? moderation_note : undefined, group }, offers, contact };
   });
 
   // Yapay zekâ ile taslak: serbest metinden kategori, bütçe, il ve özellikler çıkarılır.
@@ -245,18 +253,34 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     // Sahte taleplerle satıcıları kendine aratmayı önlemek için kişi başı açık talep sınırı.
     const { maxActive, phoneRequired } = await unlockSettings(pool);
     if (!user.phone && phoneRequired) throw new HttpError(409, "telefon_gerekli", "Talep vermek için önce telefon numaranızı doğrulayın.");
+    // Birden fazla araçla verilip ayrı taleplere bölünen gönderim tek talep sayılır.
     const active = (await pool.query<{ n: number }>(
-      "SELECT count(*)::int AS n FROM requests WHERE buyer_id = $1 AND status IN ('active','pending_review') AND expires_at > now()", [user.id])).rows[0]!.n;
+      "SELECT count(DISTINCT coalesce(group_id::text, id::text))::int AS n FROM requests WHERE buyer_id = $1 AND status IN ('active','pending_review') AND expires_at > now()", [user.id])).rows[0]!.n;
     if (maxActive > 0 && active >= maxActive) throw new HttpError(409, "talep_siniri", `Aynı anda en fazla ${maxActive} açık talebiniz olabilir. Önce eski taleplerinizden birini kapatın.`);
     const cat = await visibleSubcategory(pool, b.category_id);
     if (!cat) throw new HttpError(400, "kategori_gecersiz", "Bu kategori şu anda talep kabul etmiyor.");
-    if (storage.enabled && (await pool.query("SELECT 1 FROM settings WHERE key = 'photo_required' AND value = 'true'")).rowCount) {
-      const imgs = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM media WHERE id = ANY($1::uuid[]) AND owner_id = $2 AND kind = 'image'", [b.media_ids, user.id])).rows[0]!.n;
-      if (!imgs) throw new HttpError(400, "fotograf_gerekli", "Talep vermek için en az bir fotoğraf ekleyin. Kendi fotoğrafınızı yükleyebilir ya da hazır görsellerden seçebilirsiniz.");
-    }
     const attrs = isVehicleSub(b.category_id)
       ? parseVehicleAttrs(b.category_id, b.attrs)
       : z.record(z.string().max(30), z.union([z.string().max(60), z.number()])).parse(b.attrs);
+    // Birden fazla araç seçildiyse her araç ayrı talep olur (satıcı yalnızca kendi aracına uyan talebi görür);
+    // her talep o aracın kendi görselleriyle yayınlanır, ortak görseller ilk talebe eklenir.
+    const cars = isVehicleSub(b.category_id) ? (attrs as { araclar: { marka: string; model: string | null }[] }).araclar : [];
+    const units = cars.length > 1
+      ? cars.map((car, i) => {
+        const own = b.vehicle_media?.[`${car.marka}|${car.model ?? ""}`] ?? [];
+        return { attrs: { ...attrs, araclar: [car] }, media: own.length || i > 0 ? own : b.media_ids, car };
+      })
+      : [{ attrs, media: b.media_ids, car: null as { marka: string; model: string | null } | null }];
+    if (units.length > 1 && new Set(units.flatMap((u) => u.media)).size !== units.reduce((n, u) => n + u.media.length, 0))
+      throw new HttpError(400, "medya_gecersiz", "Aynı fotoğraf birden fazla araca eklenemez.");
+    if (storage.enabled && (await pool.query("SELECT 1 FROM settings WHERE key = 'photo_required' AND value = 'true'")).rowCount) {
+      for (const u of units) {
+        const imgs = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM media WHERE id = ANY($1::uuid[]) AND owner_id = $2 AND kind = 'image'", [u.media, user.id])).rows[0]!.n;
+        if (!imgs) throw new HttpError(400, "fotograf_gerekli", u.car
+          ? `${[u.car.marka, u.car.model].filter(Boolean).join(" ")} için en az bir fotoğraf ekleyin. Her araç ayrı talep olarak yayınlanır.`
+          : "Talep vermek için en az bir fotoğraf ekleyin. Kendi fotoğrafınızı yükleyebilir ya da hazır görsellerden seçebilirsiniz.");
+      }
+    }
     const budgetMin = b.budget_min ?? Math.round(b.budget_max * 0.8);
     if (budgetMin > b.budget_max) throw new HttpError(400, "butce_gecersiz", "En az bütçe, en fazla bütçeden büyük olamaz.");
     let title = maskContacts(b.title).text, description = maskContacts(b.description).text;
@@ -264,7 +288,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const s = await aiSettings(pool);
     const [rev, imgMod] = await Promise.all([
       ai.reviewListing({ title, description, category: cat.name }),
-      imageUrls(pool, storage, user.id, b.media_ids).then((u) => ai.moderateImages(u)),
+      imageUrls(pool, storage, user.id, units.flatMap((u) => u.media)).then((u) => ai.moderateImages(u)),
     ]);
     const original = { title, description };
     if (s.fixText) {
@@ -276,24 +300,34 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     // Otomatik karar kapalıysa her talep yöneticinin onayına düşer; açıksa uygun olan yayına girer, açıkça yasaklı olan reddedilir.
     const status = !s.autoDecide ? "pending_review"
       : mod.verdict === "ok" ? "active" : mod.verdict === "reject" ? "rejected" : s.uncertain === "publish" ? "active" : "pending_review";
-    const id = await tx(pool, async (c) => {
-      const { rows } = await c.query<{ id: number }>(
-        `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, neighbourhood, condition, attrs,
-                               is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at, ai_checked_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now() + make_interval(days => $16), now(), now()) RETURNING id`,
-        [user.id, b.category_id, title, description, budgetMin, b.budget_max, b.city, b.district, b.neighbourhood, b.condition, attrs,
-          b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days]);
-      await attachMedia(c, user.id, b.media_ids, { request_id: rows[0]!.id });
-      return rows[0]!.id;
+    // Bölünen talepte başlık her araç için ayrı kurulur ("2018 ve Sonrası Dizel BMW 3 Serisi").
+    const titleOf = (u: (typeof units)[number]) => u.car
+      ? (buildTitle({ sub: b.category_id, subName: cat.name, attrs: u.attrs, city: b.city, district: b.district, neighbourhood: b.neighbourhood }) ?? [u.car.marka, u.car.model].filter(Boolean).join(" ")).slice(0, 120)
+      : title;
+    const ids = await tx(pool, async (c) => {
+      const group = units.length > 1 ? (await c.query<{ g: string }>("SELECT gen_random_uuid() AS g")).rows[0]!.g : null;
+      const out: number[] = [];
+      for (const u of units) {
+        const { rows } = await c.query<{ id: number }>(
+          `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, neighbourhood, condition, attrs,
+                                 is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at, ai_checked_at, group_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now() + make_interval(days => $16), now(), now(), $17) RETURNING id`,
+          [user.id, b.category_id, titleOf(u), description, budgetMin, b.budget_max, b.city, b.district, b.neighbourhood, b.condition, u.attrs,
+            b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days, group]);
+        await attachMedia(c, user.id, u.media, { request_id: rows[0]!.id });
+        out.push(rows[0]!.id);
+      }
+      return out;
     });
+    const id = ids[0]!;
     if (title !== original.title || description !== original.description) {
       await logAiAction(pool, { kind: "talep_duzeltme", target: id, summary: rev.changes || "Yazım düzeltildi", before: original, after: { title, description } });
     }
     if (mod.verdict !== "ok") await logAiAction(pool, { kind: "talep_karar", target: id, summary: `${status === "rejected" ? "Reddedildi" : status === "active" ? "Yayına alındı (emin değil)" : "İncelemeye alındı"}: ${mod.reason}` });
-    if (status === "active") void notifyAlarmMatches(deps, id).catch((e) => req.log.warn({ err: (e as Error).message }, "alarm bildirimi başarısız"));
+    if (status === "active") for (const x of ids) void notifyAlarmMatches(deps, x).catch((e) => req.log.warn({ err: (e as Error).message }, "alarm bildirimi başarısız"));
     void requestStatusEmail(deps, id, { bell: false }).catch(() => {});
     reply.code(201);
-    return { id, status, moderation: mod.verdict === "ok" ? null : { reason: mod.reason } };
+    return { id, ids, status, moderation: mod.verdict === "ok" ? null : { reason: mod.reason } };
   });
 
   app.post("/requests/:id/close", async (req) => {

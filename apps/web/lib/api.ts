@@ -38,7 +38,9 @@ export type Offer = {
   seller_name: string; seller_is_corporate: boolean; seller_sales: number; mine: boolean; media: Media[];
 };
 
-export type RequestDetail = RequestItem & { media: Media[]; is_owner: boolean; is_favorite: boolean; moderation_note?: string | null; accepted_offer_id: number | null };
+export type RequestDetail = RequestItem & { media: Media[]; is_owner: boolean; is_favorite: boolean; moderation_note?: string | null; accepted_offer_id: number | null;
+  // Aynı gönderimde seçilen diğer araçların talepleri
+  group?: { id: number; title: string }[] };
 
 // Satıcının alıcı numarasını görmesi (ücretli). viewers yalnızca talep sahibine gelir.
 export type Contact = {

@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { Thread, type ChatMsg } from "@/components/Chat";
 import { Gallery } from "@/components/Media";
 import { PhoneVerify } from "@/components/PhoneVerify";
+import { SafeSalesForRequest, SafeSellBox, useSafeInfo } from "@/components/Safe";
 import { placeTxt } from "@/lib/locations";
 import { VehicleRows } from "@/components/VehicleFields";
 import { CatIcon, Labels } from "@/components/RequestTable";
@@ -21,6 +22,7 @@ export default function RequestPage() {
   const { user, toast, refresh } = useSession();
   const [data, setData] = useState<{ request: RequestDetail; contact: Contact } | null>(null);
   const [error, setError] = useState("");
+  const safe = useSafeInfo();
 
   const load = useCallback(() => api<{ request: RequestDetail; contact: Contact }>(`/requests/${id}`).then(setData).catch((e) => setError(e.message)), [id]);
   useEffect(() => { void load(); }, [load, user?.id]);
@@ -74,6 +76,13 @@ export default function RequestPage() {
             </tbody></table>
           </div></div>
 
+          {!!r.group?.length && (
+            <section className="box det-sec">
+              <div className="box-h"><h2>Bu alıcının aynı aramadaki diğer araçları</h2></div>
+              <div className="box-b"><div className="chips">{r.group.map((g) => <Link key={g.id} className="chip" href={`/talep/${g.id}`}>{g.title}</Link>)}</div>
+                <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Alıcı birden fazla araç seçti; her araç ayrı talep olarak yayınlandı.</p></div>
+            </section>
+          )}
           <section className="box det-sec">
             <div className="box-h"><h2>Talep Açıklaması</h2><div style={{ display: "flex", gap: 4 }}><Labels r={r} /></div></div>
             <div className="box-b desc">{r.description || <span className="muted">Açıklama eklenmemiş.</span>}</div>
@@ -81,9 +90,10 @@ export default function RequestPage() {
 
           <section className="box det-sec" id="mesajlar">
             <div className="box-h"><h2>{r.is_owner ? "Satıcılardan gelen mesajlar" : "Alıcıyla iletişim"}</h2></div>
+            {user && <SafeSalesForRequest requestId={r.id} />}
             {r.is_owner ? <OwnerThreads r={r} />
               : !user ? <div className="empty">Alıcının numarasını görmek veya mesaj göndermek için <Link className="link" href={`/giris?sonra=/talep/${r.id}`}>giriş yapın</Link>.</div>
-              : c.unlocked ? <SellerThread r={r} />
+              : c.unlocked ? <>{safe?.enabled && safe.tops.includes(r.top_id) && !c.blocked && <SafeSellBox requestId={r.id} title={r.title.replace(/\s*almak istiyorum\.?$/i, "")} info={safe} />}<SellerThread r={r} /></>
               : !open ? <div className="box-b"><div className="note n-info">Bu talep kapandı.</div></div>
               : <UnlockBox r={r} c={c} onDone={() => { void load(); void refresh(); }} />}
           </section>

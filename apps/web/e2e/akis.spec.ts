@@ -300,7 +300,7 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
 });
 
 test("sayfalar yana taşmıyor", async ({ page }) => {
-  for (const p of ["/", "/kategori", "/kategori/vasita", "/talep-ver", "/giris", "/sayfa/kvkk"]) {
+  for (const p of ["/", "/kategori", "/kategori/vasita", "/talep-ver", "/giris", "/sayfa/kvkk", "/guvenli-al"]) {
     await page.goto(p);
     await page.waitForLoadState("networkidle");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -375,13 +375,25 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await buyer.getByLabel("Model", { exact: true }).selectOption("C Serisi");
   await buyer.getByRole("button", { name: "+ Ekle" }).click();
   await expect(buyer.locator(".chip.on", { hasText: "Mercedes-Benz C Serisi" })).toBeVisible();
-  await addPhoto(buyer);
+  // Üç araç seçildi: her biri ayrı talep olacak, her araca kendi fotoğrafı eklenir (fotoğraf zorunlu).
+  await expect(buyer.getByText("3 araç seçtiniz; her biri ayrı talep olarak yayınlanacak.")).toBeVisible();
   await buyer.getByRole("button", { name: "Devam" }).click();
-  await expect(buyer.getByText("BMW 3 Serisi, Audi A4, Mercedes-Benz C Serisi")).toBeVisible();
+  await expect(buyer.getByText("BMW 3 Serisi için kendi fotoğrafınızı", { exact: false })).toBeVisible();
+  for (const [i, car] of ["BMW 3 Serisi", "Audi A4", "Mercedes-Benz C Serisi"].entries()) {
+    await buyer.getByLabel(`${car} için fotoğraf ekle`).setInputFiles({ name: `foto${i}.png`, mimeType: "image/png", buffer: PNG });
+    await expect(buyer.locator(".car-photo", { hasText: `${car} fotoğrafı` }).getByAltText("Eklenen fotoğraf 1")).toBeVisible();
+  }
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await expect(buyer.getByText("3 ayrı talep yayınlanacak:")).toBeVisible();
   await buyer.getByLabel(/kurallarını/).check();
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
-  await expect(buyer.getByRole("heading", { level: 1 })).toContainText(tag);
-  await expect(buyer.getByText("BMW 3 Serisi, Audi A4, Mercedes-Benz C Serisi")).toBeVisible();
+  // İlk aracın talebi açılır; diğer iki araç ayrı talep olarak bağlantılı görünür.
+  await expect(buyer.getByRole("heading", { level: 1 })).toContainText("BMW 3 Serisi");
+  await expect(buyer.getByRole("heading", { level: 1 })).not.toContainText("Audi");
+  const audi = buyer.getByRole("link", { name: /Audi A4/ });
+  await expect(audi).toBeVisible();
+  await expect(buyer.getByRole("link", { name: /Mercedes-Benz C Serisi/ })).toBeVisible();
+  const audiHref = (await audi.getAttribute("href"))!;
 
   const seller = await (await browser.newContext()).newPage();
   await seller.goto("/kategori/vasita");
@@ -391,10 +403,10 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await seller.getByLabel("Aracın markası").selectOption("Audi");
   await seller.getByLabel("Aracın modeli").selectOption("A4");
   await seller.getByLabel("Aracın yılı").fill("2020");
-  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toBeVisible();
+  await expect(seller.locator(`.tbl-wrap a[href="${audiHref}"]`).first()).toBeVisible();
   // 2015 model araç "2018 sonrası" talebine uymaz; ana listede çıkmaz (alttaki "diğer talepler"de görünebilir).
   await seller.getByLabel("Aracın yılı").fill("2015");
-  await expect(seller.locator(".tbl-wrap").getByRole("link", { name: new RegExp(tag) })).toHaveCount(0);
+  await expect(seller.locator(`.tbl-wrap a[href="${audiHref}"]`)).toHaveCount(0);
   await ctx.close();
 });
 
@@ -529,7 +541,7 @@ test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütç
   await page.goto("/bana-ozel?s=alarm");
   await page.getByLabel("Ana kategori *").selectOption("emlak");
   await page.getByLabel("Alt kategori").selectOption("arsa");
-  await page.getByLabel("İl", { exact: true }).selectOption("İzmir");
+  await page.getByLabel(/^İller/).selectOption("İzmir");
   await page.getByLabel("İlçe", { exact: true }).selectOption("Urla");
   await page.getByLabel("Alıcı bütçesi en az (TL)").fill("1000000");
   await page.getByLabel("Alıcı bütçesi en fazla (TL)").fill("5000000");
@@ -550,12 +562,26 @@ test("satıcı ayrıntılı alarm kurar: arsa, İzmir / Urla, imar Konut, bütç
   await expect(page.getByRole("button", { name: "m²: 600 filtresini kaldır" })).toBeVisible();
   await page.goto("/bana-ozel?s=alarm");
 
-  // Vasıta (tümü) seçilince de marka/model sorulur: yalnızca BMW 1 Serisi isteyen alıcılar için alarm.
+  // Vasıta: tek alarma birden fazla araç ve il; yakıtta birden fazla seçim, "Farketmez" ile temizlenir.
   await page.getByLabel("Ana kategori *").selectOption("vasita");
-  await page.getByLabel("Elinizdeki aracın markası").selectOption("BMW");
-  await page.getByLabel("Modeli").selectOption("1 Serisi");
+  await page.getByLabel("Marka", { exact: true }).selectOption("BMW");
+  await page.getByLabel("Model", { exact: true }).selectOption("1 Serisi");
+  await page.getByRole("button", { name: "+ Ekle" }).click();
+  await page.getByLabel("Marka", { exact: true }).selectOption("Audi");
+  await page.getByRole("button", { name: "+ Ekle" }).click();
+  await expect(page.getByRole("button", { name: "Audi (tüm modeller) aracını çıkar" })).toBeVisible();
+  await page.getByLabel(/^İller/).selectOption("İzmir");
+  await page.getByLabel(/^İller/).selectOption("Manisa");
+  await expect(page.getByLabel("İlçe", { exact: true })).toBeDisabled();
+  const fuel = page.getByRole("group", { name: "Yakıt" });
+  await fuel.getByRole("button", { name: "Dizel" }).click();
+  await fuel.getByRole("button", { name: "Hibrit" }).click();
+  await expect(fuel.getByRole("button", { name: "Farketmez" })).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "Alarm kur" }).click();
-  await expect(page.locator(".tbl tbody tr", { hasText: "Vasıta" }).getByText("BMW 1 Serisi")).toBeVisible();
+  const vrow = page.locator(".tbl tbody tr", { hasText: "Vasıta" });
+  await expect(vrow.getByText("BMW 1 Serisi, Audi (tüm modeller)")).toBeVisible();
+  await expect(vrow.getByText("İzmir, Manisa")).toBeVisible();
+  await expect(vrow.getByText("Yakıt: Dizel, Hibrit")).toBeVisible();
 
 });
 
@@ -584,4 +610,70 @@ test("telefonda giriş kutularının yazısı en az 16px (iPhone dokununca sayfa
       .filter((e) => (e as HTMLElement).offsetParent !== null && parseFloat(getComputedStyle(e).fontSize) < 16).map((e) => (e as HTMLElement).outerHTML.slice(0, 80)));
     expect(small, path).toEqual([]);
   }
+});
+
+test("Güvenli Al: satıcı satış başlatır, alıcı öder, satıcı kargolar, alıcı onaylar", async ({ browser }) => {
+  const buyerCtx = await browser.newContext();
+  const buyer = await buyerCtx.newPage();
+  const title = `PS5 almak istiyorum ${rnd()}`;
+  await loginSms(buyer, `0532${rnd().slice(0, 7)}`, "Elif Sönmez");
+  await buyer.goto("/");
+  await buyer.getByLabel("Ne almak istiyorsunuz?").fill(`${title}, bütçem 15 bin TL, Ankara`);
+  await buyer.getByRole("button", { name: "Talep Oluştur" }).click();
+  await expect(buyer.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await buyer.getByLabel("Talep başlığı *").fill(title);
+  await addPhoto(buyer);
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  const url = buyer.url();
+
+  const sellerCtx = await browser.newContext();
+  const seller = await sellerCtx.newPage();
+  await loginSms(seller, `0533${rnd().slice(0, 7)}`, "Ahmet Kaya");
+  await seller.goto(url);
+  await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
+  await seller.getByRole("button", { name: "Güvenli Al ile sat" }).click();
+  await seller.getByLabel("Anlaştığınız fiyat (TL)").fill("14000");
+  await expect(seller.locator(".safe-fee")).toContainText("13.300 TL");
+  await seller.getByLabel("Paranızın gönderileceği IBAN").fill("TR33 0006 1005 1978 6457 8413 26");
+  await seller.getByLabel("Hesap sahibinin adı").fill("Ahmet Kaya");
+  await seller.getByRole("button", { name: "Satışı başlat ve alıcıya gönder" }).click();
+  await seller.getByRole("link", { name: "Satışı görüntüle »" }).click();
+  await expect(seller.getByText("Alıcının ödeme yapması bekleniyor")).toBeVisible();
+  const saleUrl = seller.url();
+
+  // Alıcı talep sayfasında satışı görür, adresini yazıp öder (deneme modu).
+  await buyer.reload();
+  await buyer.locator(".safe-mini-i").first().click();
+  await expect(buyer.getByText("14.210 TL", { exact: false }).first()).toBeVisible();
+  await buyer.getByLabel("Ad soyad", { exact: true }).fill("Elif Sönmez");
+  await buyer.getByLabel("Telefon", { exact: true }).fill("05321112233");
+  await buyer.getByLabel("İl", { exact: true }).fill("Ankara");
+  await buyer.getByLabel("Açık adres").fill("Kızılay Mah. Atatürk Bulvarı No: 10 Çankaya");
+  await buyer.getByRole("button", { name: /Güvenli Öde/ }).click();
+  await expect(buyer.getByText("Deneme ödeme ekranı")).toBeVisible();
+  await buyer.getByRole("button", { name: /öde \(deneme\)/ }).click();
+  await expect(buyer.getByText("Ödemeniz alındı ve güvende", { exact: false })).toBeVisible();
+
+  // Satıcı adresi görür, kargolar.
+  await seller.goto(saleUrl);
+  await expect(seller.locator(".safe-addr")).toContainText("Kızılay Mah.");
+  await seller.getByLabel("Kargo takip numarası").fill("1234567890");
+  await seller.getByRole("button", { name: "Kargoya verdim" }).click();
+  await expect(seller.getByText("Kargo bilgisi alıcıya iletildi", { exact: false }).first()).toBeVisible();
+
+  // Alıcı onaylar; satış tamamlanır, satıcıya ödeme bilgisi çıkar.
+  await buyer.reload();
+  await expect(buyer.getByText("1234567890").first()).toBeVisible();
+  buyer.once("dialog", (d) => void d.accept());
+  await buyer.getByRole("button", { name: "Ürünü aldım, onaylıyorum" }).click();
+  await expect(buyer.getByText("Satış tamamlandı.", { exact: false }).first()).toBeVisible();
+  expect(await buyer.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  await seller.reload();
+  await expect(seller.getByText("13.300 TL en geç 2 iş günü içinde", { exact: false })).toBeVisible();
+  await seller.goto("/guvenli-al");
+  await expect(seller.locator(".tbl tr", { hasText: title })).toContainText("Tamamlandı");
+  await buyerCtx.close(); await sellerCtx.close();
 });

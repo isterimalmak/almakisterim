@@ -61,7 +61,7 @@ export function Footer() {
     <footer>
       <div className="wrap">
         <div className="ft">
-          <div><b>Kurumsal</b><Link href="/sayfa/hakkimizda">Hakkımızda</Link><Link href="/sayfa/iletisim">İletişim</Link><Link href="/blog">Blog</Link></div>
+          <div><b>Kurumsal</b><Link href="/sayfa/hakkimizda">Hakkımızda</Link><Link href="/sayfa/iletisim">İletişim</Link><Link href="/blog">Blog</Link><Link href="/guvenli-al">Güvenli Al</Link></div>
           <div><b>Alıcılar İçin</b><Link href="/talep-ver">Ücretsiz Talep Ver</Link><Link href="/kategori">Tüm Talepler</Link><Link href="/sayfa/guvenli-alisveris">Güvenli Alışveriş İpuçları</Link></div>
           <div><b>Satıcılar İçin</b><Link href="/bana-ozel?s=eslesme">Size Uygun Talepler</Link><Link href="/bana-ozel?s=kredi">Kredi ve Mağaza</Link><Link href="/bana-ozel?s=alarm">Talep Alarmları</Link></div>
           <div><b>Gizlilik ve Kullanım</b><Link href="/sayfa/kullanim-kosullari">Kullanım Koşulları</Link><Link href="/sayfa/kvkk">KVKK Aydınlatma Metni</Link><Link href="/sayfa/cerez">Çerez Politikası</Link></div>

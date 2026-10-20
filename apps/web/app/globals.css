@@ -797,3 +797,77 @@ button.link{padding:0;font-size:inherit}
 }
 /* Masaüstünde sağda "Nasıl çalışır?" kutusu zaten var; adımlar yalnızca telefonda karşılamada görünür. */
 @media (min-width:861px){.hero-steps{display:none}}
+
+/* Güvenli Al */
+.safe-mini{display:grid;gap:6px;padding:12px 14px 0}
+.safe-mini-i{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #BFE3CF;background:var(--green-soft);border-radius:8px;color:var(--text)}
+.safe-mini-i svg{color:var(--green)}
+.safe-mini-i span:nth-child(2){flex:1;min-width:0}
+.safe-mini-i b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.safe-mini-i small{font-size:12px;color:var(--muted)}
+.safe-sell{margin:12px 14px 0}
+.safe-cta{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #BFE3CF;background:linear-gradient(90deg,var(--green-soft),#fff);border-radius:10px}
+.safe-cta>svg{color:var(--green)}
+.safe-cta div{flex:1;min-width:0}
+.safe-cta b{display:block;font-size:13.5px;color:var(--navy)}
+.safe-cta small{font-size:12px;color:var(--muted);line-height:1.4}
+.safe-form{border:1px solid #BFE3CF;border-radius:10px;padding:14px;background:#fff}
+.safe-form-h{display:flex;align-items:center;gap:8px;margin-bottom:12px;color:var(--navy)}
+.safe-form-h svg{color:var(--green)}
+.safe-form-h b{flex:1}
+.safe-fee{width:100%;max-width:420px;border-collapse:collapse;margin-top:12px;font-size:13px}
+.safe-fee th{text-align:left;font-weight:400;color:var(--muted);padding:4px 0}
+.safe-fee td{text-align:right;padding:4px 0;white-space:nowrap}
+.safe-fee tr.sum th,.safe-fee tr.sum td{border-top:1px solid var(--line);font-weight:700;color:var(--navy);padding-top:8px}
+.safe-steps{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 14px;padding:0}
+.safe-steps li{display:flex;align-items:center;gap:8px;padding:10px;border-radius:8px;background:#fff;border:1px solid var(--line);font-size:13px;color:var(--muted)}
+.safe-steps li b{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#EEF0F3;font-size:12px}
+.safe-steps li.done{color:var(--green)}
+.safe-steps li.done b{background:var(--green);color:#fff}
+.safe-steps li.on{border-color:var(--orange);color:var(--navy);font-weight:600}
+.safe-steps li.on b{background:var(--orange);color:#fff}
+.safe-ev{list-style:none;margin:0;padding:6px 16px 12px}
+.safe-ev li{padding:7px 0;border-bottom:1px solid var(--line-2);font-size:13px}
+.safe-ev li:last-child{border-bottom:0}
+.safe-ev small{display:block;color:var(--muted);font-size:11.5px}
+.safe-addr{display:grid;gap:2px;padding:10px 12px;border:1px dashed #C9CED6;border-radius:8px;font-size:13px}
+.safe-addr small{color:var(--muted);font-size:11.5px}
+.safe-testpay{border:2px dashed var(--amber);border-radius:10px;padding:14px;display:grid;gap:8px;justify-items:start}
+.safe-dispute{width:100%;margin-top:10px}
+.safe-guard{margin-top:12px;background:var(--green-soft);border-color:#BFE3CF}
+.safe-guard b{display:flex;align-items:center;gap:6px;color:var(--green);margin-bottom:6px}
+.safe-guard p{font-size:12.5px;line-height:1.5;margin:0 0 6px;color:#2C4A3B}
+.safe-hero{display:flex;gap:16px;align-items:center;padding:22px;border-radius:14px;background:linear-gradient(135deg,var(--navy),#1E3A8A);color:#fff;margin-bottom:14px}
+.safe-hero svg{color:#7EE2AE}
+.safe-hero h1{font-size:24px;margin:0 0 4px}
+.safe-hero p{margin:0;opacity:.9;font-size:14px;line-height:1.5}
+.safe-how{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 14px;padding:0}
+.safe-how li{display:flex;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}
+.safe-how li>b{flex:none;width:28px;height:28px;border-radius:50%;background:var(--orange-soft);color:var(--orange-d);display:grid;place-items:center}
+.safe-how strong{display:block;font-size:13.5px;color:var(--navy);margin-bottom:3px}
+.safe-how span{font-size:12.5px;color:var(--muted);line-height:1.45}
+.safe-fees-box{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.safe-fees-box>div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}
+.safe-fees-box small{display:block;font-size:12px;color:var(--muted)}
+.safe-fees-box b{display:block;font-size:20px;color:var(--navy);margin:2px 0}
+.safe-fees-box span{font-size:12px;color:var(--muted)}
+@media (max-width:860px){
+  .safe-steps{grid-template-columns:repeat(2,1fr)}
+  .safe-how,.safe-fees-box{grid-template-columns:1fr}
+  .safe-cta{flex-wrap:wrap}
+  .safe-cta .btn{width:100%}
+  .safe-hero{padding:16px}
+  .safe-hero h1{font-size:20px}
+}
+
+/* Alarm: araç listesi */
+.al-car-add{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
+@media (max-width:560px){.al-car-add{grid-template-columns:1fr 1fr}.al-car-add .btn{grid-column:1/-1}}
+
+/* Çok araçlı talep: her araca ayrı fotoğraf */
+.car-photos{display:grid;gap:12px}
+.car-photo{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fff}
+.car-photo>label{display:block;font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.car-prev{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:8px}
+.car-prev-i{display:grid;gap:4px;font-size:12.5px}
+.car-prev-i img,.car-prev-x{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:#EEF0F3;display:grid;place-items:center;color:var(--muted)}

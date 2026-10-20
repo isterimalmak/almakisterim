@@ -8,6 +8,7 @@ import type { Mailer, Sms } from "./services/notify.js";
 import type { PhotoSource } from "./services/pexels.js";
 import type { MediaStorage } from "./services/storage.js";
 import type { Integrations } from "./services/integrations.js";
+import type { PaymentProvider } from "./services/payments.js";
 
 export type Deps = {
   config: Config;
@@ -21,6 +22,8 @@ export type Deps = {
   photos?: PhotoSource;
   // Panelden girilen anahtarlar (yönetim → Entegrasyonlar). Verilmezse buildApp yalnızca okuyup yapılandırmaya uygular.
   integrations?: Integrations;
+  // Güvenli Al ödemeleri; verilmezse yapılandırmadan kurulur (anahtar yoksa geliştirmede deneme ödemesi).
+  payments?: PaymentProvider;
 };
 
 export type SessionUser = {

@@ -24,6 +24,11 @@ const schema = z.object({
   PIXABAY_API_KEY: z.string().default(""),
   CLAUDE_MODEL: z.string().default("claude-opus-5-5"),
 
+  // Güvenli Al ödemeleri (iyzico). Anahtarlar girilmeden geliştirmede deneme ödemesi kullanılır, canlıda Güvenli Al kapalı kalır.
+  IYZICO_API_KEY: z.string().default(""),
+  IYZICO_SECRET_KEY: z.string().default(""),
+  IYZICO_BASE_URL: z.string().default("https://sandbox-api.iyzipay.com"),
+
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),
 

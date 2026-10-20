@@ -7,6 +7,7 @@ import { disabledGoogle, GoogleOAuth } from "./services/google.js";
 import { Integrations, live } from "./services/integrations.js";
 import { createNotifiers } from "./services/notify.js";
 import { createStorage } from "./services/storage.js";
+import { createPayments } from "./services/payments.js";
 
 const config = loadConfig();
 const pool = createPool(config.DATABASE_URL);
@@ -17,6 +18,7 @@ const build = () => ({
   google: config.GOOGLE_CLIENT_ID.trim() && config.GOOGLE_CLIENT_SECRET.trim() ? new GoogleOAuth(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET) : disabledGoogle,
   storage: createStorage(config),
   photos: photoSourceFor(config),
+  payments: createPayments(config),
   ...createNotifiers(config),
 });
 let svc = build();
@@ -26,7 +28,7 @@ integrations.start();
 
 const app = await buildApp({
   config, pool, integrations,
-  ai: live(() => svc.ai), google: live(() => svc.google), storage: live(() => svc.storage), photos: live(() => svc.photos),
+  ai: live(() => svc.ai), google: live(() => svc.google), storage: live(() => svc.storage), photos: live(() => svc.photos), payments: live(() => svc.payments),
   mailer: live(() => svc.mailer), sms: live(() => svc.sms),
 });
 
