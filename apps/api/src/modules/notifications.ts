@@ -1,6 +1,7 @@
 import type { Deps } from "../context.js";
 import { alarmOwnersFor } from "./alarms.js";
 import { aiSettings } from "../services/ai-guard.js";
+import { mailEvent } from "./mailstudio.js";
 
 type Contact = { email: string | null; phone: string | null };
 
@@ -58,6 +59,8 @@ export async function requestStatusEmail(deps: Deps, requestId: number, opt: { b
     if (opt.bell !== false) await deps.pool.query("INSERT INTO notifications (user_id, text, link) VALUES ($1, $2, $3)", [r.buyer_id, text, link]).catch(() => {});
   };
   if (r.status === "active") {
+    // E-posta Stüdyosu: "Talep yayına girince" görevleri (talep verilirken, yönetici onaylayınca, yapay zekâ yeniden denetleyince)
+    await mailEvent(deps.pool, "request_published", r.buyer_id, requestId);
     await bell(`"${r.title}" talebiniz onaylandı ve yayına çıktı.`, `/talep/${requestId}`);
     await autoMail(deps, r.buyer_id, "Talebiniz yayına çıktı", `"${r.title}" talebiniz denetlendi ve yayına alındı. Uygun satıcılar size mesaj atacak ya da arayacak.\n\n${url}`);
   } else if (r.status === "pending_review") {

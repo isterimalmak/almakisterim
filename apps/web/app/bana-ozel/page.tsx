@@ -181,15 +181,17 @@ function ProfileForm() {
   const { user, refresh, toast } = useSession();
   const [name, setName] = useState(user?.name ?? "");
   const [corp, setCorp] = useState(user?.is_corporate ?? false);
+  const [marketing, setMarketing] = useState(user?.marketing ?? false);
   return (
     <div className="box"><div className="box-h"><h2>Hesap Bilgileri</h2></div><div className="box-b">
       <div className="form-grid" style={{ maxWidth: 560 }}>
         <div className="fg full"><label htmlFor="p-n">Ad soyad / firma adı</label><input className="inp" id="p-n" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} /><span className="hint">Diğer kullanıcılara yalnızca adınız ve soyadınızın baş harfi gösterilir.</span></div>
         <div className="fg full"><label className="chk"><input type="checkbox" checked={corp} onChange={(e) => setCorp(e.target.checked)} />Kurumsal hesap (firma adına alım/satım)</label></div>
+        <div className="fg full"><label className="chk"><input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />Kampanya ve fırsat e-postaları almak istiyorum</label><span className="hint">İstediğiniz zaman buradan ya da e-postadaki &quot;Abonelikten çık&quot; bağlantısından kapatabilirsiniz. Talepleriniz ve hesabınızla ilgili bilgilendirmeler her durumda gelir.</span></div>
         <div className="fg"><label>Telefon</label><input className="inp" value={user?.phone ?? "—"} disabled /></div>
         <div className="fg"><label>E-posta</label><input className="inp" value={user?.email ?? "—"} disabled /></div>
       </div>
-      <button className="btn btn-or" style={{ marginTop: 12 }} onClick={async () => { try { await api("/me", { method: "PATCH", body: { name, is_corporate: corp } }); await refresh(); toast("Bilgileriniz kaydedildi."); } catch (e) { toast((e as Error).message); } }}>Kaydet</button>
+      <button className="btn btn-or" style={{ marginTop: 12 }} onClick={async () => { try { await api("/me", { method: "PATCH", body: { name, is_corporate: corp, marketing } }); await refresh(); toast("Bilgileriniz kaydedildi."); } catch (e) { toast((e as Error).message); } }}>Kaydet</button>
     </div></div>
   );
 }
