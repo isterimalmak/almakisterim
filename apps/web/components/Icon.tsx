@@ -25,6 +25,14 @@ const P: Record<string, React.ReactNode> = {
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></>,
   list: <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />,
   camera: <><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></>,
+  pin: <><path d="M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></>,
+  calendar: <><rect x="4" y="5" width="16" height="16" rx="2" /><path d="M4 10h16M9 3v4M15 3v4" /></>,
+  tag: <><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1.3" /></>,
+  share: <><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  wallet: <><path d="M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4z" /><path d="M4 7V6a2 2 0 012-2h10" /><path d="M16 13.5h.01" strokeWidth="2.6" /></>,
+  chevl: <path d="M15 5l-7 7 7 7" />,
+  chevr: <path d="M9 5l7 7-7 7" />,
 };
 
 export function Icon({ name, size, sw = 1.8, style }: { name: string; size?: number; sw?: number; style?: React.CSSProperties }) {

@@ -470,6 +470,14 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
   await expect(tile).toBeVisible();
   await tile.click();
   await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  // Talep sayfası: başlık kartında "Alım Talebi" etiketi ve bütçe; aşağı kaydırınca özet çubuğu belirir; galeride sayaç.
+  await expect(page.locator(".rq-head").getByText("Alım Talebi")).toBeVisible();
+  await expect(page.locator(".rq-head .rq-budget")).toContainText("TL");
+  await expect(page.locator(".gal-count")).toHaveText(/1\/1/);
+  await expect(page.locator(".rq-stick")).not.toHaveClass(/\bon\b/);
+  await page.mouse.wheel(0, 1200);
+  await expect(page.locator(".rq-stick")).toHaveClass(/\bon\b/);
+  await expect(page.locator(".rq-stick")).toContainText(title);
 });
 
 test("yönetici kayan vitrin ekler: adını, talebini ve hızını seçer; ana sayfada talepler sağdan sola akar", async ({ page, browser }, info) => {
