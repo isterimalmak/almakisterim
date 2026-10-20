@@ -20,11 +20,25 @@ type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string
   carMedia: Record<string, Media[]> };
 const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", hood: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [], carMedia: {} };
 const KEY = "ak_taslak";
+// 905321112233 → 0532 *** ** 33
+const maskPhone = (p: string) => { const d = p.replace(/\D/g, "").replace(/^90/, ""); return `0${d.slice(0, 3)} *** ** ${d.slice(-2)}`; };
 // Adres çubuğundaki adım (?adim=2); yoksa 1.
 const locStep = () => Math.min(3, Math.max(1, Number(new URLSearchParams(window.location.search).get("adim") ?? 1) || 1)) as D["step"];
 
 function Create() {
-  const { categories, user, toast, phoneRequired, photoRequired } = useSession();
+  const { categories, user, toast, phoneRequired, publishSms, photoRequired } = useSession();
+  // Yayın onayı: kayıtlı cep telefonuna gelen 6 haneli kod (Yönetim → Ayarlar → "Talep verirken SMS onayı").
+  const [pPhone, setPPhone] = useState("");
+  const [pCode, setPCode] = useState("");
+  const [pSent, setPSent] = useState<string | null>(null);
+  const [pBusy, setPBusy] = useState(false);
+  const needCode = !!user && publishSms;
+  const sendCode = async () => {
+    if (!pPhone.trim()) return toast("Cep telefonu numaranızı yazın.");
+    setPBusy(true);
+    try { const r = await api<{ sent_to: string }>("/me/publish-code", { body: { phone: pPhone } }); setPSent(r.sent_to); setPCode(""); toast(`Doğrulama kodu ${maskPhone(user?.phone ?? pPhone)} numarasına gönderildi.`); }
+    catch (e) { toast((e as Error).message); } finally { setPBusy(false); }
+  };
   const router = useRouter();
   const sp = useSearchParams();
   const [d, setD] = useState<D>(EMPTY);
@@ -157,7 +171,8 @@ function Create() {
 
   const publish = async () => {
     if (!d.agree) return toast("Yayınlamak için kuralları ve numara paylaşımını onaylayın.");
-    if (user && !user.phone && phoneRequired) return toast("Yayınlamadan önce telefon numaranızı doğrulayın.");
+    if (user && !user.phone && phoneRequired && !needCode) return toast("Yayınlamadan önce telefon numaranızı doğrulayın.");
+    if (needCode && !/^\d{6}$/.test(pCode)) return toast(pSent ? "Telefonunuza gelen 6 haneli kodu girin." : "Önce cep telefonunuzu yazıp doğrulama kodu isteyin.");
     if (!user) {
       try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch { /* yoksay */ }
       router.push("/giris?sonra=/talep-ver");
@@ -169,6 +184,7 @@ function Create() {
         category_id: d.sub, title: d.title, description: d.description, budget_min: d.b0 ? Number(d.b0) : null, budget_max: Number(d.b1),
         city: d.city, district: d.district, neighbourhood: d.hood, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "" && v !== undefined)),
         is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, contact_consent: true,
+        ...(needCode ? { phone: pPhone, phone_code: pCode } : {}),
         media_ids: multi ? [] : d.media.map((m) => m.id),
         ...(multi ? { vehicle_media: Object.fromEntries(cars.map((c) => [carKey(c), (d.carMedia[carKey(c)] ?? []).map((m) => m.id)])) } : {}),
       } });
@@ -290,13 +306,24 @@ function Create() {
           </tbody></table>
           {d.description && <div className="desc" style={{ marginTop: 12 }}>{d.description}</div>}
           <div className="note n-info" style={{ marginTop: 14 }}><span>Telefon numaranız herkese açık gösterilmez. Talebinize uygun ürünü olan ve ücret ödeyen <b>sınırlı sayıda satıcı</b> numaranızı görüp sizi arayabilir veya site içinden mesaj gönderebilir. Numaranızı kimlerin gördüğünü talep sayfanızdan takip edersiniz; talebi kapatınca numaranız gizlenir. E-postanız hiçbir satıcıyla paylaşılmaz.</span></div>
-          {user && !user.phone && phoneRequired && (
+          {user && !user.phone && phoneRequired && !needCode && (
             <div className="note n-warn" style={{ marginTop: 12, display: "block" }}>
               <b>Telefon numaranızı doğrulayın.</b> Satıcıların size ulaşabilmesi için talep vermeden önce numaranızı SMS koduyla doğrulamanız gerekiyor.
               <div style={{ marginTop: 10 }}><PhoneVerify /></div>
             </div>
           )}
           <label className="chk" style={{ marginTop: 12 }}><input type="checkbox" checked={d.agree} onChange={(e) => set({ agree: e.target.checked })} /><span><Link className="link" href="/sayfa/kullanim-kosullari" target="_blank">Talep verme kurallarını</Link> ve <Link className="link" href="/sayfa/kvkk" target="_blank">aydınlatma metnini</Link> okudum; telefon numaramın ücret ödeyen satıcılarla paylaşılmasını onaylıyorum.</span></label>
+          {needCode && (
+            <div className="pub-otp">
+              <b>Cep telefonu onayı</b>
+              <p>{user.phone ? <>Talebinizi yayınlamak için hesabınızda kayıtlı numarayı (<b>{maskPhone(user.phone)}</b>) yazın, gelen kodu girin.</> : "Talebinizi yayınlamak için cep telefonunuzu yazın, gelen kodu girin. Numaranız hesabınıza eklenir."}</p>
+              <div className="pub-otp-row">
+                <input className="inp" type="tel" inputMode="tel" autoComplete="tel" placeholder="05XX XXX XX XX" aria-label="Kayıtlı cep telefonunuz" value={pPhone} onChange={(e) => { setPPhone(e.target.value); setPSent(null); }} />
+                <button type="button" className="btn btn-bl" disabled={pBusy} onClick={sendCode}>{pBusy ? "Gönderiliyor…" : pSent ? "Tekrar gönder" : "Kod gönder"}</button>
+              </div>
+              {pSent && <input className="inp pub-otp-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="6 haneli kod" aria-label="Telefona gelen doğrulama kodu" value={pCode} onChange={(e) => setPCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}><button className="btn btn-wh btn-lg" onClick={() => set({ step: 2 })}>Geri</button><button className="btn btn-or btn-lg" disabled={busy} onClick={publish}>{busy ? "Yayınlanıyor…" : user ? "Talebi Yayınla" : "Giriş yap ve yayınla"}</button></div>
         </div></div>
       )}

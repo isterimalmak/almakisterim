@@ -34,6 +34,27 @@ async function loginEmail(page: Page, email: string) {
   await page.waitForURL((u) => !u.pathname.startsWith("/giris"));
 }
 
+// Talep verirken SMS onayı: kayıtlı numara (numarası yoksa yeni bir numara) yazılır, gelen kod girilir.
+async function smsOnay(page: Page) {
+  const me = await (await page.request.get("/api/me")).json();
+  const phone: string = (me.user ?? me).phone ?? `90505${rnd().slice(0, 7)}`;
+  await page.getByLabel("Kayıtlı cep telefonunuz").fill("0" + phone.slice(2));
+  await page.getByRole("button", { name: "Kod gönder" }).click();
+  await expect(page.getByLabel("Telefona gelen doğrulama kodu")).toBeVisible();
+  const { text } = await (await page.request.get(`${API}/api/__test/last-message?to=${phone}`)).json();
+  await page.getByLabel("Telefona gelen doğrulama kodu").fill(text.match(/\d{6}/)[0]);
+}
+
+// Yönetici ayarını API ile değiştirir (ayrı tarayıcı oturumunda).
+async function adminSetting(browser: import("@playwright/test").Browser, body: Record<string, unknown>) {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  await loginEmail(p, "yonetici@almakisterim.com");
+  const r = await p.request.put("/api/admin/settings", { data: body });
+  expect(r.ok()).toBeTruthy();
+  await ctx.close();
+}
+
 test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevaplar", async ({ browser }) => {
   const buyerCtx = await browser.newContext();
   const buyer = await buyerCtx.newPage();
@@ -55,6 +76,7 @@ test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevap
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await buyer.getByLabel(/kurallarını/).check();
+  await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
   const url = buyer.url();
@@ -422,6 +444,7 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
   await expect(page.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
   await page.getByRole("button", { name: "Devam" }).click();
   await page.getByLabel(/kurallarını/).check();
+  await smsOnay(page);
   await page.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
   await page.goto("/");
@@ -477,6 +500,7 @@ test("alıcı fotoğraf ekler; satıcı talepte fotoğrafı görür, iletişimi 
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByAltText("Talep fotoğrafı")).toBeVisible();
   await buyer.getByLabel(/kurallarını/).check();
+  await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
   await expect(buyer.getByAltText("Talep fotoğrafı")).toBeVisible();
@@ -535,6 +559,7 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("3 ayrı talep yayınlanacak:")).toBeVisible();
   await buyer.getByLabel(/kurallarını/).check();
+  await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   // İlk aracın talebi açılır; diğer iki araç ayrı talep olarak bağlantılı görünür.
   await expect(buyer.getByRole("heading", { level: 1 })).toContainText("BMW 3 Serisi");
@@ -560,6 +585,12 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
 });
 
 test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir; satıcı mesajla ulaşır", async ({ browser }) => {
+  // Bu senaryo için talep verirken SMS onayı kapatılır, sonda yeniden açılır.
+  await adminSetting(browser, { publish_sms: false });
+  try { await phoneless(browser); } finally { await adminSetting(browser, { publish_sms: true }); }
+});
+
+async function phoneless(browser: import("@playwright/test").Browser) {
   const buyerCtx = await browser.newContext();
   const buyer = await buyerCtx.newPage();
   const title = `Telefonsuz talep ${rnd()}`;
@@ -588,6 +619,27 @@ test("telefon zorunlu değilken e-postayla giren alıcı telefonsuz talep verir;
   await buyer.goto("/bana-ozel?s=mesaj");
   await expect(buyer.getByText("elimde uygun ürün var")).toBeVisible();
   await buyerCtx.close(); await sellerCtx.close();
+}
+
+test("talep yayınlamadan önce SMS onayı: başka numaraya kod gitmez, kod girilmeden yayınlanmaz", async ({ page }) => {
+  const phone = `0536${rnd().slice(0, 7)}`;
+  await loginSms(page, phone, "Onay Deneme");
+  const title = `SMS onaylı bisiklet ${rnd()}`;
+  await page.goto(`/talep-ver?metin=${encodeURIComponent(`${title}, bütçem 9 bin TL, Ankara`)}`);
+  await expect(page.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await page.getByLabel("Talep başlığı *").fill(title);
+  await addPhoto(page);
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.getByLabel(/kurallarını/).check();
+  await expect(page.getByText("Cep telefonu onayı")).toBeVisible();
+  await page.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(page.getByText("Önce cep telefonunuzu yazıp doğrulama kodu isteyin.")).toBeVisible();
+  await page.getByLabel("Kayıtlı cep telefonunuz").fill("0505 000 00 00");
+  await page.getByRole("button", { name: "Kod gönder" }).click();
+  await expect(page.getByText(/Hesabınızda kayıtlı numarayı yazın/)).toBeVisible();
+  await smsOnay(page);
+  await page.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
 });
 
 test("site uygulama gibi yüklenebilir; telefonda alt menü çalışır", async ({ page }, info) => {
@@ -622,6 +674,7 @@ test("alıcı il/ilçe/mahalle seçer; satıcı İstanbul → Kadıköy diye ara
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("İstanbul / Kadıköy / Caferağa")).toBeVisible();
   await buyer.getByLabel(/kurallarını/).check();
+  await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1 })).toContainText(tag);
 
@@ -654,6 +707,7 @@ test("acil talepler solda kategorilerin üstünde bağlantı olarak durur; ortad
   await addPhoto(page);
   await page.getByRole("button", { name: "Devam" }).click();
   await page.getByLabel(/kurallarını/).check();
+  await smsOnay(page);
   await page.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(title);
   await page.goto("/");
@@ -774,6 +828,7 @@ test("Güvenli Al: satıcı satış başlatır, alıcı öder, satıcı kargolar
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await buyer.getByLabel(/kurallarını/).check();
+  await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
   const url = buyer.url();
