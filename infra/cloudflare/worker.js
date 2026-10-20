@@ -8,8 +8,10 @@ const WEB = "https://almakisterim-web-n4hxtov3ia-ey.a.run.app";
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.hostname.startsWith("www.")) {
-      url.hostname = url.hostname.slice(4);
+    // http:// ve www. ile gelenler tek adrese, https://almakisterim.com'a yönlenir ("Güvenli Değil" uyarısı çıkmasın).
+    if (url.hostname.startsWith("www.") || url.protocol === "http:") {
+      url.hostname = url.hostname.replace(/^www\./, "");
+      url.protocol = "https:";
       return Response.redirect(url.toString(), 301);
     }
     const isApi = url.pathname === "/api" || url.pathname.startsWith("/api/");
@@ -17,11 +19,15 @@ export default {
     const headers = new Headers(request.headers);
     headers.set("x-forwarded-host", url.host);
     headers.set("x-forwarded-proto", "https");
-    return fetch(upstream, {
+    const res = await fetch(upstream, {
       method: request.method,
       headers,
       body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
       redirect: "manual",
     });
+    // Tarayıcı bir kez https gördükten sonra siteyi hep https ile açar (HSTS).
+    const out = new Response(res.body, res);
+    out.headers.set("strict-transport-security", "max-age=31536000");
+    return out;
   },
 };
