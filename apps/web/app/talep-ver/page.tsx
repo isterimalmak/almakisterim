@@ -20,6 +20,8 @@ type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string
   carMedia: Record<string, Media[]> };
 const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", hood: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [], carMedia: {} };
 const KEY = "ak_taslak";
+// Adres çubuğundaki adım (?adim=2); yoksa 1.
+const locStep = () => Math.min(3, Math.max(1, Number(new URLSearchParams(window.location.search).get("adim") ?? 1) || 1)) as D["step"];
 
 function Create() {
   const { categories, user, toast, phoneRequired, photoRequired } = useSession();
@@ -51,23 +53,32 @@ function Create() {
     // Adres ?adim=3 ile açıldıysa (yenileme, paylaşılan bağlantı) ve elde taslak yoksa ilk adımdan başlanır.
     if (urlStep > 1 && !pushed.current) { const p = new URLSearchParams(window.location.search); p.delete("adim"); window.history.replaceState(null, "", p.size ? `?${p}` : window.location.pathname); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Adımı doğrudan adres çubuğundan okuruz: Next'in useSearchParams'ı geçişlerde gecikebilir; hızlı ileri-geri yapılınca değişikliği hiç görmeyebilir.
+  const stepRef = useRef(d.step);
+  stepRef.current = d.step;
   // Adres, yeni adım ekrana çizilmeden önce güncellenir; hemen geri tuşuna basılsa da bir önceki adıma dönülür.
   useLayoutEffect(() => {
     reached.current = Math.max(reached.current, d.step);
-    if (d.step === urlStep) return;
-    if (d.step > urlStep) {
+    const loc = locStep();
+    if (d.step === loc) return;
+    if (d.step > loc) {
       const p = new URLSearchParams(window.location.search); p.set("adim", String(d.step));
       window.history.pushState(null, "", `?${p}`);
       pushed.current++;
     } else if (pushed.current > 0) { pushed.current--; window.history.back(); }
     else { const p = new URLSearchParams(window.location.search); p.delete("adim"); window.history.replaceState(null, "", p.size ? `?${p}` : window.location.pathname); }
-  }, [d.step]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [d.step]);
   useEffect(() => {
-    // Geri tuşuna basıldı: adres bir önceki adımı gösteriyor.
-    if (urlStep < d.step) { pushed.current = Math.max(0, pushed.current - 1); setD((x) => ({ ...x, step: urlStep })); window.scrollTo(0, 0); }
-    // İleri tuşu: yalnız daha önce ulaşılmış bir adıma dönülür.
-    else if (urlStep > d.step && urlStep <= reached.current) { pushed.current++; setD((x) => ({ ...x, step: urlStep })); window.scrollTo(0, 0); }
-  }, [urlStep]); // eslint-disable-line react-hooks/exhaustive-deps
+    const onPop = () => {
+      const s = locStep(), cur = stepRef.current;
+      // Geri tuşu: adres bir önceki adımı gösteriyor.
+      if (s < cur) { pushed.current = Math.max(0, pushed.current - 1); setD((x) => ({ ...x, step: s })); window.scrollTo(0, 0); }
+      // İleri tuşu: yalnız daha önce ulaşılmış bir adıma dönülür.
+      else if (s > cur && s <= reached.current) { pushed.current++; setD((x) => ({ ...x, step: s })); window.scrollTo(0, 0); }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // Giriş sonrası geri dönülünce taslak kaybolmasın.
   useEffect(() => {
