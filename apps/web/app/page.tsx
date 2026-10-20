@@ -9,6 +9,7 @@ import { Welcome } from "@/components/Welcome";
 import { CatIcon, RequestTable, VitrinCard, VitrinTile } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type Ad, type RequestItem } from "@/lib/api";
+import { theme } from "@/lib/catalog";
 import { BUILTIN_NAMES, SIDE_IDS, blockName, blockText, saveHomeBlocks, withHidden, type BuiltinId, type HomeBlock } from "@/lib/home";
 import { CustomBlock } from "@/components/HomeBlocks";
 
@@ -83,8 +84,8 @@ export default function Home() {
     </>),
     urgent: (<>
       {homeUrgentBox && !!urgent?.items.length && (
-        <section className="box" style={{ marginBottom: 14 }}>
-          <div className="box-h"><h2>{T("urgent", "title")}</h2><Link className="link" href="/kategori?acil=1">{T("urgent", "link")}{count(urgent.total) !== null && ` (${urgent.total})`} »</Link></div>
+        <section className="box hsec" style={{ marginBottom: 14 }}>
+          <div className="box-h"><h2>{T("urgent", "title")}</h2><Link className="link" href="/kategori?acil=1">{T("urgent", "link")}{count(urgent.total) !== null && ` (${urgent.total})`} ›</Link></div>
           <div className="box-b"><div className="vitrin">{urgent.items.map((r) => <VitrinCard key={r.id} r={r} />)}</div></div>
         </section>
       )}
@@ -92,10 +93,18 @@ export default function Home() {
     cats: (<>
       {/* Telefonda soldaki liste gizli; kategoriler renkli kutucuklar olarak burada. */}
       <section className="cat-tiles" aria-label="Kategoriler">
-        {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ic ct-acil" aria-hidden="true"><Icon name="bolt" size={16} sw={2.2} /></span><span>Acil Talepler</span></Link>}
-        {(browseCategories.length ? browseCategories : categories).map((t) => (
-          <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span></Link>
-        ))}
+        {/* Trendyol'daki gibi yana kayan renkli çerçeveli kutucuklar; altında küçük etiket. */}
+        {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ring" style={{ borderColor: "#D3302F" }}><span className="ct-ic ct-acil" aria-hidden="true"><Icon name="bolt" size={16} sw={2.2} /></span><em style={{ background: "#D3302F" }}>ACİL</em></span><span className="ct-n">Acil Talepler</span></Link>}
+        {(browseCategories.length ? browseCategories : categories).map((t) => {
+          const n = count(t.active_count);
+          const c = theme(t.id).fc;
+          return (
+            <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}>
+              <span className="ct-ring" style={{ borderColor: c }}><CatIcon top={t.id} cls="ct-ic" />{n !== null && <em style={{ background: c }}>{n} talep</em>}</span>
+              <span className="ct-n">{t.name}</span>
+            </Link>
+          );
+        })}
       </section>
     </>),
     ads_m: (<>
@@ -106,15 +115,15 @@ export default function Home() {
     </>),
     vitrin: (<>
       {!!vitrin?.items.length && (
-        <section className="box" style={{ marginBottom: 14 }}>
-          <div className="box-h"><h2>{T("vitrin", "title")}</h2><span className="sec-act"><Link className="link" href="/kategori">{T("vitrin", "link")} »</Link>{hideBtn("vitrin")}</span></div>
-          <div className="box-b"><div className="vt">{vitrin.items.map((r) => <VitrinTile key={r.id} r={r} />)}</div></div>
+        <section className="box hsec" style={{ marginBottom: 14 }}>
+          <div className="box-h"><h2>{T("vitrin", "title")}</h2><span className="sec-act"><Link className="link" href="/kategori">{T("vitrin", "link")} ›</Link>{hideBtn("vitrin")}</span></div>
+          <div className="box-b"><div className="vt vt-home">{vitrin.items.map((r) => <VitrinTile key={r.id} r={r} />)}</div></div>
         </section>
       )}
     </>),
     latest: (<>
-      <section className="box" style={{ marginBottom: 14 }}>
-        <div className="box-h"><h2>{T("latest", "title")}</h2><span className="sec-act">{!!latest?.total && <Link className="link" href="/kategori">{T("latest", "link")}{count(latest.total) !== null && ` (${latest.total})`} »</Link>}{hideBtn("latest")}</span></div>
+      <section className="box hsec" style={{ marginBottom: 14 }}>
+        <div className="box-h"><h2>{T("latest", "title")}</h2><span className="sec-act">{!!latest?.total && <Link className="link" href="/kategori">{T("latest", "link")}{count(latest.total) !== null && ` (${latest.total})`} ›</Link>}{hideBtn("latest")}</span></div>
         {!latest ? <div className="loading">Yükleniyor…</div> : latest.items.length ? <RequestTable items={latest.items} /> : (
           <div className="soon"><div className="soon-grid">
             <div><b>İlk talepler geliyor</b><p>Almak istediğinizi yazın; ilk talep sahipleri satıcıların en çok ilgisini çeker.</p><Link className="btn btn-or" href="/talep-ver">Ücretsiz talep ver</Link></div>
@@ -125,8 +134,8 @@ export default function Home() {
     </>),
     corp: (<>
       {!!corp?.items.length && (
-        <section className="box" style={{ marginBottom: 14 }}>
-          <div className="box-h"><h2>{T("corp", "title")}</h2><Link className="link" href="/kategori?buyer=kurumsal">{T("corp", "link")} »</Link></div>
+        <section className="box hsec" style={{ marginBottom: 14 }}>
+          <div className="box-h"><h2>{T("corp", "title")}</h2><Link className="link" href="/kategori?buyer=kurumsal">{T("corp", "link")} ›</Link></div>
           <RequestTable items={corp.items} />
         </section>
       )}

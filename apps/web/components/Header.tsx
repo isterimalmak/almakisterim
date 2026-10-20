@@ -12,9 +12,10 @@ function SearchForm({ compact }: { compact?: boolean }) {
   const [q, setQ] = useState("");
   return (
     <form className="search" onSubmit={(e) => { e.preventDefault(); router.push(`/kategori?q=${encodeURIComponent(q.trim())}`); }}>
-      {compact && <Icon name="search" size={18} sw={2.2} style={{ color: "#8A93A6" }} />}
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={compact ? "Talep ara…" : "Kelime, talep no veya kategori ile ara"} aria-label="Talep ara" />
-      <button type="submit">{!compact && <Icon name="search" size={16} sw={2.4} />}Ara</button>
+      {/* Telefonda Trendyol'daki gibi: turuncu büyüteç kutunun başında, ayrı "Ara" düğmesi yok. */}
+      {compact && <button type="submit" className="ms-go" aria-label="Ara"><Icon name="search" size={21} sw={2.4} /></button>}
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={compact ? "Ne arıyorsunuz?" : "Kelime, talep no veya kategori ile ara"} aria-label="Talep ara" />
+      {!compact && <button type="submit"><Icon name="search" size={16} sw={2.4} />Ara</button>}
     </form>
   );
 }
@@ -47,7 +48,9 @@ export function Header() {
           </div>
         </div>
         {/* Telefonda tek satır: logo arama kutusunun başında, adı yazmaz (hesap ve bildirimler alt menüde). */}
-        <div className="mob-search"><Link href="/" className="logo" aria-label={`${siteName} ana sayfa`}><img className="logo-mark" src="/logo.png" alt="" width={40} height={40} /></Link><SearchForm compact /></div>
+        <div className="mob-search"><Link href="/" className="logo" aria-label={`${siteName} ana sayfa`}><img className="logo-mark" src="/logo.png" alt="" width={40} height={40} /></Link><SearchForm compact />
+          <Link href={user ? "/bana-ozel?s=bildirim" : "/giris"} className="mh-ic" aria-label="Bildirimler"><Icon name="bell" size={25} sw={1.8} />{!!user?.unread_notifications && <span className="badge">{user.unread_notifications}</span>}</Link>
+        </div>
       </header>
       {/* Telefonda "Ana Sayfa" alt menüde var; başka bağlantı yoksa bu şerit hiç gösterilmez. */}
       <nav className={"subnav" + (browseCategories.length || user?.role === "admin" ? "" : " sn-empty")} aria-label="Kategoriler">

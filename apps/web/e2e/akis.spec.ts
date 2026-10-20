@@ -431,6 +431,22 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
   await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
 });
 
+test("telefonda ana sayfa: üstte arama ve bildirim, kategoriler ve vitrin yana kayar", async ({ page }, info) => {
+  test.skip(info.project.name !== "telefon", "yalnız telefon görünümü");
+  await page.goto("/");
+  await expect(page.locator(".mob-search").getByLabel("Talep ara")).toBeVisible();
+  await expect(page.locator(".mob-search").getByRole("link", { name: "Bildirimler" })).toBeVisible();
+  // Kutucuklar ve vitrin kartları tek satırda, yana kaydırılarak gezilir.
+  for (const sel of [".cat-tiles", ".vt-home"]) {
+    const el = page.locator(sel);
+    await expect(el).toBeVisible();
+    expect(await el.evaluate((e) => getComputedStyle(e).overflowX)).toBe("auto");
+  }
+  await page.locator(".mob-search").getByLabel("Talep ara").fill("laptop");
+  await page.locator(".mob-search").getByRole("button", { name: "Ara" }).click();
+  await expect(page).toHaveURL(/kategori\?q=laptop/);
+});
+
 test("sayfalar yana taşmıyor", async ({ page }) => {
   for (const p of ["/", "/kategori", "/kategori/vasita", "/talep-ver", "/giris", "/sayfa/kvkk", "/guvenli-al"]) {
     await page.goto(p);
