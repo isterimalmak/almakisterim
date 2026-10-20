@@ -173,6 +173,7 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   const ad = `Galeri reklamı ${rnd()}`;
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  await page.getByLabel("Sol sütun (kategorilerin altı)").check();
   await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: "reklam.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByText("Reklam eklendi; ana sayfada görünüyor.")).toBeVisible();
   const n = await page.locator(".yk-satir").count();
@@ -207,6 +208,7 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.getByText("Reklam silindi.")).toBeVisible();
 
   // Video reklam sessiz başlar; köşedeki düğmeyle ses açılır ve kapanır.
+  await page.getByLabel("Sol sütun (kategorilerin altı)").check();
   await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: "reklam.mp4", mimeType: "video/mp4", buffer: Buffer.from("00000018667479706d703432", "hex") });
   await expect(page.getByText("Reklam eklendi; ana sayfada görünüyor.")).toBeVisible();
   await page.goto("/");
@@ -273,9 +275,45 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   expect(await page.content()).not.toContain("cok-gizli-deger-123");
   for (const label of ["İstemci gizli anahtarı", "İstemci kimliği"]) {
     await card.locator(".fg").filter({ has: page.getByLabel(label) }).getByRole("button", { name: "Sil" }).click();
-    await expect(page.getByText("Silindi.")).toBeVisible();
+    await expect(page.getByText("Silindi.").last()).toBeVisible();
   }
   await expect(card.getByText("Bağlı değil")).toBeVisible();
+
+  // Ana sayfa bölümleri: vitrin ve son talepler gizlenir; ortaya resim reklamı eklenir, vitrinin yerinde görünür.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  await page.getByRole("button", { name: "Vitrini gizle" }).click();
+  await expect(page.getByText("Ana Sayfa Vitrini ana sayfada gizlendi.")).toBeVisible();
+  await page.getByRole("button", { name: "Son talepleri gizle" }).click();
+  await expect(page.getByRole("button", { name: "Son talepleri göster" })).toBeVisible();
+  await page.getByLabel("Ana sayfanın ortası (vitrin yeri)").check();
+  await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: "orta-reklam.png", mimeType: "image/png", buffer: PNG });
+  await expect(page.getByText("Reklam eklendi", { exact: false })).toBeVisible();
+  await page.goto("/");
+  await expect(page.locator(".yk-orta img[alt='orta-reklam']").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ana Sayfa Vitrini" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Son Eklenen Talepler" })).toHaveCount(0);
+  // Yönetici ana sayfada gizli bölümü görür ve oradan geri açar; bölümün üstündeki "Gizle" ile yine gizler.
+  await page.getByRole("button", { name: "Son Eklenen Talepler: göster" }).click();
+  await expect(page.getByRole("heading", { name: "Son Eklenen Talepler" })).toBeVisible();
+  await page.getByRole("button", { name: "Son Eklenen Talepler bölümünü gizle" }).click();
+  await expect(page.getByRole("heading", { name: "Son Eklenen Talepler" })).toHaveCount(0);
+  // Ziyaretçi gizli bölümü ve yönetici düğmelerini görmez.
+  const guest = await (await page.context().browser()!.newContext()).newPage();
+  await guest.goto("/");
+  await expect(guest.getByRole("heading", { name: "Son Eklenen Talepler" })).toHaveCount(0);
+  await expect(guest.getByRole("button", { name: /bölümünü gizle|: göster/ })).toHaveCount(0);
+  await guest.context().close();
+  // Eski hâline döner (diğer testler vitrini ve listeyi kullanıyor); eklenen reklam silinir.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  await page.getByRole("button", { name: "Vitrini göster" }).click();
+  await expect(page.getByRole("button", { name: "Vitrini gizle" })).toBeVisible();
+  await page.getByRole("button", { name: "Son talepleri göster" }).click();
+  await expect(page.getByRole("button", { name: "Son talepleri gizle" })).toBeVisible();
+  const row = page.locator(".yk-satir").filter({ has: page.locator("input[value='orta-reklam']") });
+  await row.getByRole("button", { name: "Sil" }).click();
+  await expect(page.getByText("Reklam silindi.")).toBeVisible();
 });
 
 test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page }) => {

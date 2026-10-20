@@ -18,11 +18,14 @@ type Ctx = {
   phoneRequired: boolean;
   photoRequired: boolean;
   homeUrgentBox: boolean;
+  // Ana sayfadaki vitrin ve son talepler bölümleri (yönetici gizleyebilir).
+  homeVitrin: boolean;
+  homeLatest: boolean;
   refresh: () => Promise<void>;
   toast: (msg: string) => void;
 };
 
-const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, photoRequired: false, homeUrgentBox: false, refresh: async () => {}, toast: () => {} });
+const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, photoRequired: false, homeUrgentBox: false, homeVitrin: true, homeLatest: true, refresh: async () => {}, toast: () => {} });
 export const useSession = () => useContext(SessionCtx);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -34,12 +37,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [phoneRequired, setPhoneRequired] = useState(false);
   const [photoRequired, setPhotoRequired] = useState(false);
   const [homeUrgentBox, setHomeUrgentBox] = useState(false);
+  const [homeVitrin, setHomeVitrin] = useState(true);
+  const [homeLatest, setHomeLatest] = useState(true);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
 
   const refresh = useCallback(async () => {
     const [me, cats] = await Promise.all([
       api<{ user: User | null }>("/me").catch(() => ({ user: null })),
-      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; photo_required?: boolean; home_urgent_box?: boolean }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, photo_required: false, home_urgent_box: false })),
+      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_vitrin?: boolean; home_latest?: boolean }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, photo_required: false, home_urgent_box: false, home_vitrin: true, home_latest: true })),
     ]);
     setUser(me.user);
     setCategories(cats.categories);
@@ -48,6 +53,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setPhoneRequired(!!cats.phone_required);
     setPhotoRequired(!!cats.photo_required);
     setHomeUrgentBox(!!cats.home_urgent_box);
+    setHomeVitrin(cats.home_vitrin !== false);
+    setHomeLatest(cats.home_latest !== false);
     setReady(true);
   }, []);
 
@@ -65,7 +72,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const count = useCallback((n: number | undefined | null) => (n != null && n >= browse.show_counts_min ? n : null), [browse.show_counts_min]);
 
   return (
-    <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, photoRequired, homeUrgentBox, refresh, toast }}>
+    <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, photoRequired, homeUrgentBox, homeVitrin, homeLatest, refresh, toast }}>
       {children}
       <div className="toasts" aria-live="polite">{toasts.map((t) => <div key={t.id} className="toast">{t.msg}</div>)}</div>
     </SessionCtx.Provider>

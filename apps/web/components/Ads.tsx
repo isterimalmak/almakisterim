@@ -25,6 +25,26 @@ export function Ads({ cls = "" }: { cls?: string }) {
   );
 }
 
+// Ana sayfanın ortasındaki reklam alanı (vitrin ve son talepler bölümlerinin yeri): resim ve videolar yan yana kutular hâlinde.
+export function CenterAds() {
+  const [ads, setAds] = useState<Ad[]>([]);
+  useEffect(() => { void api<{ center?: Ad[] }>("/tanitim").then((r) => setAds(r.center ?? [])).catch(() => {}); }, []);
+  if (!ads.length) return null;
+  return (
+    <section className={"yk-orta" + (ads.length === 1 ? " tek" : "")} aria-label="Tanıtımlar">
+      {ads.map((a) => {
+        const body = a.media.kind === "video"
+          ? <AdVideo src={a.media.url} label={a.title || "Tanıtım videosu"} />
+          : <img src={a.media.url} alt={a.title || "Tanıtım"} loading="lazy" />;
+        if (!a.link_url) return <div key={a.id} className="yk">{body}</div>;
+        return a.link_url.startsWith("/")
+          ? <Link key={a.id} className="yk" href={a.link_url}>{body}</Link>
+          : <a key={a.id} className="yk" href={a.link_url} target="_blank" rel="sponsored noopener noreferrer">{body}</a>;
+      })}
+    </section>
+  );
+}
+
 // Tarayıcılar sesli videonun kendiliğinden oynamasına izin vermez: video sessiz başlar,
 // köşedeki düğmeye dokununca ses açılır.
 // Video hiç durmaz: tarayıcı duraklatırsa ya da sona gelirse yeniden oynatılır.

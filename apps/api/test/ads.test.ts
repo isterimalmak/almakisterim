@@ -19,6 +19,27 @@ async function upload(cookie: string, type = "image/jpeg", body = JPG) {
 }
 
 describe("reklam alanları", () => {
+  it("ana sayfa: vitrin ve son talepler gizlenebilir; ortadaki reklamlar ayrı döner, yeri sonradan değiştirilir", async () => {
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    let cats = (await ctx.app.inject({ url: "/api/categories" })).json();
+    expect(cats).toMatchObject({ home_vitrin: true, home_latest: true });
+    expect((await ctx.app.inject({ method: "PUT", url: "/api/admin/settings", headers: { cookie: admin }, payload: { home_vitrin: false, home_latest: false } })).statusCode).toBe(200);
+    cats = (await ctx.app.inject({ url: "/api/categories" })).json();
+    expect(cats).toMatchObject({ home_vitrin: false, home_latest: false });
+
+    const post = (payload: Record<string, unknown>) => ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload });
+    const mid = (await post({ media_id: (await upload(admin)).id, title: "Orta reklam", placement: "orta" })).json();
+    await post({ media_id: (await upload(admin)).id, title: "Sol reklam" });
+    expect((await post({ media_id: (await upload(admin)).id, placement: "ust" })).statusCode).toBe(400);
+    let pub = (await ctx.app.inject({ url: "/api/tanitim" })).json();
+    expect(pub.center.map((x: { title: string }) => x.title)).toEqual(["Orta reklam"]);
+    expect(pub.items.map((x: { title: string }) => x.title)).toEqual(["Sol reklam"]);
+    await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${mid.id}`, headers: { cookie: admin }, payload: { placement: "sol" } });
+    pub = (await ctx.app.inject({ url: "/api/tanitim" })).json();
+    expect(pub.center).toEqual([]);
+    expect(pub.items).toHaveLength(2);
+  });
+
   it("yönetici istediği kadar resim/video reklam ekler; ana sayfada sırayla, yalnızca açık olanlar görünür", async () => {
     const admin = await login(ctx, "yonetici@almakisterim.com");
     const add = async (payload: Record<string, unknown>) => {

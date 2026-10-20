@@ -29,7 +29,7 @@ export type RequestItem = {
   cover_url: string | null; media_count: number; is_featured?: boolean;
 };
 
-export type Ad = { id: number; title: string; link_url: string | null; media: Media; is_active?: boolean; is_welcome?: boolean; position?: number };
+export type Ad = { id: number; title: string; link_url: string | null; media: Media; is_active?: boolean; is_welcome?: boolean; position?: number; placement?: "sol" | "orta" };
 
 export type Media = { id: string; kind: "image" | "video"; content_type: string; url: string };
 
