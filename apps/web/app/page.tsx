@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
-import { Ads } from "@/components/Ads";
+import { Ads, CenterAds } from "@/components/Ads";
 import { Welcome } from "@/components/Welcome";
 import { CatIcon, RequestTable, VitrinCard, VitrinTile } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
@@ -21,7 +21,17 @@ const HERO_EXAMPLES = [
 ];
 
 export default function Home() {
-  const { categories, browseCategories, count, launchMode, homeUrgentBox } = useSession();
+  const { categories, browseCategories, count, launchMode, homeUrgentBox, homeVitrin, homeLatest, user, refresh, toast } = useSession();
+  const admin = user?.role === "admin";
+  // Yönetici bölümleri ana sayfadan da gizleyip gösterebilir (Yönetim → Reklam Alanları'ndaki düğmelerle aynı ayar).
+  const toggleSection = async (key: "home_vitrin" | "home_latest", on: boolean, name: string) => {
+    try { await api("/admin/settings", { method: "PUT", body: { [key]: on } }); await refresh(); toast(`${name} ${on ? "ana sayfada gösteriliyor." : "ziyaretçilerden gizlendi."}`); }
+    catch (e) { toast((e as Error).message); }
+  };
+  const hideBtn = (key: "home_vitrin" | "home_latest", name: string) => admin
+    ? <button type="button" className="btn btn-wh btn-sm sec-hide" aria-label={`${name} bölümünü gizle`} onClick={() => void toggleSection(key, false, name)}>Gizle</button> : null;
+  const hiddenBar = (key: "home_vitrin" | "home_latest", name: string) => admin
+    ? <div className="sec-hidden"><span><b>{name}</b> ziyaretçilerden gizli (yalnızca siz görüyorsunuz).</span><button type="button" className="btn btn-wh btn-sm" aria-label={`${name}: göster`} onClick={() => void toggleSection(key, true, name)}>Göster</button></div> : null;
   const router = useRouter();
   const [q, setQ] = useState("");
   const [ex, setEx] = useState(0);
@@ -104,22 +114,26 @@ export default function Home() {
 
         <Ads cls="yk-m" />
 
-        {!!vitrin?.items.length && (
+        <CenterAds />
+
+        {!homeVitrin && hiddenBar("home_vitrin", "Ana Sayfa Vitrini")}
+        {homeVitrin && !!vitrin?.items.length && (
           <section className="box" style={{ marginBottom: 14 }}>
-            <div className="box-h"><h2>Ana Sayfa Vitrini</h2><Link className="link" href="/kategori">Tüm talepleri göster »</Link></div>
+            <div className="box-h"><h2>Ana Sayfa Vitrini</h2><span className="sec-act"><Link className="link" href="/kategori">Tüm talepleri göster »</Link>{hideBtn("home_vitrin", "Ana Sayfa Vitrini")}</span></div>
             <div className="box-b"><div className="vt">{vitrin.items.map((r) => <VitrinTile key={r.id} r={r} />)}</div></div>
           </section>
         )}
 
-        <section className="box" style={{ marginBottom: 14 }}>
-          <div className="box-h"><h2>Son Eklenen Talepler</h2>{!!latest?.total && <Link className="link" href="/kategori">Tüm talepler{count(latest.total) !== null && ` (${latest.total})`} »</Link>}</div>
+        {!homeLatest && hiddenBar("home_latest", "Son Eklenen Talepler")}
+        {homeLatest && <section className="box" style={{ marginBottom: 14 }}>
+          <div className="box-h"><h2>Son Eklenen Talepler</h2><span className="sec-act">{!!latest?.total && <Link className="link" href="/kategori">Tüm talepler{count(latest.total) !== null && ` (${latest.total})`} »</Link>}{hideBtn("home_latest", "Son Eklenen Talepler")}</span></div>
           {!latest ? <div className="loading">Yükleniyor…</div> : latest.items.length ? <RequestTable items={latest.items} /> : (
             <div className="soon"><div className="soon-grid">
               <div><b>İlk talepler geliyor</b><p>Almak istediğinizi yazın; ilk talep sahipleri satıcıların en çok ilgisini çeker.</p><Link className="btn btn-or" href="/talep-ver">Ücretsiz talep ver</Link></div>
               <div><b>Satıcı mısınız?</b><p>Hangi kategoride ve ilde satış yaptığınızı seçin, talep gelince SMS ile haber verelim.</p><Link className="btn btn-bl" href="/bana-ozel?s=alarm">Talep alarmı kur</Link></div>
             </div></div>
           )}
-        </section>
+        </section>}
 
         {!!corp?.items.length && (
           <section className="box">
