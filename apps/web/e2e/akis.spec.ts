@@ -311,6 +311,19 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.getByRole("button", { name: "Vitrini gizle" })).toBeVisible();
   await page.getByRole("button", { name: "Son talepleri göster" }).click();
   await expect(page.getByRole("button", { name: "Son talepleri gizle" })).toBeVisible();
+  // Ana Sayfa Düzeni: son talepler en üste taşınır, kurumsal bölüm gizlenir; ana sayfada sıra değişir.
+  await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
+  for (let i = 0; i < 6; i++) await Promise.all([page.waitForResponse((r) => r.url().includes("/api/categories")), page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" }).click()]);
+  await expect(page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" })).toBeDisabled();
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Son Eklenen Talepler" })).toBeVisible();
+  const [latestY, heroY] = await Promise.all([page.getByRole("heading", { name: "Son Eklenen Talepler" }).boundingBox(), page.getByRole("heading", { name: "Ne almak istiyorsunuz?" }).boundingBox()]);
+  expect(latestY!.y).toBeLessThan(heroY!.y);
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
+  await page.getByRole("button", { name: "İlk sıraya döndür" }).click();
+  await expect(page.getByRole("button", { name: "Talep kutusu (Ne almak istiyorsunuz?) yukarı taşı" })).toBeDisabled();
+  await page.getByRole("button", { name: "Reklam Alanları" }).click();
   const row = page.locator(".yk-satir").filter({ has: page.locator("input[value='orta-reklam']") });
   await row.getByRole("button", { name: "Sil" }).click();
   await expect(page.getByText("Reklam silindi.")).toBeVisible();

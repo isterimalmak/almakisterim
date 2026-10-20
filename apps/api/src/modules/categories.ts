@@ -50,7 +50,7 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
   });
 
   app.get("/categories", async () => {
-    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','home_urgent_box','photo_required','home_vitrin','home_latest')");
+    const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','home_urgent_box','photo_required','home_vitrin','home_latest','home_order','home_hidden')");
     const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     return {
       categories: toTree(await listCategories(pool, true)),
@@ -62,6 +62,9 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
       // Ana sayfadaki vitrin ve son talepler: yönetici gizleyebilir (varsayılan açık).
       home_vitrin: s.home_vitrin !== false,
       home_latest: s.home_latest !== false,
+      // Ana sayfa bölümlerinin sırası ve gizlenenler (yönetim → Ana Sayfa Düzeni).
+      home_order: Array.isArray(s.home_order) ? s.home_order : [],
+      home_hidden: Array.isArray(s.home_hidden) ? s.home_hidden : [],
       // Dosya deposu bağlı değilken fotoğraf istenemez.
       photo_required: s.photo_required === true && storage.enabled,
     };

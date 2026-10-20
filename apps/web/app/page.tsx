@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Ads, CenterAds } from "@/components/Ads";
 import { Welcome } from "@/components/Welcome";
 import { CatIcon, RequestTable, VitrinCard, VitrinTile } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
+import { homeOrder, sectionName, type HomeSection } from "@/lib/home";
 
 type List = { total: number; items: RequestItem[] };
 
@@ -21,17 +22,21 @@ const HERO_EXAMPLES = [
 ];
 
 export default function Home() {
-  const { categories, browseCategories, count, launchMode, homeUrgentBox, homeVitrin, homeLatest, user, refresh, toast } = useSession();
+  const { categories, browseCategories, count, launchMode, homeUrgentBox, homeVitrin, homeLatest, homeOrder: savedOrder, homeHidden, user, refresh, toast } = useSession();
   const admin = user?.role === "admin";
-  // Yönetici bölümleri ana sayfadan da gizleyip gösterebilir (Yönetim → Reklam Alanları'ndaki düğmelerle aynı ayar).
-  const toggleSection = async (key: "home_vitrin" | "home_latest", on: boolean, name: string) => {
-    try { await api("/admin/settings", { method: "PUT", body: { [key]: on } }); await refresh(); toast(`${name} ${on ? "ana sayfada gösteriliyor." : "ziyaretçilerden gizlendi."}`); }
+  // Yönetici bölümleri ana sayfadan da gizleyip gösterebilir (Yönetim → Ana Sayfa Düzeni'ndeki ayarın aynısı).
+  // Vitrin ve son talepler kendi ayarlarını, diğer bölümler gizlenenler listesini kullanır.
+  const isHidden = (id: HomeSection) => id === "vitrin" ? !homeVitrin : id === "latest" ? !homeLatest : homeHidden.includes(id);
+  const toggleSection = async (id: HomeSection, on: boolean) => {
+    const body = id === "vitrin" ? { home_vitrin: on } : id === "latest" ? { home_latest: on }
+      : { home_hidden: on ? homeHidden.filter((x) => x !== id) : [...new Set([...homeHidden, id])] };
+    try { await api("/admin/settings", { method: "PUT", body }); await refresh(); toast(`${sectionName(id)} ${on ? "ana sayfada gösteriliyor." : "ziyaretçilerden gizlendi."}`); }
     catch (e) { toast((e as Error).message); }
   };
-  const hideBtn = (key: "home_vitrin" | "home_latest", name: string) => admin
-    ? <button type="button" className="btn btn-wh btn-sm sec-hide" aria-label={`${name} bölümünü gizle`} onClick={() => void toggleSection(key, false, name)}>Gizle</button> : null;
-  const hiddenBar = (key: "home_vitrin" | "home_latest", name: string) => admin
-    ? <div className="sec-hidden"><span><b>{name}</b> ziyaretçilerden gizli (yalnızca siz görüyorsunuz).</span><button type="button" className="btn btn-wh btn-sm" aria-label={`${name}: göster`} onClick={() => void toggleSection(key, true, name)}>Göster</button></div> : null;
+  const hideBtn = (id: HomeSection) => admin
+    ? <button type="button" className="btn btn-wh btn-sm sec-hide" aria-label={`${sectionName(id)} bölümünü gizle`} onClick={() => void toggleSection(id, false)}>Gizle</button> : null;
+  const hiddenBar = (id: HomeSection) => admin
+    ? <div className="sec-hidden"><span><b>{sectionName(id)}</b> ziyaretçilerden gizli (yalnızca siz görüyorsunuz).</span><button type="button" className="btn btn-wh btn-sm" aria-label={`${sectionName(id)}: göster`} onClick={() => void toggleSection(id, true)}>Göster</button></div> : null;
   const router = useRouter();
   const [q, setQ] = useState("");
   const [ex, setEx] = useState(0);
@@ -49,6 +54,77 @@ export default function Home() {
     void api<List>("/requests?buyer=kurumsal&per=5").then(setCorp).catch(() => setCorp({ total: 0, items: [] }));
   }, []);
 
+  const blocks: Record<HomeSection, React.ReactNode> = {
+    hero: (<>
+      <section className="concept hero">
+        <span className="hero-badge">Ücretsiz · 1 dakikada</span>
+        <h1>Ne almak istiyorsunuz?</h1>
+        <p>İlanı siz verin, elinde ürünü olan satıcılar sizi arasın ya da mesaj atsın.</p>
+        <form className="hero-form" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
+          <div className="hero-in">
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Örn. ${HERO_EXAMPLES[ex]}`} aria-label="Ne almak istiyorsunuz?" />
+            <button type="submit">Talep Oluştur</button>
+          </div>
+        </form>
+        <p className="hero-ai"><span aria-hidden="true">✨</span> Konuşur gibi yazın: ne aradığınızı, bütçenizi, nerede istediğinizi ve olmazsa olmazlarınızı anlatın; formu yapay zekâ sizin için eksiksiz doldursun.</p>
+        <ul className="hero-steps" aria-label="Nasıl çalışır">
+          <li><b>1</b>Ne aradığınızı yazın</li>
+          <li><b>2</b>Satıcılar size ulaşsın</li>
+          <li><b>3</b>En uygununu seçin</li>
+        </ul>
+      </section>
+    </>),
+    urgent: (<>
+      {homeUrgentBox && !!urgent?.items.length && (
+        <section className="box" style={{ marginBottom: 14 }}>
+          <div className="box-h"><h2>Acil Alım Talepleri</h2><Link className="link" href="/kategori?acil=1">Tüm acil talepler{count(urgent.total) !== null && ` (${urgent.total})`} »</Link></div>
+          <div className="box-b"><div className="vitrin">{urgent.items.map((r) => <VitrinCard key={r.id} r={r} />)}</div></div>
+        </section>
+      )}
+    </>),
+    cats: (<>
+      {/* Telefonda soldaki liste gizli; kategoriler renkli kutucuklar olarak burada. */}
+      <section className="cat-tiles" aria-label="Kategoriler">
+        {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ic ct-acil" aria-hidden="true"><Icon name="bolt" size={16} sw={2.2} /></span><span>Acil Talepler</span></Link>}
+        {(browseCategories.length ? browseCategories : categories).map((t) => (
+          <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span></Link>
+        ))}
+      </section>
+    </>),
+    ads_m: (<>
+      <Ads cls="yk-m" />
+    </>),
+    center_ads: (<>
+      <CenterAds />
+    </>),
+    vitrin: (<>
+      {!!vitrin?.items.length && (
+        <section className="box" style={{ marginBottom: 14 }}>
+          <div className="box-h"><h2>Ana Sayfa Vitrini</h2><span className="sec-act"><Link className="link" href="/kategori">Tüm talepleri göster »</Link>{hideBtn("vitrin")}</span></div>
+          <div className="box-b"><div className="vt">{vitrin.items.map((r) => <VitrinTile key={r.id} r={r} />)}</div></div>
+        </section>
+      )}
+    </>),
+    latest: (<>
+      <section className="box" style={{ marginBottom: 14 }}>
+        <div className="box-h"><h2>Son Eklenen Talepler</h2><span className="sec-act">{!!latest?.total && <Link className="link" href="/kategori">Tüm talepler{count(latest.total) !== null && ` (${latest.total})`} »</Link>}{hideBtn("latest")}</span></div>
+        {!latest ? <div className="loading">Yükleniyor…</div> : latest.items.length ? <RequestTable items={latest.items} /> : (
+          <div className="soon"><div className="soon-grid">
+            <div><b>İlk talepler geliyor</b><p>Almak istediğinizi yazın; ilk talep sahipleri satıcıların en çok ilgisini çeker.</p><Link className="btn btn-or" href="/talep-ver">Ücretsiz talep ver</Link></div>
+            <div><b>Satıcı mısınız?</b><p>Hangi kategoride ve ilde satış yaptığınızı seçin, talep gelince SMS ile haber verelim.</p><Link className="btn btn-bl" href="/bana-ozel?s=alarm">Talep alarmı kur</Link></div>
+          </div></div>
+        )}
+      </section>
+    </>),
+    corp: (<>
+      {!!corp?.items.length && (
+        <section className="box" style={{ marginBottom: 14 }}>
+          <div className="box-h"><h2>Kurumsal Alım Talepleri</h2><Link className="link" href="/kategori?buyer=kurumsal">Tümü »</Link></div>
+          <RequestTable items={corp.items} />
+        </section>
+      )}
+    </>),
+  };
   return (
     <div className="wrap home">
       <Welcome />
@@ -79,68 +155,8 @@ export default function Home() {
       </div>
 
       <div>
-        <section className="concept hero">
-          <span className="hero-badge">Ücretsiz · 1 dakikada</span>
-          <h1>Ne almak istiyorsunuz?</h1>
-          <p>İlanı siz verin, elinde ürünü olan satıcılar sizi arasın ya da mesaj atsın.</p>
-          <form className="hero-form" onSubmit={(e) => { e.preventDefault(); router.push(`/talep-ver${q.trim() ? `?metin=${encodeURIComponent(q.trim())}` : ""}`); }}>
-            <div className="hero-in">
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Örn. ${HERO_EXAMPLES[ex]}`} aria-label="Ne almak istiyorsunuz?" />
-              <button type="submit">Talep Oluştur</button>
-            </div>
-          </form>
-          <p className="hero-ai"><span aria-hidden="true">✨</span> Konuşur gibi yazın: ne aradığınızı, bütçenizi, nerede istediğinizi ve olmazsa olmazlarınızı anlatın; formu yapay zekâ sizin için eksiksiz doldursun.</p>
-          <ul className="hero-steps" aria-label="Nasıl çalışır">
-            <li><b>1</b>Ne aradığınızı yazın</li>
-            <li><b>2</b>Satıcılar size ulaşsın</li>
-            <li><b>3</b>En uygununu seçin</li>
-          </ul>
-        </section>
-
-        {homeUrgentBox && !!urgent?.items.length && (
-          <section className="box" style={{ marginBottom: 14 }}>
-            <div className="box-h"><h2>Acil Alım Talepleri</h2><Link className="link" href="/kategori?acil=1">Tüm acil talepler{count(urgent.total) !== null && ` (${urgent.total})`} »</Link></div>
-            <div className="box-b"><div className="vitrin">{urgent.items.map((r) => <VitrinCard key={r.id} r={r} />)}</div></div>
-          </section>
-        )}
-
-        {/* Telefonda soldaki liste gizli; kategoriler renkli kutucuklar olarak burada. */}
-        <section className="cat-tiles" aria-label="Kategoriler">
-          {!!urgent?.total && <Link href="/kategori?acil=1" className="ct-acil-tile"><span className="ct-ic ct-acil" aria-hidden="true"><Icon name="bolt" size={16} sw={2.2} /></span><span>Acil Talepler</span></Link>}
-          {(browseCategories.length ? browseCategories : categories).map((t) => (
-            <Link key={t.id} href={browseCategories.length ? `/kategori/${t.id}` : `/talep-ver?kategori=${t.id}`}><CatIcon top={t.id} cls="ct-ic" /><span>{t.name}</span></Link>
-          ))}
-        </section>
-
-        <Ads cls="yk-m" />
-
-        <CenterAds />
-
-        {!homeVitrin && hiddenBar("home_vitrin", "Ana Sayfa Vitrini")}
-        {homeVitrin && !!vitrin?.items.length && (
-          <section className="box" style={{ marginBottom: 14 }}>
-            <div className="box-h"><h2>Ana Sayfa Vitrini</h2><span className="sec-act"><Link className="link" href="/kategori">Tüm talepleri göster »</Link>{hideBtn("home_vitrin", "Ana Sayfa Vitrini")}</span></div>
-            <div className="box-b"><div className="vt">{vitrin.items.map((r) => <VitrinTile key={r.id} r={r} />)}</div></div>
-          </section>
-        )}
-
-        {!homeLatest && hiddenBar("home_latest", "Son Eklenen Talepler")}
-        {homeLatest && <section className="box" style={{ marginBottom: 14 }}>
-          <div className="box-h"><h2>Son Eklenen Talepler</h2><span className="sec-act">{!!latest?.total && <Link className="link" href="/kategori">Tüm talepler{count(latest.total) !== null && ` (${latest.total})`} »</Link>}{hideBtn("home_latest", "Son Eklenen Talepler")}</span></div>
-          {!latest ? <div className="loading">Yükleniyor…</div> : latest.items.length ? <RequestTable items={latest.items} /> : (
-            <div className="soon"><div className="soon-grid">
-              <div><b>İlk talepler geliyor</b><p>Almak istediğinizi yazın; ilk talep sahipleri satıcıların en çok ilgisini çeker.</p><Link className="btn btn-or" href="/talep-ver">Ücretsiz talep ver</Link></div>
-              <div><b>Satıcı mısınız?</b><p>Hangi kategoride ve ilde satış yaptığınızı seçin, talep gelince SMS ile haber verelim.</p><Link className="btn btn-bl" href="/bana-ozel?s=alarm">Talep alarmı kur</Link></div>
-            </div></div>
-          )}
-        </section>}
-
-        {!!corp?.items.length && (
-          <section className="box">
-            <div className="box-h"><h2>Kurumsal Alım Talepleri</h2><Link className="link" href="/kategori?buyer=kurumsal">Tümü »</Link></div>
-            <RequestTable items={corp.items} />
-          </section>
-        )}
+      {/* Bölümler yönetimde seçilen sırayla (Yönetim → Ana Sayfa Düzeni); gizlenenler yalnızca yöneticiye çubuk olarak görünür. */}
+      {homeOrder(savedOrder).map((id) => <Fragment key={id}>{isHidden(id) ? hiddenBar(id) : blocks[id]}</Fragment>)}
       </div>
 
       <aside className="side">
