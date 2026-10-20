@@ -42,6 +42,32 @@ function Create() {
   const started = useRef(false);
   const set = (p: Partial<D>) => setD((x) => ({ ...x, ...p }));
 
+  // Adımlar tarayıcı geçmişine yazılır (?adim=2): telefonun ya da tarayıcının geri tuşu sayfadan çıkmaz, bir önceki adıma döner.
+  // Sayfadaki "Geri"/"Düzenle" düğmeleri de geçmişte geri gider; böylece ileri/geri tuşları adımlarla hep uyumlu kalır.
+  const urlStep = Math.min(3, Math.max(1, Number(sp.get("adim") ?? 1))) as D["step"];
+  const pushed = useRef(0);
+  const reached = useRef(1);
+  useEffect(() => {
+    // Adres ?adim=3 ile açıldıysa (yenileme, paylaşılan bağlantı) ve elde taslak yoksa ilk adımdan başlanır.
+    if (urlStep > 1 && !pushed.current) { const p = new URLSearchParams(window.location.search); p.delete("adim"); window.history.replaceState(null, "", p.size ? `?${p}` : window.location.pathname); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    reached.current = Math.max(reached.current, d.step);
+    if (d.step === urlStep) return;
+    if (d.step > urlStep) {
+      const p = new URLSearchParams(window.location.search); p.set("adim", String(d.step));
+      window.history.pushState(null, "", `?${p}`);
+      pushed.current++;
+    } else if (pushed.current > 0) { pushed.current--; window.history.back(); }
+    else { const p = new URLSearchParams(window.location.search); p.delete("adim"); window.history.replaceState(null, "", p.size ? `?${p}` : window.location.pathname); }
+  }, [d.step]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // Geri tuşuna basıldı: adres bir önceki adımı gösteriyor.
+    if (urlStep < d.step) { pushed.current = Math.max(0, pushed.current - 1); setD((x) => ({ ...x, step: urlStep })); window.scrollTo(0, 0); }
+    // İleri tuşu: yalnız daha önce ulaşılmış bir adıma dönülür.
+    else if (urlStep > d.step && urlStep <= reached.current) { pushed.current++; setD((x) => ({ ...x, step: urlStep })); window.scrollTo(0, 0); }
+  }, [urlStep]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Giriş sonrası geri dönülünce taslak kaybolmasın.
   useEffect(() => {
     try { const s = sessionStorage.getItem(KEY); if (s) { setD({ ...EMPTY, ...JSON.parse(s) }); sessionStorage.removeItem(KEY); } } catch { /* tarayıcı depolaması kapalı olabilir */ }

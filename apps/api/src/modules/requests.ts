@@ -9,7 +9,7 @@ import { priceFor, unlockSettings } from "./contacts.js";
 import { attachMedia, imageUrls, MediaIds, mediaFor } from "./media.js";
 import { cityOfDistrict, findDistrictInText, findNeighbourhoodInText, LOCATIONS, matchDistrict, matchNeighbourhood } from "../data/locations.js";
 import { attrsFor } from "../data/attrs.js";
-import { buildTitle, describeAttrs, fillAttrs } from "../services/draft-fill.js";
+import { buildTitle, buyerTitle, describeAttrs, fillAttrs } from "../services/draft-fill.js";
 import { cleanVehicleDraft, isVehicleSub, parseVehicleAttrs, VehicleQuery, vehicleFilters } from "./vehicles.js";
 import { notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 import { aiSettings, logAiAction } from "../services/ai-guard.js";
@@ -229,7 +229,9 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const description = maskContacts(rawDraft.description?.trim() || masked.text).text.slice(0, 4000);
     // Yapay zekâ yazmadıysa (bağlı değil, sınır doldu ya da hata) başlık cümle kopyalanmadan doldurulan alanlardan kurulur.
     const subName = ref ? ref.name.split(" › ").pop()! : null;
-    const title = (rawDraft.generated ? rawDraft.title : buildTitle({ sub, subName, attrs, ...loc }) ?? rawDraft.title).trim();
+    // Başlık her zaman alım talebi gibi okunur ("… Alım Talebi", bütçe varsa "… TL Bütçeli"); yapay zekâ yazsa da denetlenir.
+    const title = rawDraft.generated ? buyerTitle(rawDraft.title, { sub, budgetMax: rawDraft.budget_max })
+      : buildTitle({ sub, subName, attrs, ...loc, budgetMax: rawDraft.budget_max }) ?? buyerTitle(rawDraft.title, { sub, budgetMax: rawDraft.budget_max });
     return {
       draft: { ...rawDraft, generated: undefined, category_id: sub, ...loc, attrs, title: maskContacts(title).text.slice(0, 120), description },
       moderation, contacts_masked: masked.masked,
@@ -302,7 +304,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
       : mod.verdict === "ok" ? "active" : mod.verdict === "reject" ? "rejected" : s.uncertain === "publish" ? "active" : "pending_review";
     // Bölünen talepte başlık her araç için ayrı kurulur ("2018 ve Sonrası Dizel BMW 3 Serisi").
     const titleOf = (u: (typeof units)[number]) => u.car
-      ? (buildTitle({ sub: b.category_id, subName: cat.name, attrs: u.attrs, city: b.city, district: b.district, neighbourhood: b.neighbourhood }) ?? [u.car.marka, u.car.model].filter(Boolean).join(" ")).slice(0, 120)
+      ? (buildTitle({ sub: b.category_id, subName: cat.name, attrs: u.attrs, city: b.city, district: b.district, neighbourhood: b.neighbourhood, budgetMax: b.budget_max }) ?? buyerTitle([u.car.marka, u.car.model].filter(Boolean).join(" "), { sub: b.category_id, budgetMax: b.budget_max })).slice(0, 120)
       : title;
     const ids = await tx(pool, async (c) => {
       const group = units.length > 1 ? (await c.query<{ g: string }>("SELECT gen_random_uuid() AS g")).rows[0]!.g : null;
