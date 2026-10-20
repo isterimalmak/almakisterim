@@ -62,7 +62,8 @@ describe("yönetim paneli", () => {
     const integ = (await ctx.app.inject({ url: "/api/admin/integrations", headers: { cookie: admin } })).json();
     expect(integ.groups.find((x: { id: string }) => x.id === "storage").connected).toBe(true);
     expect(integ.groups.find((x: { id: string }) => x.id === "ai").connected).toBe(false);
-    expect(integ.pay.name).toContain("Ödeme");
+    // Güvenli Al ödemeleri (iyzico) anahtarla bağlanır; anahtar girilmeden bağlı görünmez.
+    expect(integ.groups.find((x: { id: string }) => x.id === "pay")).toMatchObject({ connected: false, name: expect.stringContaining("iyzico") });
 
     const csv = await ctx.app.inject({ url: "/api/admin/users.csv", headers: { cookie: admin } });
     expect(csv.headers["content-type"]).toContain("text/csv");

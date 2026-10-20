@@ -4,6 +4,7 @@ import { requireAdmin, type Deps } from "../context.js";
 import { HttpError } from "../lib/util.js";
 import { FIELDS, GROUPS } from "../services/integrations.js";
 import { testAi } from "./ai-admin.js";
+import { IyzicoPayments } from "../services/payments.js";
 
 type Test = { ok: boolean; message: string };
 const msg = (e: unknown) => String((e as Error).message ?? e).slice(0, 300);
@@ -21,9 +22,9 @@ export function integrationRoutes(app: FastifyInstance, deps: Deps) {
     const has = (...v: string[]) => v.every((x) => !!x.trim());
     const connected: Record<string, boolean> = {
       ai: has(config.ANTHROPIC_API_KEY), mail: has(config.RESEND_API_KEY), sms: has(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER),
-      photos: deps.photos?.enabled ?? (has(config.PIXABAY_API_KEY) || has(config.PEXELS_API_KEY)), google: deps.google.enabled, storage: deps.storage.enabled,
+      photos: deps.photos?.enabled ?? (has(config.PIXABAY_API_KEY) || has(config.PEXELS_API_KEY)), google: deps.google.enabled, storage: deps.storage.enabled, pay: has(config.IYZICO_API_KEY, config.IYZICO_SECRET_KEY),
     };
-    return { groups: integ().status().map((g) => ({ ...g, connected: !!connected[g.id] })), pay: { name: "Ödeme (iyzico / PayTR)", note: "Kredi satın alma henüz bağlanmadı; kredi şimdilik elle tanımlanıyor." } };
+    return { groups: integ().status().map((g) => ({ ...g, connected: !!connected[g.id] })) };
   });
 
   app.put("/admin/integrations/:key", { config: { rateLimit: { max: 30, timeWindow: "1 hour" } } }, async (req) => {
@@ -82,6 +83,12 @@ export function integrationRoutes(app: FastifyInstance, deps: Deps) {
           if (body.error === "invalid_grant") return { ok: true, message: "Kimlik bilgileri doğru. Google ile giriş çalışır." };
           if (body.error === "invalid_client" || body.error === "unauthorized_client") return { ok: false, message: "İstemci kimliği ya da gizli anahtar yanlış." };
           return { ok: false, message: `Google beklenmeyen yanıt verdi (${body.error ?? res.status}).` };
+        }
+        case "pay": {
+          if (!(config.IYZICO_API_KEY.trim() && config.IYZICO_SECRET_KEY.trim())) return { ok: false, message: "API anahtarı ve güvenlik anahtarının ikisi de girilmeli." };
+          const base = config.IYZICO_BASE_URL.trim() || "https://sandbox-api.iyzipay.com";
+          await new IyzicoPayments(config.IYZICO_API_KEY.trim(), config.IYZICO_SECRET_KEY.trim(), base).ping();
+          return { ok: true, message: `Anahtarlar doğru (${/sandbox/.test(base) ? "deneme ortamı — gerçek para çekilmez" : "gerçek ödeme ortamı"}). Güvenli Al ödemeleri iyzico üzerinden alınır.` };
         }
         case "storage": {
           if (!deps.storage.enabled) return { ok: false, message: "Hesap kimliği, erişim anahtarı, gizli anahtar ve genel adresin hepsi girilmeli." };

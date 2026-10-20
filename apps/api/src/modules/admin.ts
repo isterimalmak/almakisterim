@@ -1,3 +1,4 @@
+import { safeJobs } from "./safe.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAdmin, type Deps } from "../context.js";
@@ -238,6 +239,8 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     const blog = await autoBlog(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "otomatik blog yazılamadı"); return null; });
     // Yapay zekâ çalışmadığı için bekletilen talepler yeniden denetlenir; uygunsa yayına alınır, sahibine haber gider.
     const recheck = await recheckHeld(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "yeniden denetim yapılamadı"); return { checked: 0, published: 0 }; });
-    return { expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null, rechecked: recheck };
+    // Güvenli Al: onay süresi dolan kargolar tamamlanır, kargolanmayanlar iade edilir.
+    const safe = await safeJobs(deps).catch((e) => { req.log.warn({ err: (e as Error).message }, "güvenli al işleri yapılamadı"); return null; });
+    return { safe, expired: r.rowCount, sessions_removed: s.rowCount, codes_removed: c.rowCount, media_removed: m, reminded, blog: blog?.slug ?? null, rechecked: recheck };
   });
 }

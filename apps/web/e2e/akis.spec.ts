@@ -300,7 +300,7 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
 });
 
 test("sayfalar yana taşmıyor", async ({ page }) => {
-  for (const p of ["/", "/kategori", "/kategori/vasita", "/talep-ver", "/giris", "/sayfa/kvkk"]) {
+  for (const p of ["/", "/kategori", "/kategori/vasita", "/talep-ver", "/giris", "/sayfa/kvkk", "/guvenli-al"]) {
     await page.goto(p);
     await page.waitForLoadState("networkidle");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -584,4 +584,70 @@ test("telefonda giriş kutularının yazısı en az 16px (iPhone dokununca sayfa
       .filter((e) => (e as HTMLElement).offsetParent !== null && parseFloat(getComputedStyle(e).fontSize) < 16).map((e) => (e as HTMLElement).outerHTML.slice(0, 80)));
     expect(small, path).toEqual([]);
   }
+});
+
+test("Güvenli Al: satıcı satış başlatır, alıcı öder, satıcı kargolar, alıcı onaylar", async ({ browser }) => {
+  const buyerCtx = await browser.newContext();
+  const buyer = await buyerCtx.newPage();
+  const title = `PS5 almak istiyorum ${rnd()}`;
+  await loginSms(buyer, `0532${rnd().slice(0, 7)}`, "Elif Sönmez");
+  await buyer.goto("/");
+  await buyer.getByLabel("Ne almak istiyorsunuz?").fill(`${title}, bütçem 15 bin TL, Ankara`);
+  await buyer.getByRole("button", { name: "Talep Oluştur" }).click();
+  await expect(buyer.getByLabel("Talep başlığı *")).not.toHaveValue("");
+  await buyer.getByLabel("Talep başlığı *").fill(title);
+  await addPhoto(buyer);
+  await buyer.getByRole("button", { name: "Devam" }).click();
+  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
+  await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  const url = buyer.url();
+
+  const sellerCtx = await browser.newContext();
+  const seller = await sellerCtx.newPage();
+  await loginSms(seller, `0533${rnd().slice(0, 7)}`, "Ahmet Kaya");
+  await seller.goto(url);
+  await seller.getByRole("button", { name: /Numarayı Gör/ }).click();
+  await seller.getByRole("button", { name: "Güvenli Al ile sat" }).click();
+  await seller.getByLabel("Anlaştığınız fiyat (TL)").fill("14000");
+  await expect(seller.locator(".safe-fee")).toContainText("13.300 TL");
+  await seller.getByLabel("Paranızın gönderileceği IBAN").fill("TR33 0006 1005 1978 6457 8413 26");
+  await seller.getByLabel("Hesap sahibinin adı").fill("Ahmet Kaya");
+  await seller.getByRole("button", { name: "Satışı başlat ve alıcıya gönder" }).click();
+  await seller.getByRole("link", { name: "Satışı görüntüle »" }).click();
+  await expect(seller.getByText("Alıcının ödeme yapması bekleniyor")).toBeVisible();
+  const saleUrl = seller.url();
+
+  // Alıcı talep sayfasında satışı görür, adresini yazıp öder (deneme modu).
+  await buyer.reload();
+  await buyer.locator(".safe-mini-i").first().click();
+  await expect(buyer.getByText("14.210 TL", { exact: false }).first()).toBeVisible();
+  await buyer.getByLabel("Ad soyad", { exact: true }).fill("Elif Sönmez");
+  await buyer.getByLabel("Telefon", { exact: true }).fill("05321112233");
+  await buyer.getByLabel("İl", { exact: true }).fill("Ankara");
+  await buyer.getByLabel("Açık adres").fill("Kızılay Mah. Atatürk Bulvarı No: 10 Çankaya");
+  await buyer.getByRole("button", { name: /Güvenli Öde/ }).click();
+  await expect(buyer.getByText("Deneme ödeme ekranı")).toBeVisible();
+  await buyer.getByRole("button", { name: /öde \(deneme\)/ }).click();
+  await expect(buyer.getByText("Ödemeniz alındı ve güvende", { exact: false })).toBeVisible();
+
+  // Satıcı adresi görür, kargolar.
+  await seller.goto(saleUrl);
+  await expect(seller.locator(".safe-addr")).toContainText("Kızılay Mah.");
+  await seller.getByLabel("Kargo takip numarası").fill("1234567890");
+  await seller.getByRole("button", { name: "Kargoya verdim" }).click();
+  await expect(seller.getByText("Kargo bilgisi alıcıya iletildi", { exact: false }).first()).toBeVisible();
+
+  // Alıcı onaylar; satış tamamlanır, satıcıya ödeme bilgisi çıkar.
+  await buyer.reload();
+  await expect(buyer.getByText("1234567890").first()).toBeVisible();
+  buyer.once("dialog", (d) => void d.accept());
+  await buyer.getByRole("button", { name: "Ürünü aldım, onaylıyorum" }).click();
+  await expect(buyer.getByText("Satış tamamlandı.", { exact: false }).first()).toBeVisible();
+  expect(await buyer.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  await seller.reload();
+  await expect(seller.getByText("13.300 TL en geç 2 iş günü içinde", { exact: false })).toBeVisible();
+  await seller.goto("/guvenli-al");
+  await expect(seller.locator(".tbl tr", { hasText: title })).toContainText("Tamamlandı");
+  await buyerCtx.close(); await sellerCtx.close();
 });

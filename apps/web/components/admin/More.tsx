@@ -64,9 +64,8 @@ type IGroup = { id: string; name: string; note: string; help: string; connected:
 // Entegrasyonlar: anahtarlar buradan girilir. Gizli alanlar kaydedildikten sonra bir daha gösterilmez (yalnızca "kayıtlı" yazar).
 export function IntegrationsAdmin() {
   const [groups, setGroups] = useState<IGroup[] | null>(null);
-  const [pay, setPay] = useState<{ name: string; note: string } | null>(null);
   const load = async () => {
-    try { const r = await api<{ groups: IGroup[]; pay: { name: string; note: string } }>("/admin/integrations"); setGroups(r.groups); setPay(r.pay); }
+    try { setGroups((await api<{ groups: IGroup[] }>("/admin/integrations")).groups); }
     catch { setGroups([]); }
   };
   useEffect(() => { void load(); }, []);
@@ -79,7 +78,6 @@ export function IntegrationsAdmin() {
       {!groups ? <div className="loading">Yükleniyor…</div> : (
         <div className="integ-list">
           {groups.map((g) => <IntegCard key={g.id} g={g} reload={load} />)}
-          {pay && <div className="ap-box integ-card"><div className="integ-h"><span className="ap-dot" aria-hidden="true" /><div><b>{pay.name}</b><small>{pay.note}</small></div><span className="lbl l-gy">Bağlı değil</span></div></div>}
         </div>
       )}
     </>
