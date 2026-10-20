@@ -474,8 +474,9 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
   await expect(page.locator(".rq-head").getByText("Alım Talebi")).toBeVisible();
   await expect(page.locator(".rq-head .rq-budget")).toContainText("TL");
   await expect(page.locator(".gal-count")).toHaveText(/1\/1/);
+  await page.evaluate(() => window.scrollTo(0, 0));
   await expect(page.locator(".rq-stick")).not.toHaveClass(/\bon\b/);
-  await page.mouse.wheel(0, 1200);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await expect(page.locator(".rq-stick")).toHaveClass(/\bon\b/);
   await expect(page.locator(".rq-stick")).toContainText(title);
 });
