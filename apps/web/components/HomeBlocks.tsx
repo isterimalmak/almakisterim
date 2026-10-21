@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSession } from "./Session";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, type Ad, type RequestItem } from "@/lib/api";
 import { SPEEDS, type HomeBlock } from "@/lib/home";
@@ -41,8 +42,35 @@ function Showcase({ b }: { b: Extract<HomeBlock, { type: "showcase" }> }) {
   );
 }
 
+// Kategori vitrini: elle eklenenler en başta, sonra kategorinin talepleri (öne çıkan, fotoğraflı, en yeni); çıkarılanlar görünmez.
+export async function catVitrinItems(b: Extract<HomeBlock, { type: "catvitrin" }>): Promise<{ items: RequestItem[]; total: number }> {
+  const [inc, auto] = await Promise.all([
+    b.include_ids.length ? api<{ items: RequestItem[] }>(`/requests?ids=${b.include_ids.join(",")}&per=40`).then((r) => r.items) : Promise.resolve([] as RequestItem[]),
+    api<{ items: RequestItem[]; total: number }>(`/requests?top=${encodeURIComponent(b.top)}&sort=vitrin&per=${Math.min(50, b.limit + b.exclude_ids.length + b.include_ids.length)}`),
+  ]);
+  const pinned = b.include_ids.map((id) => inc.find((x) => x.id === id)).filter((x): x is RequestItem => !!x);
+  const seen = new Set(pinned.map((x) => x.id));
+  const rest = auto.items.filter((x) => !seen.has(x.id) && !b.exclude_ids.includes(x.id));
+  return { items: [...pinned, ...rest].filter((x) => !b.exclude_ids.includes(x.id)).slice(0, b.limit), total: auto.total };
+}
+
+function CatVitrin({ b }: { b: Extract<HomeBlock, { type: "catvitrin" }> }) {
+  const { count } = useSession();
+  const [d, setD] = useState<{ items: RequestItem[]; total: number } | null>(null);
+  const key = JSON.stringify([b.top, b.limit, b.include_ids, b.exclude_ids]);
+  useEffect(() => { void catVitrinItems(b).then(setD).catch(() => setD({ items: [], total: 0 })); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!d?.items.length) return null;
+  return (
+    <section className="box hsec" style={{ marginBottom: 14 }} aria-label={b.title}>
+      <div className="box-h"><h2>{b.title}</h2><Link className="link" href={`/kategori/${b.top}`}>Tümünü gör{count(d.total) !== null && ` (${d.total})`} ›</Link></div>
+      <div className="box-b"><div className="vt vt-home">{d.items.map((r) => <VitrinTile key={r.id} r={r} />)}</div></div>
+    </section>
+  );
+}
+
 export function CustomBlock({ b, ads }: { b: Exclude<HomeBlock, { type: "builtin" }>; ads: Ad[] }) {
   if (b.type === "showcase") return <Showcase b={b} />;
+  if (b.type === "catvitrin") return <CatVitrin b={b} />;
   if (b.type === "text") {
     if (!b.title && !b.text) return null;
     return (

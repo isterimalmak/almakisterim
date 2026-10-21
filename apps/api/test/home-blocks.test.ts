@@ -33,7 +33,9 @@ describe("ana sayfa bölümleri", () => {
     await ctx.pool.query("UPDATE settings SET value = 'false' WHERE key = 'home_vitrin'");
     await ctx.pool.query(`UPDATE settings SET value = '["latest", "hero"]' WHERE key = 'home_order'`);
     const b = (await cats()).home_blocks;
-    expect(b.map((x: { id: string }) => x.id)).toEqual(["latest", "hero", "urgent", "cats", "ads_m", "center_ads", "vitrin", "corp", "launch", "how", "safe"]);
+    // Hazır kategori vitrinleri (Vasıta / Emlak Talepleri) Ana Sayfa Vitrini'nin hemen altına eklenir.
+    expect(b.map((x: { id: string }) => x.id)).toEqual(["latest", "hero", "urgent", "cats", "ads_m", "center_ads", "vitrin", "vasita_vitrin", "emlak_vitrin", "corp", "launch", "how", "safe"]);
+    expect(b.find((x: { id: string }) => x.id === "vasita_vitrin")).toMatchObject({ type: "catvitrin", top: "vasita", title: "Vasıta Talepleri", hidden: false, limit: 12 });
     expect(b.find((x: { id: string }) => x.id === "vitrin").hidden).toBe(true);
   });
 
@@ -56,7 +58,7 @@ describe("ana sayfa bölümleri", () => {
     const saved = (await cats()).home_blocks;
     // Listede olmayan hazır bölümler sona eklenir.
     expect(saved.slice(0, 5).map((x: { id: string }) => x.id)).toEqual(["safe", "yazi_1", "bant_1", "afis_1", "hero"]);
-    expect(saved).toHaveLength(14);
+    expect(saved).toHaveLength(16);
     expect(saved[1]).toMatchObject({ title: "Hoş geldiniz", tone: "turuncu", align: "orta", hidden: false });
     expect(saved[4].hidden).toBe(true);
     // Afiş görseli yönetimdeki reklam listesinde görünmez, herkese açık listede "blok" olarak döner.
@@ -99,5 +101,19 @@ describe("ana sayfa bölümleri", () => {
     r = await ctx.app.inject({ url: `/api/requests?ids=${c},${a},${b}&per=40` });
     expect(r.json().items.map((x: { id: number }) => x.id).sort()).toEqual([b, c].sort());
     expect((await ctx.app.inject({ url: "/api/requests?ids=1;DROP" })).statusCode).toBe(400);
+  });
+
+  it("kategori vitrini: gizlenir, adı/sayısı değişir, elle eklenen ve çıkarılan talepler saklanır; hazır olanlar silinse de geri gelir; geçersizler reddedilir", async () => {
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    const put = (blocks: unknown[]) => ctx.app.inject({ method: "PUT", url: "/api/admin/home-blocks", headers: { cookie: admin }, payload: { blocks } });
+    const base = (await cats()).home_blocks as { id: string; type: string }[];
+    const next = base.map((b) => b.id === "vasita_vitrin" ? { ...b, hidden: true, title: "Araç Arayanlar", limit: 8, include_ids: [1048300], exclude_ids: [1048301, 1048302] } : b).filter((b) => b.id !== "emlak_vitrin");
+    expect((await put(next)).statusCode).toBe(200);
+    const saved = (await cats()).home_blocks as { id: string }[];
+    expect(saved.find((b) => b.id === "vasita_vitrin")).toMatchObject({ hidden: true, title: "Araç Arayanlar", limit: 8, include_ids: [1048300], exclude_ids: [1048301, 1048302] });
+    expect(saved.some((b) => b.id === "emlak_vitrin")).toBe(true);
+    expect((await put([{ type: "catvitrin", id: "kv_1", top: "elektronik", limit: 3 }])).statusCode).toBe(400);
+    expect((await put([{ type: "catvitrin", id: "kv_1", top: "Elektronik!", limit: 8 }])).statusCode).toBe(400);
+    expect((await put([{ type: "catvitrin", id: "kv_1", top: "elektronik", title: "Elektronik Talepleri" }])).statusCode).toBe(200);
   });
 });

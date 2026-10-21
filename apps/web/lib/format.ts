@@ -1,7 +1,8 @@
 const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
 export const fmt = (n: number) => new Intl.NumberFormat("tr-TR").format(Math.round(n));
-export const budgetTxt = (min: number, max: number) => (min && min !== max ? `${fmt(min)} – ${fmt(max)} TL` : `${fmt(max)} TL`);
+// Talepte tek fiyat gösterilir (eski aralıklı taleplerde de yalnız fiyat).
+export const budgetTxt = (_min: number | null, max: number) => `${fmt(max)} TL`;
 
 export function dateTr(iso: string): string {
   const d = new Date(iso);

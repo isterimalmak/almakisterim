@@ -15,10 +15,10 @@ import { attrsFor, CITIES, condsFor } from "@/lib/catalog";
 import { budgetTxt } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
-type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b0: string; b1: string; city: string; district: string; hood: string; condition: string; attrs: Record<string, unknown>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[];
+type D = { step: 1 | 2 | 3; raw: string; top: string; sub: string; title: string; description: string; b1: string; city: string; district: string; hood: string; condition: string; attrs: Record<string, unknown>; days: 7 | 14 | 30; urgent: boolean; corporate: boolean; agree: boolean; media: Media[];
   // Birden fazla araç seçildiyse her aracın kendi fotoğrafları ("Marka|Model" → medya); her araç ayrı talep olur.
   carMedia: Record<string, Media[]> };
-const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b0: "", b1: "", city: "", district: "", hood: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [], carMedia: {} };
+const EMPTY: D = { step: 1, raw: "", top: "", sub: "", title: "", description: "", b1: "", city: "", district: "", hood: "", condition: "Farketmez", attrs: {}, days: 14, urgent: false, corporate: false, agree: false, media: [], carMedia: {} };
 const KEY = "ak_taslak";
 // 905321112233 → 0532 *** ** 33
 const maskPhone = (p: string) => { const d = p.replace(/\D/g, "").replace(/^90/, ""); return `0${d.slice(0, 3)} *** ** ${d.slice(-2)}`; };
@@ -109,7 +109,7 @@ function Create() {
       const newCity = !!draft.city && draft.city !== d.city;
       setD((x) => ({
         ...x, raw: text, title: draft.title, description: draft.description, condition: draft.condition,
-        b1: draft.budget_max ? String(draft.budget_max) : x.b1, b0: draft.budget_min ? String(draft.budget_min) : x.b0,
+        b1: draft.budget_max ? String(draft.budget_max) : x.b1,
         city: draft.city ?? x.city, district: draft.district || (newCity ? "" : x.district), hood: draft.neighbourhood || (newCity || draft.district ? "" : x.hood),
         urgent: draft.is_urgent, attrs: draft.attrs,
         ...(top ? { top: top.id, sub: draft.category_id!, step: 2 as const } : {}),
@@ -120,7 +120,7 @@ function Create() {
       if (sub) filled.push(`Kategori (${top!.name} › ${sub.name})`);
       if (draft.title) filled.push("Başlık");
       if (draft.description) filled.push("Açıklama");
-      if (draft.budget_max) filled.push("Bütçe"); else missing.push("En fazla bütçe");
+      if (draft.budget_max) filled.push("Fiyat"); else missing.push("Fiyat");
       if (draft.city) filled.push([draft.city, draft.district, draft.neighbourhood].filter(Boolean).join(" / ")); else missing.push("İl");
       if (draft.condition !== "Farketmez") filled.push(`Durum (${draft.condition})`);
       if (draft.is_urgent) filled.push("Acil");
@@ -159,8 +159,7 @@ function Create() {
 
   const validate = () => {
     if (d.title.trim().length < 3) return "Talep başlığı yazın.";
-    if (!(Number(d.b1) > 0)) return "En fazla bütçeyi yazın.";
-    if (d.b0 && Number(d.b0) > Number(d.b1)) return "En az bütçe, en fazla bütçeden büyük olamaz.";
+    if (!(Number(d.b1) > 0)) return "Fiyatı yazın.";
     if (!d.city) return "İl seçin.";
     if (photoRequired && multi) {
       const miss = cars.find((c) => !(d.carMedia[carKey(c)] ?? []).some((m) => m.kind === "image"));
@@ -181,7 +180,7 @@ function Create() {
     setBusy(true);
     try {
       const res = await api<{ id: number; ids?: number[]; status: string; moderation: { reason: string } | null }>("/requests", { body: {
-        category_id: d.sub, title: d.title, description: d.description, budget_min: d.b0 ? Number(d.b0) : null, budget_max: Number(d.b1),
+        category_id: d.sub, title: d.title, description: d.description, budget_min: null, budget_max: Number(d.b1),
         city: d.city, district: d.district, neighbourhood: d.hood, condition: d.condition, attrs: Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v !== "" && v !== undefined)),
         is_urgent: d.urgent, is_corporate: d.corporate, days: d.days, contact_consent: true,
         ...(needCode ? { phone: pPhone, phone_code: pCode } : {}),
@@ -235,8 +234,7 @@ function Create() {
             <div className="form-grid">
               <div className="fg full"><label htmlFor="f-t">Talep başlığı *</label><input className="inp" id="f-t" maxLength={120} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="Örn. Kadıköy'de 3+1 kiralık daire arıyorum" /><span className="hint">Ne aradığınızı kısa ve net yazın.</span></div>
               <div className="fg full"><label htmlFor="f-x">Açıklama</label><textarea className="txa" id="f-x" rows={4} maxLength={4000} value={d.description} onChange={(e) => set({ description: e.target.value })} placeholder="Olmazsa olmazlarınız, tercih ettiğiniz marka/model, teslimat şekli..." /></div>
-              <div className="fg"><label htmlFor="f-b0">En az bütçe (TL)</label><input className="inp" id="f-b0" type="number" inputMode="numeric" value={d.b0} onChange={(e) => set({ b0: e.target.value })} /></div>
-              <div className="fg"><label htmlFor="f-b1">En fazla bütçe (TL) *</label><input className="inp" id="f-b1" type="number" inputMode="numeric" value={d.b1} onChange={(e) => set({ b1: e.target.value })} /></div>
+              <div className="fg"><label htmlFor="f-b1">Fiyat (TL) *</label><input className="inp" id="f-b1" type="number" inputMode="numeric" value={d.b1} onChange={(e) => set({ b1: e.target.value })} /></div>
               <div className="fg"><label htmlFor="f-c">İl *</label><select className="sel" id="f-c" value={d.city} onChange={(e) => set({ city: e.target.value, district: "", hood: "" })}><option value="">Seçin</option>{CITIES.map((c) => <option key={c}>{c}</option>)}</select></div>
               <div className="fg"><label htmlFor="f-d">İlçe</label><select className="sel" id="f-d" value={d.district} disabled={!d.city} onChange={(e) => set({ district: e.target.value, hood: "" })}><option value="">{d.city ? "İlçe farketmez" : "Önce il seçin"}</option>{(districts.includes(d.district) || !d.district ? districts : [d.district, ...districts]).map((x) => <option key={x}>{x}</option>)}</select></div>
               {d.district && <div className="fg"><label htmlFor="f-m">Mahalle</label><select className="sel" id="f-m" value={d.hood} onChange={(e) => set({ hood: e.target.value })}><option value="">Mahalle farketmez</option>{(hoods.includes(d.hood) || !d.hood ? hoods : [d.hood, ...hoods]).map((x) => <option key={x}>{x}</option>)}</select></div>}
@@ -296,7 +294,7 @@ function Create() {
             </div>
           ) : d.media.length > 0 && <div style={{ maxWidth: 420, marginBottom: 12 }}><Gallery media={d.media} fallback={null} /></div>}
           <table className="info" style={{ maxWidth: 560 }}><tbody>
-            <tr><th>Bütçe</th><td><span className="price-big">{budgetTxt(Number(d.b0) || Math.round(Number(d.b1) * 0.8), Number(d.b1))}</span></td></tr>
+            <tr><th>Fiyat</th><td><span className="price-big">{budgetTxt(null, Number(d.b1))}</span></td></tr>
             <tr><th>Kategori</th><td>{top.name} › {sub.name}</td></tr>
             {condsFor(d.top).length > 1 && <tr><th>Ürün durumu</th><td>{d.condition}</td></tr>}
             {sch.filter((a) => d.attrs[a.k] !== undefined && d.attrs[a.k] !== "").map((a) => <tr key={a.k}><th>{a.l}</th><td>{String(d.attrs[a.k])}</td></tr>)}

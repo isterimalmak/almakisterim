@@ -10,6 +10,7 @@ import { HttpError } from "../lib/util.js";
 
 export const BUILTINS = ["hero", "urgent", "cats", "ads_m", "center_ads", "vitrin", "latest", "corp", "launch", "how", "safe"] as const;
 export const SIDE = ["launch", "how", "safe"];
+export const CAT_VITRINS = [["vasita_vitrin", "vasita", "Vasıta Talepleri"], ["emlak_vitrin", "emlak", "Emlak Talepleri"]] as const;
 
 const Href = z.string().trim().max(500).regex(/^(https?:\/\/|\/)/, "Bağlantı https:// veya / ile başlamalı.").nullable().default(null);
 const Id = z.string().regex(/^[a-z0-9_]{2,40}$/);
@@ -28,6 +29,11 @@ const Block = z.discriminatedUnion("type", [
     bg: Color.default("#F26B1D"), fg: Color.default("#FFFFFF"), href: Href, show: Show }),
   z.object({ type: z.literal("banner"), id: Id, hidden: z.boolean().default(false), title: z.string().trim().max(120).default(""),
     ad_ids: z.array(z.number().int()).max(8).default([]), show: Show }),
+  // Kategori vitrini ("Vasıta Talepleri", "Emlak Talepleri"): kategorinin talepleri kendiliğinden gelir;
+  // yönetici başka talep ekleyebilir (include_ids, en başta) ya da istemediğini çıkarabilir (exclude_ids).
+  z.object({ type: z.literal("catvitrin"), id: Id, hidden: z.boolean().default(false), title: z.string().trim().max(80).default(""),
+    top: z.string().regex(/^[a-z0-9_]{2,30}$/), limit: z.number().int().min(4).max(24).default(12),
+    include_ids: z.array(z.number().int().positive()).max(24).default([]), exclude_ids: z.array(z.number().int().positive()).max(200).default([]), show: Show }),
   // Yöneticinin seçtiği talepler tek satırda sağdan sola kayar; hız 1 (çok yavaş) – 5 (çok hızlı).
   z.object({ type: z.literal("showcase"), id: Id, hidden: z.boolean().default(false), title: z.string().trim().max(80).default("Vitrin"),
     request_ids: z.array(z.number().int().positive()).max(40).default([]), speed: z.number().int().min(1).max(5).default(2), show: Show }),
@@ -51,6 +57,16 @@ export async function homeBlocks(pool: Pool): Promise<HomeBlock[]> {
   }
   for (const id of BUILTINS) if (!list.some((b) => b.type === "builtin" && b.id === id)) {
     list.push({ type: "builtin", id, show: "all", texts: {}, hidden: (id === "vitrin" && s.home_vitrin === false) || (id === "latest" && s.home_latest === false) });
+  }
+  // Hazır kategori vitrinleri: "Vasıta Talepleri" ve "Emlak Talepleri" her zaman listede (silinmez, gizlenebilir);
+  // ilk kez eklenince Ana Sayfa Vitrini'nin hemen altına yerleşir.
+  let after = "vitrin";
+  for (const [id, top, title] of CAT_VITRINS) {
+    if (!list.some((b) => b.id === id)) {
+      const at = list.findIndex((b) => b.id === after);
+      list.splice(at < 0 ? list.length : at + 1, 0, { type: "catvitrin", id, top, title, limit: 12, include_ids: [], exclude_ids: [], show: "all", hidden: false });
+    }
+    after = id;
   }
   return list;
 }
