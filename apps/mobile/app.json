@@ -1,0 +1,108 @@
+{
+  "expo": {
+    "name": "almakisterim",
+    "slug": "almakisterim",
+    "scheme": "almakisterim",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "description": "Almak istediğini yaz, satıcılar sana ulaşsın.",
+    "primaryColor": "#13235B",
+    "backgroundColor": "#F3F4F7",
+    "ios": {
+      "bundleIdentifier": "com.almakisterim.app",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:almakisterim.com"
+      ],
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "tr",
+        "NSPhotoLibraryUsageDescription": "Talebinize fotoğraf eklemek için fotoğraflarınıza erişim gerekiyor. Yalnızca seçtiğiniz fotoğraf yüklenir.",
+        "NSCameraUsageDescription": "Talebinize fotoğraf çekip eklemek için kamera erişimi gerekiyor."
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyCollectedDataTypes": []
+      },
+      "usesAppleSignIn": true
+    },
+    "android": {
+      "package": "com.almakisterim.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#04274F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "almakisterim.com",
+              "pathPrefix": "/talep/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "color": "#F26B1D",
+          "icon": "./assets/notification-icon.png"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Talebinize fotoğraf eklemek için fotoğraflarınıza erişim gerekiyor. Yalnızca seçtiğiniz fotoğraf yüklenir.",
+          "cameraPermission": "Talebinize fotoğraf çekip eklemek için kamera erişimi gerekiyor.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#13235B",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "apiUrl": "https://almakisterim.com",
+      "eas": {}
+    }
+  }
+}

@@ -15,7 +15,7 @@ import { z, ZodError } from "zod";
 
 // Doğrulama mesajları Türkçe.
 z.config(z.locales.tr());
-import { loadUser, SESSION_COOKIE, type Deps } from "./context.js";
+import { loadUser, sessionToken, type Deps } from "./context.js";
 import { HttpError } from "./lib/util.js";
 import { adminRoutes } from "./modules/admin.js";
 import { authRoutes } from "./modules/auth.js";
@@ -73,7 +73,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
 
   app.decorateRequest("user", null);
   app.addHook("onRequest", async (req) => {
-    req.user = await loadUser(deps.pool, req.cookies[SESSION_COOKIE]);
+    req.user = await loadUser(deps.pool, sessionToken(req));
   });
 
   app.setErrorHandler((err: Error, req, reply) => {

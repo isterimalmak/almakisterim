@@ -44,6 +44,13 @@ declare module "fastify" {
 
 export const SESSION_COOKIE = "ak_session";
 export const SESSION_DAYS = 30;
+// Telefon uygulaması çerez yerine oturumu bu başlıkla gönderir (tarayıcılar bu başlığı başka siteden ekleyemez).
+export const APP_SESSION_HEADER = "x-ak-session";
+export const isAppClient = (req: FastifyRequest) => req.headers["x-ak-app"] === "1";
+export function sessionToken(req: FastifyRequest): string | undefined {
+  const h = req.headers[APP_SESSION_HEADER];
+  return req.cookies[SESSION_COOKIE] ?? (typeof h === "string" && h.length <= 128 ? h : undefined);
+}
 
 export async function loadUser(pool: Pool, token: string | undefined): Promise<SessionUser | null> {
   if (!token) return null;

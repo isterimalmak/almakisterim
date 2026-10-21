@@ -57,16 +57,25 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
       const u = (await c.query<{ email: string | null; phone: string | null }>("SELECT email, phone FROM users WHERE id = $1 FOR UPDATE", [user.id])).rows[0]!;
       await c.query("UPDATE requests SET status = 'closed' WHERE buyer_id = $1 AND status IN ('pending_review', 'active')", [user.id]);
       await c.query("UPDATE offers SET status = 'withdrawn' WHERE seller_id = $1 AND status = 'active'", [user.id]);
-      for (const t of ["sessions", "alarms", "favorites", "notifications"]) await c.query(`DELETE FROM ${t} WHERE user_id = $1`, [user.id]);
+      for (const t of ["sessions", "alarms", "favorites", "notifications", "push_tokens"]) await c.query(`DELETE FROM ${t} WHERE user_id = $1`, [user.id]);
       await c.query("DELETE FROM mail_sends WHERE user_id = $1 AND status = 'queued'", [user.id]);
       await c.query("DELETE FROM auth_codes WHERE target = ANY($1::text[])", [[u.email, u.phone].filter(Boolean)]);
-      await c.query(`UPDATE users SET email = NULL, phone = NULL, google_sub = NULL, name = 'Silinmiş üye', iban = NULL, iban_name = NULL,
+      await c.query(`UPDATE users SET email = NULL, phone = NULL, google_sub = NULL, apple_sub = NULL, name = 'Silinmiş üye', iban = NULL, iban_name = NULL,
                        marketing_at = NULL, mail_prefs = '{}'::jsonb, deleted_at = now() WHERE id = $1`, [user.id]);
       return u.email;
     });
     reply.clearCookie(SESSION_COOKIE, { path: "/" });
     if (email) void deps.mailer.send(email, "Hesabınız silindi",
       `Merhaba,\n\nalmakisterim.com hesabınız isteğiniz üzerine silindi. Adınız, telefon numaranız ve e-posta adresiniz sistemden kaldırıldı; açık talepleriniz kapatıldı.\n\nBu işlemi siz yapmadıysanız destek@almakisterim.com adresine yazın.`).catch(() => {});
+    return { ok: true };
+  });
+
+  // Telefon uygulamasının anlık bildirim adresi (Expo). Aynı telefon başka hesapla girerse adres o hesaba geçer.
+  app.post("/me/push-token", async (req) => {
+    const user = requireUser(req);
+    const b = z.object({ token: z.string().max(200).regex(/^Expo(nent)?PushToken\[[^\]]+\]$/, "Geçersiz bildirim adresi."), platform: z.enum(["ios", "android"]) }).parse(req.body);
+    await pool.query(`INSERT INTO push_tokens (token, user_id, platform) VALUES ($1, $2, $3)
+                      ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, created_at = now()`, [b.token, user.id, b.platform]);
     return { ok: true };
   });
 

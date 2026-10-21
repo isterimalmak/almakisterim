@@ -62,12 +62,22 @@ jobs:
           npx playwright test --reporter=line
         working-directory: apps/web
 
+      - name: Telefon uygulaması (tip kontrolü ve uçtan uca test)
+        working-directory: apps/mobile
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+          EXPO_PUBLIC_API_URL=http://localhost:8090 npx expo export --platform web --output-dir dist-web
+          npx playwright test --reporter=line
+
       - name: Test hata ekran görüntüleri (hata olursa)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-hatalar
-          path: apps/web/test-results
+          path: |
+            apps/web/test-results
+            apps/mobile/test-results
           retention-days: 7
 
       - name: Sunucu kayıtları (hata olursa)

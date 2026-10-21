@@ -35,6 +35,8 @@ const schema = z.object({
   IYZICO_BASE_URL: z.string().default("https://sandbox-api.iyzipay.com"),
 
   GOOGLE_CLIENT_ID: z.string().default(""),
+  // iPhone uygulamasının Bundle ID'si ("Apple ile Giriş" jetonunun alıcısı)
+  APPLE_BUNDLE_ID: z.string().default("com.almakisterim.app"),
   GOOGLE_CLIENT_SECRET: z.string().default(""),
 
   // Cloudflare R2 (fotoğraf ve video). Anahtarlar Secret Manager'da; hesap kimliği, depo adı ve genel adres gizli değil.
