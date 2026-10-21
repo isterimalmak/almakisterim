@@ -93,9 +93,11 @@ jobs:
 
       - name: Siteyi yayınla
         run: |
+          # ANDROID_CERT_SHA256: Android uygulamasının imza parmak izleri (gizli değil), /.well-known/assetlinks.json için.
           gcloud run deploy almakisterim-web --region "$REGION" --image "$REGISTRY/web:$GITHUB_SHA" \
             --service-account "$RUNTIME_SA" --allow-unauthenticated --port 8080 \
-            --cpu 1 --memory 512Mi --min-instances 0 --max-instances 10 --quiet
+            --cpu 1 --memory 512Mi --min-instances 0 --max-instances 10 \
+            --set-env-vars "^|^ANDROID_CERT_SHA256=${{ vars.ANDROID_CERT_SHA256 }}" --quiet
           echo "WEB_URL=$(gcloud run services describe almakisterim-web --region "$REGION" --format='value(status.url)')" >> "$GITHUB_ENV"
 
       - name: Zamanlanmış işi kur (her saat süresi dolan talepleri kapatır)

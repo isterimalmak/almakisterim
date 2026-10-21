@@ -665,6 +665,33 @@ test("Bana Özel → Hesap: e-posta bildirimleri (yeni teklif, teklif kabul, yen
   await expect(page.getByRole("group", { name: "E-posta bildirimleri" }).getByLabel("Teklifim kabul edildiğinde")).toBeChecked();
 });
 
+test("üye Bana Özel → Hesap'tan SİL yazarak hesabını siler; çıkış yapılır; Hesap Silme sayfası herkese açık", async ({ page }) => {
+  await loginSms(page, `0538${rnd().slice(0, 7)}`, "Silinecek Üye");
+  await page.goto("/bana-ozel?s=hesap");
+  await page.getByRole("button", { name: "Hesabımı sil" }).click();
+  const final = page.getByRole("button", { name: "Hesabımı kalıcı olarak sil" });
+  await expect(final).toBeDisabled();
+  await page.getByLabel(/büyük harflerle SİL/).fill("SİL");
+  const done = page.waitForResponse((r) => r.url().endsWith("/api/me") && r.request().method() === "DELETE");
+  await final.click();
+  expect((await done).ok()).toBeTruthy();
+  await expect(page).toHaveURL(/\/$/);
+  const me = await (await page.request.get("/api/me")).json();
+  expect(me.user).toBeNull();
+  await page.goto("/sayfa/hesap-silme");
+  await expect(page.getByRole("heading", { name: "Hesap Silme" })).toBeVisible();
+  await expect(page.getByText(/Bana Özel → Hesap Bilgileri/)).toBeVisible();
+});
+
+test("Android uygulaması için site bağı (assetlinks.json) JSON olarak sunulur", async ({ request }) => {
+  const r = await request.get("/.well-known/assetlinks.json");
+  expect(r.ok()).toBeTruthy();
+  expect(r.headers()["content-type"]).toContain("application/json");
+  const body = await r.json();
+  expect(Array.isArray(body)).toBeTruthy();
+  for (const x of body) expect(x.target.package_name).toBe("com.almakisterim.app");
+});
+
 test("sayfalar yana taşmıyor", async ({ page }) => {
   for (const p of ["/", "/kategori", "/kategori/vasita", "/talep-ver", "/giris", "/sayfa/kvkk", "/guvenli-al"]) {
     await page.goto(p);
