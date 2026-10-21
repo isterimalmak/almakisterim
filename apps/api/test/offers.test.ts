@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRequest, login, makeApp, postOffer, resetData, type TestCtx } from "./helpers.js";
 
 let ctx: TestCtx;
@@ -93,8 +93,8 @@ describe("Bana Özel", () => {
     const a = await ctx.app.inject({ method: "POST", url: "/api/me/alarms", headers: { cookie: seller }, payload: { category_id: "elektronik", city: "İstanbul", min_budget: 10000 } });
     expect(a.statusCode).toBe(201);
     const id = await createRequest(ctx, buyer);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(ctx.outbox.last("905321112244")?.text).toContain("alarmınıza uyan");
+    // Alarm bildirimi arka planda gider; gelene kadar beklenir (yavaş makinede 50 ms yetmiyordu).
+    await vi.waitFor(() => expect(ctx.outbox.last("905321112244")?.text).toContain("alarmınıza uyan"));
     const m = (await ctx.app.inject({ url: "/api/me/matches", headers: { cookie: seller } })).json();
     expect(m.items.map((x: { id: number }) => x.id)).toEqual([id]);
   });
