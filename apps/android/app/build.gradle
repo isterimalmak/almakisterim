@@ -1,0 +1,65 @@
+plugins {
+    id "com.android.application"
+}
+
+// Uygulama sitenin birebir aynısıdır: almakisterim.com Chrome'un tam ekran modunda (adres çubuğu olmadan) açılır.
+// Sürüm numarası derleme iş akışından gelir (her derlemede bir artar); imza anahtarı Secret Manager'dan okunur, depoda tutulmaz.
+def host = "almakisterim.com"
+def versionCodeEnv = (System.getenv("VERSION_CODE") ?: "1").toInteger()
+def versionNameEnv = System.getenv("VERSION_NAME") ?: "1.0.${versionCodeEnv}"
+
+android {
+    namespace "com.almakisterim.app"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.almakisterim.app"
+        minSdk 23
+        targetSdk 36
+        versionCode versionCodeEnv
+        versionName versionNameEnv
+
+        manifestPlaceholders = [
+            hostName       : host,
+            defaultUrl     : "https://${host}/?kaynak=android",
+            launcherName   : "almakisterim",
+            themeColor     : "#13235B",
+            navColor       : "#FFFFFF",
+            backgroundColor: "#F3F4F7",
+        ]
+        resValue "string", "appName", "almakisterim"
+        resValue "string", "launcherName", "almakisterim"
+        // Site ile uygulamanın birbirini tanıması (Digital Asset Links): site /.well-known/assetlinks.json'da bu uygulamayı listeler.
+        resValue "string", "assetStatements",
+            "[{ \\\"relation\\\": [\\\"delegate_permission/common.handle_all_urls\\\"], \\\"target\\\": {\\\"namespace\\\": \\\"web\\\", \\\"site\\\": \\\"https://${host}\\\"}}]"
+    }
+
+    signingConfigs {
+        release {
+            def ks = System.getenv("ANDROID_KEYSTORE_FILE")
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias "upload"
+                keyPassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")
+            if (System.getenv("ANDROID_KEYSTORE_FILE")) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "com.google.androidbrowserhelper:androidbrowserhelper:2.5.0"
+}

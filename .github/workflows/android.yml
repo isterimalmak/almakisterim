@@ -1,0 +1,72 @@
+name: Android paketi
+
+# Google Play'e yüklenecek Android paketini (.aab) derler. Yayın yapmaz: paket Actions sayfasından indirilip
+# Play Console'a elle yüklenir. Yalnızca elle ve main dalından başlatılır.
+# İmza (yükleme) anahtarı Secret Manager'dadır (infra/android-anahtar.sh ile bir kez oluşturulur); depoda tutulmaz.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  paket:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Yetki kontrolü
+        env:
+          KIM: ${{ github.triggering_actor }}
+          DAL: ${{ github.ref }}
+        run: |
+          [[ "$KIM" == "isterimalmak" || "$KIM" == "coskungulerlokalusta" ]] || { echo "::error::Bu hesap paket derleyemez: $KIM"; exit 1; }
+          [[ "$DAL" == "refs/heads/main" ]] || { echo "::error::Paket yalnızca main dalından derlenir."; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+
+      - name: İmza anahtarını kasadan al
+        run: |
+          gcloud secrets describe ANDROID_UPLOAD_KEYSTORE >/dev/null 2>&1 || { echo "::error::Yükleme anahtarı yok. Önce Cloud Shell'de bash infra/android-anahtar.sh çalıştırın."; exit 1; }
+          PASS=$(gcloud secrets versions access latest --secret ANDROID_UPLOAD_PASSWORD)
+          echo "::add-mask::$PASS"
+          echo "ANDROID_KEYSTORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
+          gcloud secrets versions access latest --secret ANDROID_UPLOAD_KEYSTORE | base64 -d > "$RUNNER_TEMP/upload.jks"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+
+      - name: Paketi derle
+        working-directory: apps/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: gradle --no-daemon bundleRelease
+
+      - name: Parmak izi ve özet
+        run: |
+          FP=$(keytool -list -v -keystore "$ANDROID_KEYSTORE_FILE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias upload | awk '/SHA256:/ {print $2; exit}')
+          rm -f "$ANDROID_KEYSTORE_FILE"
+          {
+            echo "### Android paketi hazır"
+            echo "- Sürüm kodu: ${{ github.run_number }}"
+            echo "- Paket: aşağıdaki **almakisterim-aab** dosyası (Play Console → Sürüm oluştur → yükle)"
+            echo "- Yükleme anahtarı SHA-256: \`$FP\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: almakisterim-aab
+          path: apps/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30

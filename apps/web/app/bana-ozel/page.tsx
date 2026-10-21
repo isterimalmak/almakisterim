@@ -155,6 +155,7 @@ function Account() {
         {user.phone ? <p>Doğrulanmış numaranız: <b>{user.phone.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4")}</b></p>
           : <><p className="muted" style={{ marginBottom: 10, fontSize: 13 }}>Talep vermek için doğrulanmış bir telefon numarası gerekir.</p><PhoneVerify /></>}
       </div></div>
+      <DeleteAccount />
     </>
   );
 
@@ -174,6 +175,35 @@ function Account() {
       </nav>
       <div>{content}</div>
     </div>
+  );
+}
+
+// Hesap silme (Google Play / App Store zorunluluğu): "SİL" yazılınca hesap kalıcı olarak silinir.
+function DeleteAccount() {
+  const { user, refresh, toast } = useSession();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [txt, setTxt] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (user?.role === "admin") return null;
+  const go = async () => {
+    setBusy(true);
+    try { await api("/me", { method: "DELETE", body: { onay: txt.trim() } }); await refresh(); toast("Hesabınız silindi."); router.push("/"); }
+    catch (e) { toast((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="box" style={{ marginTop: 14 }}><div className="box-h"><h2>Hesabı sil</h2></div><div className="box-b">
+      <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Hesabınızı silerseniz adınız, telefon numaranız ve e-posta adresiniz kalıcı olarak silinir; açık talepleriniz kapanır, alarmlarınız ve favorileriniz silinir. Bu işlem geri alınamaz. Ayrıntılar: <Link className="link" href="/sayfa/hesap-silme">Hesap silme</Link></p>
+      {!open ? <button className="btn btn-wh" onClick={() => setOpen(true)}>Hesabımı sil</button> : (
+        <div style={{ display: "grid", gap: 8, maxWidth: 360 }}>
+          <label htmlFor="del-ok" style={{ fontSize: 13, fontWeight: 700 }}>Onaylamak için kutuya büyük harflerle SİL yazın</label>
+          <input id="del-ok" className="inp" value={txt} onChange={(e) => setTxt(e.target.value)} autoComplete="off" />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-or" disabled={busy || txt.trim() !== "SİL"} onClick={go}>Hesabımı kalıcı olarak sil</button>
+            <button className="btn btn-gh" onClick={() => { setOpen(false); setTxt(""); }}>Vazgeç</button>
+          </div>
+        </div>)}
+    </div></div>
   );
 }
 
