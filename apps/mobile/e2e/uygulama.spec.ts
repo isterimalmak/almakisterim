@@ -19,6 +19,7 @@ async function login(page: Page, phone: string, name: string) {
   await page.getByRole("button", { name: "Giriş yap / Üye ol" }).click();
   await page.getByLabel("Cep telefonu").fill(phone);
   await page.getByRole("button", { name: "Kod gönder" }).click();
+  await expect(page.getByLabel("Gelen 6 haneli kod")).toBeVisible();
   await page.getByLabel("Gelen 6 haneli kod").fill(await code(page, "90" + phone.slice(1)));
   await page.getByLabel("Adınız soyadınız (yeni üyeyseniz)").fill(name);
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
@@ -62,6 +63,7 @@ test("alıcı uygulamadan giriş yapar, tek cümleyle talep verir, fotoğraf ekl
   await expect(page.getByRole("button", { name: "Fotoğrafı kaldır" })).toBeVisible();
   await page.getByLabel("Kuralları onaylıyorum").click();
   await page.getByRole("button", { name: "SMS onay kodu gönder" }).click();
+  await expect(page.getByLabel("SMS ile gelen 6 haneli kod")).toBeVisible();
   await page.getByLabel("SMS ile gelen 6 haneli kod").fill(await code(page, "90" + phone.slice(1)));
   await page.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
@@ -126,6 +128,7 @@ test("araç talebi: yapay zekâ markayı doldurur, ikinci araç seçilir; talep 
   }
   await page.getByLabel("Kuralları onaylıyorum").click();
   await page.getByRole("button", { name: "SMS onay kodu gönder" }).click();
+  await expect(page.getByLabel("SMS ile gelen 6 haneli kod")).toBeVisible();
   await page.getByLabel("SMS ile gelen 6 haneli kod").fill(await code(page, "90" + phone.slice(1)));
   await page.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(page.getByText("Model yılı", { exact: true })).toBeVisible();
@@ -185,6 +188,7 @@ test("e-postayla giren üye uygulamada telefon numarasını SMS koduyla doğrula
   const phone = `0539${rnd().slice(0, 7)}`;
   await page.getByLabel("Cep telefonu").fill(phone);
   await page.getByRole("button", { name: "Doğrulama kodu gönder" }).click();
+  await expect(page.getByLabel("SMS ile gelen 6 haneli kod")).toBeVisible();
   await page.getByLabel("SMS ile gelen 6 haneli kod").fill(await code(page, "90" + phone.slice(1)));
   await page.getByRole("button", { name: "Numarayı doğrula" }).click();
   await expect(page.getByText(`Telefon: ${phone}`, { exact: false })).toBeVisible();
@@ -207,4 +211,40 @@ test("talepler: arama yapılınca son aramalarda kalır, dokununca yeniden aran�
   await box.focus();
   await recent.getByRole("button", { name: "Temizle" }).click();
   await expect(page.getByLabel("Son aramalar")).toHaveCount(0);
+});
+
+test("emlak talebi: yapay zekâ oda sayısını doldurur, elle değişir; mahalle, acil ve 30 gün seçilir; talep sayfasında görünür", async ({ page }) => {
+  const phone = `0539${rnd().slice(0, 7)}`;
+  await login(page, phone, "Emlak Alıcı");
+  await page.goto("/talep-ver");
+  await page.getByLabel("Tek cümleyle yazın").fill("Kadıköy'de 3+1 kiralık daire arıyorum, en az 100 m², bütçem 40 bin TL, İstanbul");
+  await page.getByRole("button", { name: "Yapay zekâ ile doldur" }).click();
+  await expect(page.getByText(/Doldurduk/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Oda sayısı: 3+1" })).toBeVisible();
+  await choose(page, "Oda sayısı", "2+1");
+  await choose(page, "Isıtma", "Kombi");
+  await page.getByLabel("m² (en az)").fill("90");
+  await expect(page.getByRole("button", { name: /^İlçe: Kadıköy/ })).toBeVisible();
+  await choose(page, "Mahalle", "Caferağa");
+  await page.getByLabel("Talep başlığı *").fill(`Uygulamadan kiralık ${rnd()}`);
+  // Hazır görseller penceresi açılır (test galerisinde görsel olmayabilir), kapatılıp kendi fotoğrafı eklenir.
+  await page.getByRole("button", { name: "Hazır görsellerden seç" }).click();
+  await expect(page.getByRole("heading", { name: "Hazır görseller" })).toBeVisible();
+  await page.getByRole("button", { name: "Kapat" }).click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "🖼 Galeriden seç" }).click();
+  await (await chooser).setFiles({ name: "ev.png", mimeType: "image/png", buffer: PNG });
+  await page.getByLabel("Acil talep").click();
+  await page.getByRole("radio", { name: "30 gün" }).click();
+  await page.getByLabel("Kuralları onaylıyorum").click();
+  await page.getByRole("button", { name: "SMS onay kodu gönder" }).click();
+  await expect(page.getByLabel("SMS ile gelen 6 haneli kod")).toBeVisible();
+  await page.getByLabel("SMS ile gelen 6 haneli kod").fill(await code(page, "90" + phone.slice(1)));
+  const pub = page.waitForResponse((r) => r.url().endsWith("/api/requests") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Talebi Yayınla" }).click();
+  const body = JSON.parse((await pub).request().postData()!);
+  expect(body).toMatchObject({ is_urgent: true, days: 30, neighbourhood: "Caferağa", attrs: { oda: "2+1", isitma: "Kombi", m2: 90 } });
+  await expect(page.getByText("ACİL").first()).toBeVisible();
+  await expect(page.getByText("Oda sayısı", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("2+1", { exact: true }).last()).toBeVisible();
 });

@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/Sheet";
 import { Box, Btn, Err, Loading } from "@/components/ui";
 import { abs, api, API_URL, ApiError } from "@/lib/api";
+import { attrsFor } from "@/lib/catalog";
 import { confirm } from "@/lib/confirm";
 import { ago, dateTr, isAny, place, price } from "@/lib/format";
 import { isVehicleSub, vehicleRows, type VehicleAttrs } from "@/lib/vehicles";
@@ -38,6 +39,8 @@ export default function Talep() {
   if (!d) return <Loading />;
   const r = d.request;
   const media = (r.media ?? []).filter((m) => m.kind === "image");
+  // Alan adları kategorinin tanımından (oda sayısı, m², ısıtma…).
+  const labels: Record<string, string> = Object.fromEntries(attrsFor(r.top_id, r.category_id).map((a) => [a.k, a.l.replace(/ \(.*\)$/, "")]));
   // Araç taleplerinde marka/model, yıl ve km aralıkları okunur satırlara çevrilir.
   const attrs: [string, unknown][] = isVehicleSub(r.category_id) ? vehicleRows(r.attrs as VehicleAttrs)
     : Object.entries(r.attrs ?? {}).filter(([, v]) => !isAny(v) && typeof v !== "boolean" && (typeof v !== "object" || Array.isArray(v))).slice(0, 14);
@@ -91,7 +94,11 @@ export default function Talep() {
         ) : null}
         <View style={{ padding: 14, gap: 12 }}>
           <View style={{ gap: 6 }}>
-            <Text style={{ color: C.muted, fontSize: 12 }}>{r.top_name} › {r.category_name}</Text>
+            <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+              {r.is_urgent ? <Text style={{ backgroundColor: C.red, color: "#fff", fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>ACİL</Text> : null}
+              {r.is_corporate ? <Text style={{ backgroundColor: C.navy, color: "#fff", fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>KURUMSAL</Text> : null}
+              <Text style={{ color: C.muted, fontSize: 12 }}>{r.top_name} › {r.category_name}</Text>
+            </View>
             <Text accessibilityRole="header" style={{ fontSize: 20, fontWeight: "800", color: C.navy }}>{r.title}</Text>
             <Text style={{ fontSize: 24, fontWeight: "800", color: C.orange }}>{price(r.budget_max)}</Text>
             <Text style={{ color: C.muted }}>{place(r)} · {ago(r.created_at)}</Text>
@@ -99,7 +106,7 @@ export default function Talep() {
           </View>
           <Box title="Talep bilgileri">
             {[["Talep no", `#${r.id}`], ["Kategori", r.category_name], ["Konum", [r.city, r.district, r.neighbourhood].filter(Boolean).join(" / ")], ...(isAny(r.condition) ? [] : [["Durum", r.condition]]),
-              ...attrs.map(([k, v]) => [LABELS[k] ?? k.replace(/_/g, " "), val(v)]), ["Yayın tarihi", dateTr(r.created_at)], ["Son tarih", dateTr(r.expires_at)], ["Teklif", String(r.offer_count)]]
+              ...attrs.map(([k, v]) => [labels[k] ?? LABELS[k] ?? k.replace(/_/g, " "), val(v)]), ["Yayın tarihi", dateTr(r.created_at)], ["Son tarih", dateTr(r.expires_at)], ["Teklif", String(r.offer_count)]]
               .filter(([, v]) => v).map(([k, v]) => (
                 <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", gap: 10, borderBottomWidth: 1, borderBottomColor: C.bg, paddingBottom: 6 }}>
                   <Text style={{ color: C.muted }}>{k}</Text><Text style={{ fontWeight: "700", color: C.text, flexShrink: 1, textAlign: "right" }}>{v}</Text>
