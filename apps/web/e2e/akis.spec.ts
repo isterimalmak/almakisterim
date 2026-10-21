@@ -569,17 +569,40 @@ test("telefonda ana sayfa: üstte arama ve bildirim, kategoriler ve vitrin yana 
   await expect(page).toHaveURL(/kategori\?q=laptop/);
 });
 
-test("talepler listesi: lacivert başlık kartı; telefonda talepler yuvarlak kart, bütçe turuncu şeritte", async ({ page }, info) => {
-  await page.goto("/kategori");
-  const hero = page.locator(".lst-hero");
-  await expect(hero.getByText("Alım Talepleri", { exact: true })).toBeVisible();
-  await expect(hero.getByRole("heading", { level: 1 })).toBeVisible();
+test("talepler listesi: bilgisayarda lacivert başlık kartı; telefonda sahibinden gibi üst çubuk (Filtrele, Sırala, Görünüm, Aramayı Kaydet)", async ({ page }, info) => {
+  await page.goto("/kategori/vasita");
   const row = page.locator(".rq-tbl tr.row").first();
   await expect(row).toBeVisible();
-  if (info.project.name === "telefon") {
-    expect(parseFloat(await row.evaluate((e) => getComputedStyle(e).borderTopLeftRadius))).toBeGreaterThan(8);
-    expect(await row.locator(".budget").evaluate((e) => getComputedStyle(e).display)).toBe("flex");
+  if (info.project.name !== "telefon") {
+    const hero = page.locator(".lst-hero");
+    await expect(hero.getByText("Alım Talepleri", { exact: true })).toBeVisible();
+    await expect(hero.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.locator(".lst-app")).toBeHidden();
+    return;
   }
+  // Telefon: lacivert çubukta başlık ve talep sayısı; sitenin üst çubuğu ve büyük başlık kartı gizli.
+  const bar = page.locator(".lst-app");
+  await expect(bar.getByText("Vasıta Alım Talepleri")).toBeVisible();
+  await expect(bar.getByText(/alıcı talebi|Uygun talep yok/)).toBeVisible();
+  await expect(page.locator(".lst-hero")).toBeHidden();
+  await expect(page.locator("header.hdr")).toBeHidden();
+  for (const n of ["Filtrele", "Görünüm", "Aramayı Kaydet"]) await expect(bar.getByRole("button", { name: new RegExp(n) })).toBeVisible();
+  await expect(bar.getByLabel("Sırala")).toBeAttached();
+  await expect(bar.locator(".lst-sort")).toBeVisible();
+  // Kart görünümü: yuvarlak kart, bütçe turuncu şeritte. Görünüm → sık liste; tercih hatırlanır.
+  expect(parseFloat(await row.evaluate((e) => getComputedStyle(e).borderTopLeftRadius))).toBeGreaterThan(8);
+  expect(await row.locator(".budget").evaluate((e) => getComputedStyle(e).display)).toBe("flex");
+  await bar.getByRole("button", { name: /Görünüm/ }).click();
+  await expect(page.locator(".tbl-wrap.lst-compact")).toBeVisible();
+  expect(parseFloat(await row.evaluate((e) => getComputedStyle(e).borderTopLeftRadius))).toBe(0);
+  await page.reload();
+  await expect(page.locator(".tbl-wrap.lst-compact")).toBeVisible();
+  // Sırala: seçim listeyi yeniden sıralar; Aramayı Kaydet girişsiz uyarır.
+  await bar.getByLabel("Sırala").selectOption("budget_desc");
+  await expect(bar.getByLabel("Sırala")).toHaveValue("budget_desc");
+  await bar.getByRole("button", { name: "Aramayı Kaydet", exact: true }).click();
+  await expect(page.getByText("Aramayı kaydetmek için giriş yapın.")).toBeVisible();
+  await page.evaluate(() => localStorage.removeItem("ak_gorunum"));
 });
 
 test("sayfalar yana taşmıyor", async ({ page }) => {

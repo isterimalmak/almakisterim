@@ -1,3 +1,4 @@
+import { mailProvider, smtpFrom } from "../services/notify.js";
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from 'fastify';
@@ -451,7 +452,7 @@ export function mailStudioRoutes(app: FastifyInstance, deps: Deps) {
          FROM mail_sends WHERE created_at > $1 AND status <> 'test'`, [new Date(Date.now() - 30 * 86400e3)])).rows[0];
     const optin = (await pool.query<{ all: number; optin: number }>('SELECT count(*)::int AS "all", count(*) FILTER (WHERE marketing_at IS NOT NULL)::int AS optin FROM users')).rows[0];
     return {
-      ready: !!config.RESEND_API_KEY.trim(), from: config.MAIL_FROM,
+      ready: !!mailProvider(config), provider: mailProvider(config), from: mailProvider(config) === "smtp" ? smtpFrom(config) : config.MAIL_FROM,
       totals: { sent: Number(week?.sent ?? 0), opened: Number(week?.opened ?? 0), clicked: Number(week?.clicked ?? 0), queued: Number(week?.queued ?? 0), users: Number(optin?.all ?? 0), optin: Number(optin?.optin ?? 0) },
       templates: templates.map(t => ({ ...outTpl(t), uses: rules.filter(r => r.template_id === t.id).length })),
       rules: rules.map(r => ({ id: r.id, name: r.name, templateId: r.template_id, trigger: r.trigger, audience: r.audience, delayMin: r.delay_min, sendAt: r.send_at, quietHours: r.quiet_hours, subjectB: r.subject_b, active: r.active, firedAt: r.fired_at, stats: st(r.id) })),
@@ -513,7 +514,7 @@ export function mailStudioRoutes(app: FastifyInstance, deps: Deps) {
     await pool.query(`INSERT INTO mail_sends (template_id, user_id, email, subject, status, token, sent_at, note) VALUES ($1,$2,$3,$4,'test',$5,now(),$6)`,
       [t.id, u.id, to, r.subject, token(), ok ? 'Deneme' : 'Deneme gönderilemedi']);
     if (!ok) throw new HttpError(502, 'eposta_gonderilemedi', 'E-posta servisi deneme e-postasını kabul etmedi');
-    return { ok: true, to, ready: !!config.RESEND_API_KEY.trim() };
+    return { ok: true, to, ready: !!mailProvider(config) };
   });
 
   app.get('/admin/mail/audience', async (req) => {

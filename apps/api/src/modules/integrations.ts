@@ -1,3 +1,4 @@
+import { mailProvider, SmtpMailer } from "../services/notify.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAdmin, type Deps } from "../context.js";
@@ -10,6 +11,15 @@ type Test = { ok: boolean; message: string };
 const msg = (e: unknown) => String((e as Error).message ?? e).slice(0, 300);
 
 // Yönetim → Entegrasyonlar: anahtar girme, silme ve her hizmet için deneme. Gizli değerler hiçbir yanıtta dönmez, loga yazılmaz.
+// SMTP hatasını anlaşılır Türkçeye çevirir (şifre hiçbir zaman yazılmaz).
+function smtpReason(e: unknown) {
+  const x = e as { code?: string; responseCode?: number; message?: string };
+  if (x.code === "EAUTH" || x.responseCode === 535) return "kullanıcı adı ya da şifre yanlış (Gmail'de normal şifre yerine uygulama şifresi gerekir).";
+  if (x.code === "ETIMEDOUT" || x.code === "ECONNECTION" || x.code === "ESOCKET") return "sunucuya ulaşılamadı; sunucu adını ve portu (465 ya da 587) kontrol edin.";
+  if (x.code === "EDNS" || x.code === "ENOTFOUND") return "sunucu adı bulunamadı; SMTP sunucusu adresini kontrol edin.";
+  return (x.message ?? "bilinmeyen hata").replace(/pass(word)?[^\s]*/gi, "").slice(0, 160);
+}
+
 export function integrationRoutes(app: FastifyInstance, deps: Deps) {
   const { config } = deps;
   const integ = () => {
@@ -21,7 +31,7 @@ export function integrationRoutes(app: FastifyInstance, deps: Deps) {
     requireAdmin(req);
     const has = (...v: string[]) => v.every((x) => !!x.trim());
     const connected: Record<string, boolean> = {
-      ai: has(config.ANTHROPIC_API_KEY), mail: has(config.RESEND_API_KEY), sms: has(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER),
+      ai: has(config.ANTHROPIC_API_KEY), mail: has(config.RESEND_API_KEY), smtp: has(config.SMTP_HOST, config.SMTP_USER, config.SMTP_PASS), sms: has(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER),
       photos: deps.photos?.enabled ?? (has(config.PIXABAY_API_KEY) || has(config.PEXELS_API_KEY)), google: deps.google.enabled, storage: deps.storage.enabled, pay: has(config.IYZICO_API_KEY, config.IYZICO_SECRET_KEY),
     };
     return { groups: integ().status().map((g) => ({ ...g, connected: !!connected[g.id] })) };
@@ -59,9 +69,18 @@ export function integrationRoutes(app: FastifyInstance, deps: Deps) {
         }
         case "mail": {
           if (!config.RESEND_API_KEY.trim()) return { ok: false, message: "API anahtarı girilmemiş." };
+          if (mailProvider(config) === "smtp") return { ok: true, message: "Kendi sunucunuz (SMTP) bilgileri girili olduğu için e-postalar şu an SMTP'den gidiyor; Resend yedekte. Denemek için SMTP kartındaki Test et'e basın." };
           if (!admin.email) return { ok: false, message: "Deneme e-postası için yönetici hesabınızda e-posta adresi olmalı." };
           await deps.mailer.send(admin.email, "almakisterim deneme e-postası", "Bu bir deneme e-postasıdır. E-posta gönderimi çalışıyor.");
           return { ok: true, message: `Deneme e-postası ${admin.email} adresine gönderildi. Gelen kutunuzu (ve istenmeyen klasörünü) kontrol edin.` };
+        }
+        case "smtp": {
+          if (!(config.SMTP_HOST.trim() && config.SMTP_USER.trim() && config.SMTP_PASS)) return { ok: false, message: "SMTP sunucusu, kullanıcı adı ve şifre girilmeli." };
+          if (!admin.email) return { ok: false, message: "Deneme e-postası için yönetici hesabınızda e-posta adresi olmalı." };
+          const m = new SmtpMailer(config.SMTP_HOST.trim(), Number(config.SMTP_PORT) || 465, config.SMTP_USER.trim(), config.SMTP_PASS, `almakisterim <${config.SMTP_USER.trim()}>`);
+          try { await m.verify(); } catch (e) { return { ok: false, message: `Sunucuya bağlanılamadı: ${smtpReason(e)}` }; }
+          await deps.mailer.send(admin.email, "almakisterim deneme e-postası", "Bu bir deneme e-postasıdır. Kendi sunucunuz (SMTP) üzerinden e-posta gönderimi çalışıyor.");
+          return { ok: true, message: `Bağlantı başarılı; deneme e-postası ${admin.email} adresine gönderildi. Artık bütün e-postalar bu sunucudan gider.` };
         }
         case "sms": {
           if (!(config.NETGSM_USERCODE.trim() && config.NETGSM_PASSWORD.trim() && config.NETGSM_HEADER.trim())) return { ok: false, message: "Kullanıcı kodu, şifre ve mesaj başlığının üçü de girilmeli." };
