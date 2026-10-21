@@ -67,7 +67,9 @@ test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevap
   // Başlığı yapay zekâ (ya da yedek doldurucu) kendisi kurar; cümle kopyalanmaz. Test kendi benzersiz başlığını yazar.
   await expect(buyer.getByLabel("Talep başlığı *")).not.toHaveValue("");
   await buyer.getByLabel("Talep başlığı *").fill(title);
-  await expect(buyer.getByLabel("En fazla bütçe (TL) *")).toHaveValue("15000");
+  await expect(buyer.getByLabel("Fiyat (TL) *")).toHaveValue("15000");
+  // Fiyat aralığı yok: tek fiyat girilir.
+  await expect(buyer.getByLabel(/En az bütçe/)).toHaveCount(0);
   await expect(buyer.getByLabel("İl *")).toHaveValue("Ankara");
   // Fotoğraf zorunlu: fotoğrafsız devam edilemez.
   await buyer.getByRole("button", { name: "Devam" }).click();
@@ -79,6 +81,7 @@ test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevap
   await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  await expect(buyer.locator(".rq-budget")).toHaveText("15.000 TL");
   const url = buyer.url();
 
   const sellerCtx = await browser.newContext();
@@ -970,7 +973,7 @@ test("tek cümleden talep: yapay zekâ kategori, il/ilçe/mahalle, oda, m², eş
   await expect(page.getByLabel("İl *")).toHaveValue("İstanbul");
   await expect(page.getByLabel("İlçe")).toHaveValue("Kadıköy");
   await expect(page.getByLabel("Mahalle")).toHaveValue("Caddebostan");
-  await expect(page.getByLabel("En fazla bütçe (TL) *")).toHaveValue("40000");
+  await expect(page.getByLabel("Fiyat (TL) *")).toHaveValue("40000");
   await expect(page.getByLabel("Oda sayısı")).toHaveValue("3+1");
   await expect(page.getByLabel("m² (en az)")).toHaveValue("120");
   await expect(page.getByLabel("Eşya durumu")).toHaveValue("Eşyalı");

@@ -72,10 +72,14 @@ describe("talepler", () => {
     expect(r.statusCode).toBe(400);
   });
 
-  it("geçersiz bütçe ve il reddedilir", async () => {
+  it("talepte tek fiyat: gelen en az bütçe yok sayılır; fiyatsız talep ve geçersiz il reddedilir", async () => {
     const cookie = await login(ctx, "05321112233");
     const a = await ctx.app.inject({ method: "POST", url: "/api/requests", headers: { cookie }, payload: { ...sampleRequest, budget_min: 30000 } });
-    expect(a.statusCode).toBe(400);
+    expect(a.statusCode, a.body).toBe(201);
+    const got = (await ctx.app.inject({ url: `/api/requests/${a.json().id}` })).json().request;
+    expect(got.budget_min).toBe(got.budget_max);
+    expect(got.budget_max).toBe(sampleRequest.budget_max);
+    expect((await ctx.app.inject({ method: "POST", url: "/api/requests", headers: { cookie }, payload: { ...sampleRequest, budget_max: 0 } })).statusCode).toBe(400);
     const b = await ctx.app.inject({ method: "POST", url: "/api/requests", headers: { cookie }, payload: { ...sampleRequest, city: "Atlantis" } });
     expect(b.statusCode).toBe(400);
   });

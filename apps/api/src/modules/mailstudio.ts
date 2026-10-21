@@ -233,7 +233,7 @@ async function loadRequests(pool: Pool, storage: MediaStorage, blocks: Block[]) 
             (SELECT md.storage_key FROM media md WHERE md.request_id = r.id AND md.kind = 'image' ORDER BY md.position LIMIT 1) AS cover_key
        FROM requests r WHERE r.id = ANY($1::bigint[]) AND r.status = 'active' AND r.expires_at > now()`, [ids]);
   const tl = (n: number) => n.toLocaleString('tr-TR');
-  for (const r of rows) m.set(r.id, { title: r.title, budget: r.budget_min && r.budget_min !== r.budget_max ? `${tl(r.budget_min)} – ${tl(r.budget_max)} TL` : `${tl(r.budget_max)} TL`, city: [r.city, r.district].filter(Boolean).join(' / '), image: r.cover_key ? storage.publicUrl(r.cover_key) : null, url: `/talep/${r.id}` });
+  for (const r of rows) m.set(r.id, { title: r.title, budget: `${tl(r.budget_max)} TL`, city: [r.city, r.district].filter(Boolean).join(' / '), image: r.cover_key ? storage.publicUrl(r.cover_key) : null, url: `/talep/${r.id}` });
   return m;
 }
 const varsOf = (u: { name: string; email: string | null }, origin: string, req?: { id: number | null; title: string | null }) => ({ ad: u.name.trim().split(/\s+/)[0] ?? '', adsoyad: u.name, eposta: u.email ?? '', site: origin.replace(/^https?:\/\//, ''), talep: req?.title ?? '', talepno: req?.id ? String(req.id) : '' });

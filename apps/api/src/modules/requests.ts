@@ -295,8 +295,8 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
           : "Talep vermek için en az bir fotoğraf ekleyin. Kendi fotoğrafınızı yükleyebilir ya da hazır görsellerden seçebilirsiniz.");
       }
     }
-    const budgetMin = b.budget_min ?? Math.round(b.budget_max * 0.8);
-    if (budgetMin > b.budget_max) throw new HttpError(400, "butce_gecersiz", "En az bütçe, en fazla bütçeden büyük olamaz.");
+    // Talepte tek fiyat girilir; eski istemcilerden gelen en az bütçe yok sayılır.
+    const budgetMin = b.budget_max;
     // Kod, bütün kontroller geçtikten sonra harcanır; numarası olmayan üyenin doğruladığı numara hesabına eklenir.
     if (pubPhone) {
       await codes.consumeCode("sms", pubPhone, b.phone_code!);
