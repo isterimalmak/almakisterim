@@ -367,7 +367,7 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   // Ana Sayfa Düzeni (Marka Bahçem vitrini gibi): son talepler en üste taşınır; yazı ve kayan yazı bölümü eklenir.
   const htag = rnd();
   await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
-  for (let i = 0; i < 6; i++) await Promise.all([page.waitForResponse((r) => r.url().includes("/api/categories")), page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" }).click()]);
+  for (let i = 0; i < 8; i++) await Promise.all([page.waitForResponse((r) => r.url().includes("/api/categories")), page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" }).click()]);
   await expect(page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" })).toBeDisabled();
   await page.getByRole("button", { name: /Yazı \/ duyuru/ }).click();
   await page.getByLabel("Başlık", { exact: true }).fill(`Hoş geldiniz ${htag}`);
@@ -524,6 +524,22 @@ test("yönetici kayan vitrin ekler: adını, talebini ve hızını seçer; ana s
   expect(anim.name).toBe("sc-move");
   expect(anim.dur).toBeCloseTo(2.4 * 8, 1);
 
+  // Vasıta Talepleri bölümüne başka kategorideki talep elle eklenir; ana sayfada görünür; Çıkar ile kaldırılır.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
+  await page.getByRole("button", { name: "Vasıta Talepleri (vitrin) düzenle" }).click();
+  await page.getByLabel("Vasıta Talepleri bölümüne eklenecek talebi ara").fill(title);
+  await page.getByRole("button", { name: "Ara", exact: true }).last().click();
+  await Promise.all([saved(), page.getByRole("button", { name: `${title} bölüme ekle` }).click()]);
+  await page.goto("/");
+  await expect(page.getByRole("region", { name: "Vasıta Talepleri" }).getByText(title).first()).toBeVisible();
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
+  await page.getByRole("button", { name: "Vasıta Talepleri (vitrin) düzenle" }).click();
+  await Promise.all([saved(), page.getByRole("button", { name: `${title} vitrinden çıkar` }).click()]);
+  await page.goto("/");
+  await expect(page.getByRole("region", { name: "Vasıta Talepleri" }).getByText(title)).toHaveCount(0);
+
   // Temizlik: kayan vitrin silinir.
   const { home_blocks } = await (await page.request.get("/api/categories")).json();
   const r = await page.request.put("/api/admin/home-blocks", { data: { blocks: home_blocks.filter((b: { type: string }) => b.type !== "showcase") } });
@@ -560,7 +576,7 @@ test("telefonda ana sayfa: üstte arama ve bildirim, kategoriler ve vitrin yana 
   await expect(page.locator(".mob-search").getByRole("link", { name: "Bildirimler" })).toBeVisible();
   // Kutucuklar ve vitrin kartları tek satırda, yana kaydırılarak gezilir.
   for (const sel of [".cat-tiles", ".vt-home"]) {
-    const el = page.locator(sel);
+    const el = page.locator(sel).first();
     await expect(el).toBeVisible();
     expect(await el.evaluate((e) => getComputedStyle(e).overflowX)).toBe("auto");
   }
@@ -603,6 +619,18 @@ test("talepler listesi: bilgisayarda lacivert başlık kartı; telefonda sahibin
   await bar.getByRole("button", { name: "Aramayı Kaydet", exact: true }).click();
   await expect(page.getByText("Aramayı kaydetmek için giriş yapın.")).toBeVisible();
   await page.evaluate(() => localStorage.removeItem("ak_gorunum"));
+});
+
+test("ana sayfada Vasıta Talepleri ve Emlak Talepleri bölümleri: kategorinin talepleri kendiliğinden gelir, Tümünü gör kategoriye gider", async ({ page }) => {
+  await page.goto("/");
+  const vas = page.getByRole("region", { name: "Vasıta Talepleri" });
+  const eml = page.getByRole("region", { name: "Emlak Talepleri" });
+  // Bu kategorilerde yayında talep varsa bölüm görünür (diğer testler vasıta ve emlak talebi açar).
+  if (await vas.count()) {
+    await expect(vas.locator(".vt-i").first()).toBeVisible();
+    await expect(vas.getByRole("link", { name: /Tümünü gör/ })).toHaveAttribute("href", "/kategori/vasita");
+  }
+  if (await eml.count()) await expect(eml.getByRole("link", { name: /Tümünü gör/ })).toHaveAttribute("href", "/kategori/emlak");
 });
 
 test("sayfalar yana taşmıyor", async ({ page }) => {
