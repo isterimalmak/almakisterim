@@ -3,12 +3,18 @@ import { alarmOwnersFor } from "./alarms.js";
 import { aiSettings } from "../services/ai-guard.js";
 import { mailEvent } from "./mailstudio.js";
 
-type Contact = { email: string | null; phone: string | null };
+type Contact = { email: string | null; phone: string | null; mail_prefs?: MailPrefs };
 
-// Kullanıcıya SMS (telefon varsa) veya e-posta ile kısa bildirim gönderir. Hata akışı durdurmaz.
-export async function notifyUser({ sms, mailer }: Pick<Deps, "sms" | "mailer">, to: Contact, subject: string, text: string) {
+// Üyenin Bana Özel → Bilgilerim'den açıp kapattığı e-posta bildirimleri; yazılmayan açık sayılır.
+export const MAIL_KINDS = ["offer", "accepted", "message"] as const;
+export type MailKind = (typeof MAIL_KINDS)[number];
+export type MailPrefs = Partial<Record<MailKind, boolean>>;
+export const wantsMail = (p: MailPrefs | undefined, kind: MailKind) => p?.[kind] !== false;
+
+// Kullanıcıya SMS (telefon varsa) veya e-posta ile kısa bildirim gönderir. E-posta, üye o bildirimi kapattıysa gitmez.
+export async function notifyUser({ sms, mailer }: Pick<Deps, "sms" | "mailer">, to: Contact, subject: string, text: string, kind?: MailKind) {
   if (to.phone) await sms.send(to.phone, text);
-  else if (to.email) await mailer.send(to.email, subject, text);
+  else if (to.email && (!kind || wantsMail(to.mail_prefs, kind))) await mailer.send(to.email, subject, text);
 }
 
 // Yeni talep yayına girince alarmı (kaydedilmiş araması) uyan satıcılara haber verilir.

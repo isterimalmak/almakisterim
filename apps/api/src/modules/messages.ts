@@ -5,6 +5,7 @@ import { requireUser, type Deps } from "../context.js";
 import type { Pool } from "../db.js";
 import { HttpError, publicName } from "../lib/util.js";
 import { notify } from "./contacts.js";
+import { wantsMail, type MailPrefs } from "./notifications.js";
 
 // Mesajlaşma: satıcı, iletişimini açtığı (numara gör) talebin sahibine yazar; alıcı cevap verir.
 // Konuşma anahtarı (talep, satıcı). Alıcı satıcıyı şikâyet ettiyse (iletişim geri alındıysa) satıcı yazamaz.
@@ -83,7 +84,15 @@ export function messageRoutes(app: FastifyInstance, deps: Deps) {
     const { rows } = await pool.query<{ id: number; created_at: string }>(
       "INSERT INTO messages (request_id, seller_id, sender_id, body) VALUES ($1, $2, $3, $4) RETURNING id, created_at", [id, sellerId, user.id, b.body]);
     const to = r.buyer_id === user.id ? sellerId : r.buyer_id;
-    await notify(pool, to, `"${r.title}" talebi için yeni mesajınız var.`, `/talep/${id}#mesajlar`);
+    const link = `/talep/${id}#mesajlar`;
+    // E-posta: aynı konuşma için saatte en fazla bir tane (art arda yazışmada gelen kutusu dolmasın); üye kapattıysa gitmez.
+    const recent = (await pool.query("SELECT 1 FROM notifications WHERE user_id = $1 AND link = $2 AND created_at > now() - interval '1 hour'", [to, link])).rowCount;
+    await notify(pool, to, `"${r.title}" talebi için yeni mesajınız var.`, link);
+    if (!recent) {
+      const u = (await pool.query<{ email: string | null; mail_prefs: MailPrefs }>("SELECT email, mail_prefs FROM users WHERE id = $1", [to])).rows[0];
+      if (u?.email && wantsMail(u.mail_prefs, "message"))
+        void deps.mailer.send(u.email, "Yeni mesajınız var", `"${r.title}" talebi için size yeni bir mesaj yazıldı.\n\n${deps.config.APP_URL}${link}`).catch(() => {});
+    }
     reply.code(201);
     return { id: Number(rows[0]!.id), mine: true, body: b.body, created_at: rows[0]!.created_at, read: false };
   });

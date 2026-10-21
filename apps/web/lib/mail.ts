@@ -26,6 +26,7 @@ export type MailRule = { id: number; name: string; templateId: number; trigger: 
 export type MailRuleInput = { name: string; templateId: number; trigger: MailTrigger; audience: MailAudience; delayMin: number; sendAt: string | null; quietHours: boolean; subjectB: string | null; active: boolean };
 export type MailHome = {
   ready: boolean; provider?: "smtp" | "resend" | null; from: string;
+  usage?: { day: number; month: number; limits: { day: number; month: number }; warn: boolean };
   totals: { sent: number; opened: number; clicked: number; queued: number; users: number; optin: number };
   templates: MailTemplate[]; rules: MailRule[];
   starters: { key: string; icon: string; name: string; desc: string; trigger: MailTrigger }[];

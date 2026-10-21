@@ -54,7 +54,7 @@ export function codeService(deps: Deps) {
     const text = `almakisterim ${purpose} kodunuz: ${code}. Kod ${CODE_TTL_MIN} dakika geçerlidir, kimseyle paylaşmayın.`;
     try {
       if (channel === "sms") await sms.send(target, text);
-      else await mailer.send(target, `almakisterim ${purpose} kodunuz`, text);
+      else await mailer.send(target, `almakisterim ${purpose} kodunuz`, text, { critical: true });
     } catch (e) {
       // Gönderilemeyen kod geçersiz sayılır; kullanıcı beklemeden tekrar deneyebilir.
       await pool.query("DELETE FROM auth_codes WHERE id = $1", [ins.rows[0]!.id]);
