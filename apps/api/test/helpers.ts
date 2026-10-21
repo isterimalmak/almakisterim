@@ -40,7 +40,8 @@ export async function login(ctx: TestCtx, phoneOrEmail: string, name = "Test Kul
   const channel = phoneOrEmail.includes("@") ? "email" : "sms";
   const r1 = await ctx.app.inject({ method: "POST", url: "/api/auth/code", payload: { channel, target: phoneOrEmail } });
   if (r1.statusCode !== 200) throw new Error("kod istenemedi: " + r1.body);
-  const sent = ctx.outbox.sent.at(-1)!;
+  // Arka planda giden bildirimler (mesaj, alarm e-postası) araya girebilir: giriş kodunu taşıyan son mesaj okunur.
+  const sent = ctx.outbox.sent.filter((m) => /giriş kodunuz/.test(m.text)).at(-1)!;
   const code = sent.text.match(/\d{6}/)![0];
   const r2 = await ctx.app.inject({ method: "POST", url: "/api/auth/verify", payload: { channel, target: phoneOrEmail, code, name } });
   if (r2.statusCode !== 200) throw new Error("doğrulanamadı: " + r2.body);
