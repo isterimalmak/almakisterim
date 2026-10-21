@@ -1,6 +1,6 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SUB_ATTRS } from "../src/data/attrs.js";
-import { PRODUCT_MODELS } from "../src/data/products.js";
 import { fillAttrs } from "../src/services/draft-fill.js";
 import { createRequest, login, makeApp, resetData, type TestCtx } from "./helpers.js";
 
@@ -10,12 +10,17 @@ afterAll(async () => { await ctx.app.close(); await ctx.pool.end(); });
 
 describe("ürün modelleri (marka → model)", () => {
   it("site, uygulama ve sunucudaki model listeleri aynı; her model kendi markasının seçeneklerinde", async () => {
-    for (const path of ["../../web/lib/products.ts", "../../mobile/src/lib/products.ts"]) {
-      const other = await import(new URL(path, import.meta.url).href) as { PRODUCT_MODELS: unknown };
-      expect(other.PRODUCT_MODELS).toEqual(PRODUCT_MODELS);
+    // Uygulamanın dosyaları içe aktarılmadan metin olarak karşılaştırılır (CI'da uygulama paketleri bu adımda kurulu değil).
+    const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+    const own = read("../src/data/products.ts");
+    for (const path of ["../../web/lib/products.ts", "../../mobile/src/lib/products.ts"]) expect(read(path)).toBe(own);
+    // Kategori alanları: uygulamadaki ATTRS / SUB_ATTRS / modelOf bölümleri sitedekiyle (draft.test.ts sunucuyla karşılaştırır) aynı.
+    const part = (src: string, from: string, to: string) => src.slice(src.indexOf(from), src.indexOf(to, src.indexOf(from)));
+    const web = read("../../web/lib/catalog.ts"), mobile = read("../../mobile/src/lib/catalog.ts");
+    for (const [from, to] of [["export const ATTRS", "\n};\n"], ["const modelOf", "\n"], ["export const SUB_ATTRS", "\n};\n"]] as const) {
+      expect(part(web, from, to).length).toBeGreaterThan(10);
+      expect(part(mobile, from, to)).toBe(part(web, from, to));
     }
-    const mobile = await import(new URL("../../mobile/src/lib/catalog.ts", import.meta.url).href) as { SUB_ATTRS: unknown };
-    expect(mobile.SUB_ATTRS).toEqual(SUB_ATTRS);
     for (const sub of ["telefon", "tablet", "bilgisayar"]) {
       const marka = SUB_ATTRS[sub]!.find((a) => a.k === "marka")!.o!;
       const model = SUB_ATTRS[sub]!.find((a) => a.k === "model")!;
