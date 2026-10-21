@@ -37,6 +37,10 @@ function Listing() {
   const hoods = useNeighbourhoods(f.city, f.district);
   const [data, setData] = useState<{ total: number; items: RequestItem[] } | null>(null);
   const [openFilters, setOpenFilters] = useState(false);
+  // Telefonda görünüm: büyük kart ya da sahibinden'deki gibi sık liste (tercih tarayıcıda hatırlanır).
+  const [view, setView] = useState<"kart" | "liste">("kart");
+  useEffect(() => { try { if (localStorage.getItem("ak_gorunum") === "liste") setView("liste"); } catch { /* yoksay */ } }, []);
+  const flipView = () => { const v = view === "kart" ? "liste" : "kart"; setView(v); try { localStorage.setItem("ak_gorunum", v); } catch { /* yoksay */ } };
   const [others, setOthers] = useState<RequestItem[] | null>(null);
   // Kategori veya adres çubuğundaki arama değişince filtreler sıfırlanır; ilk açılışta (zaten başlangıç değerleri) sıfırlanmaz,
   // yoksa kullanıcının sayfa açılırken seçtiği il kaybolur.
@@ -111,9 +115,43 @@ function Listing() {
   if (f.urgent) chips.push({ k: "u", l: "Acil", clear: () => set({ urgent: false }) });
   if (f.buyer) chips.push({ k: "buyer", l: f.buyer === "kurumsal" ? "Kurumsal alıcılar" : "Bireysel alıcılar", clear: () => set({ buyer: "" }) });
 
+  const share = async () => {
+    const url = window.location.href;
+    try { if (navigator.share) await navigator.share({ title, url }); else { await navigator.clipboard.writeText(url); toast("Bağlantı kopyalandı."); } } catch { /* vazgeçildi */ }
+  };
+  // Aramayı kaydet: seçili kategori ve filtrelerle talep alarmı kurulur; uyan yeni talep gelince haber verilir.
+  const saveSearch = async () => {
+    if (!user) return toast("Aramayı kaydetmek için giriş yapın.");
+    if (!top) return toast("Aramayı kaydetmek için önce bir kategori seçin.");
+    const filters = Object.fromEntries([...new URLSearchParams(qs).entries()].filter(([k]) => !["top", "sub", "sort", "page", "per", "city"].includes(k)));
+    try { await api("/me/alarms", { body: { category_id: sub || top, ...(f.city ? { city: f.city } : {}), filters } }); toast("Arama kaydedildi. Uygun yeni talep gelince size haber vereceğiz."); }
+    catch (e) { toast((e as Error).message); }
+  };
+
   return (
     <div className="wrap">
       <div className="crumb"><Link href="/">Ana Sayfa</Link> › <Link href="/kategori">Talepler</Link>{t && <> › <Link href={`/kategori/${t.id}`}>{t.name}</Link></>}{s && <> › {s.name}</>}</div>
+      {/* Telefonda sahibinden'deki gibi üst çubuk: geri, başlık + sayı, paylaş, aramayı kaydet; altında araç çubuğu */}
+      <div className="lst-app">
+        <div className="lst-app-bar">
+          <button type="button" className="lst-ab-ic" aria-label="Geri" onClick={() => (window.history.length > 1 ? window.history.back() : window.location.assign("/"))}><Icon name="chevl" size={24} sw={2.4} /></button>
+          <div className="lst-ab-t"><b>{title}</b><small>{!data ? "Yükleniyor…" : data.total > 0 ? `${count(data.total) !== null ? data.total.toLocaleString("tr-TR") + " " : ""}alıcı talebi` : "Uygun talep yok"}</small></div>
+          <button type="button" className="lst-ab-ic" aria-label="Paylaş" onClick={share}><Icon name="share" size={21} /></button>
+          <button type="button" className="lst-ab-ic" aria-label="Aramayı kaydet" onClick={() => void saveSearch()}><Icon name="bell" size={21} /></button>
+        </div>
+        <div className="lst-tools">
+          <button type="button" onClick={() => setOpenFilters((o) => !o)}>Filtrele{chips.length > 0 && <span className="badge">{chips.length}</span>}</button>
+          <label className="lst-sort">Sırala
+            <select value={f.sort} onChange={(e) => set({ sort: e.target.value })} aria-label="Sırala">
+              <option value="new">En yeni</option><option value="old">En eski</option>
+              <option value="budget_desc">Bütçe: yüksekten düşüğe</option><option value="budget_asc">Bütçe: düşükten yükseğe</option>
+              <option value="ending">Süresi yakında bitecek</option>
+            </select>
+          </label>
+          <button type="button" onClick={flipView} aria-label={`Görünüm: ${view === "kart" ? "liste" : "kart"} yap`}>Görünüm</button>
+          <button type="button" onClick={() => void saveSearch()}>Aramayı Kaydet</button>
+        </div>
+      </div>
       <div className="list-head lst-hero">
         <div><span className="rq-kind">Alım Talepleri</span><h1>{title}</h1>
           <p>{data && data.total > 0 && count(data.total) !== null ? <><b>{data.total}</b> alıcı, elindeki ürünü satacak satıcıyı bekliyor.</> : "Alıcılar ne aradığını yazdı; elinizde varsa hemen ulaşın."}</p></div>
@@ -190,7 +228,7 @@ function Listing() {
               </select>
             </div>
           </div>
-          <div className="tbl-wrap">
+          <div className={"tbl-wrap" + (view === "liste" ? " lst-compact" : "")}>
             {!data ? <div className="loading">Yükleniyor…</div> : data.total > 0 ? <RequestTable items={data.items} /> : (
               <div className="soon">
                 <h2>{s?.name ?? t?.name ?? "Bu arama"} için talepler yakında burada</h2>
