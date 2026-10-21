@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { attrsFor, CITIES, condsFor, NUM_SHORT, sellerNum } from "@/lib/catalog";
+import { attrsFor, CITIES, condsFor, NUM_SHORT, optionsFor, sellerNum } from "@/lib/catalog";
 import { useDistricts, useNeighbourhoods } from "@/lib/locations";
-import { brandsOf, isVehicleSub, useVehicleCatalog } from "@/lib/vehicles";
+import { brandsOf, isVehicleSub, useVehicleCatalog, variantsOf } from "@/lib/vehicles";
 import { fmt } from "@/lib/format";
 import { useSession } from "./Session";
 
@@ -33,11 +33,11 @@ export function alarmSummary(a: Pick<Alarm, "category_id" | "filters">, top?: st
   return out;
 }
 
-// Alarmdaki araç listesi "BMW:3 Serisi,Audi:" biçiminde saklanır (model boşsa markanın bütün modelleri).
-type Car = { marka: string; model: string };
-export const parseCars = (s: string): Car[] => s.split(",").filter(Boolean).map((x) => { const [marka = "", model = ""] = x.split(":"); return { marka, model }; });
-const carsTxt = (cars: Car[]) => cars.map((c) => `${c.marka}:${c.model}`).join(",");
-const carName = (c: Car) => (c.model ? `${c.marka} ${c.model}` : `${c.marka} (tüm modeller)`);
+// Alarmdaki araç listesi "BMW:3 Serisi:320d,Audi:" biçiminde saklanır (model boşsa markanın bütün modelleri, paket boşsa modelin bütün paketleri).
+type Car = { marka: string; model: string; paket: string };
+export const parseCars = (s: string): Car[] => s.split(",").filter(Boolean).map((x) => { const [marka = "", model = "", paket = ""] = x.split(":"); return { marka, model, paket }; });
+const carsTxt = (cars: Car[]) => cars.map((c) => `${c.marka}:${c.model}${c.paket ? `:${c.paket}` : ""}`).join(",");
+const carName = (c: Car) => (c.model ? [c.marka, c.model, c.paket].filter(Boolean).join(" ") : `${c.marka} (tüm modeller)`);
 
 // Çoklu seçim düğmeleri; hiçbiri seçili değilse "Farketmez" seçili görünür, ona basınca seçimler temizlenir.
 function Chips({ options, value, onChange, label }: { options: readonly string[]; value: string; onChange: (v: string) => void; label: string }) {
@@ -66,7 +66,7 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
   const districts = useDistricts(oneCity);
   const hoods = useNeighbourhoods(oneCity, f.district ?? "");
   // Araç listesi: marka + model seçip "Ekle"; listede istediği kadar araç olabilir.
-  const [mk, setMk] = useState(""), [md, setMd] = useState("");
+  const [mk, setMk] = useState(""), [md, setMd] = useState(""), [pk, setPk] = useState("");
   const cars = parseCars(f.araclar ?? "");
   const top = categories.find((t) => t.id === catId || t.subs.some((s) => s.id === catId));
   const sub = top?.subs.find((s) => s.id === catId);
@@ -86,21 +86,23 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
   };
   const addCar = () => {
     if (!mk) return;
-    const next = cars.filter((c) => !(c.marka === mk && (c.model === md || !md)) && !(c.marka === mk && !c.model && md));
-    set({ araclar: carsTxt([...next, { marka: mk, model: md }]) });
-    setMd("");
+    const p = md ? pk : "";
+    // Aynı araç ya da onu kapsayan/kapsadığı seçim yerine yenisi konur (bütün model ↔ tek paket).
+    const next = cars.filter((c) => !(c.marka === mk && (!md || !c.model || (c.model === md && (!p || !c.paket || c.paket === p)))));
+    set({ araclar: carsTxt([...next, { marka: mk, model: md, paket: p }]) });
+    setMd(""); setPk("");
   };
   const addCity = (c: string) => { if (c && !cities.includes(c)) set({ city: [...cities, c].join(","), district: "", neighbourhood: "" }); };
   const save = async () => {
     if (!catId) return toast("Ana kategori seçin.");
     // Listeye eklenmeden bırakılan marka/model de alarma girsin.
     const body = { ...f };
-    if (mk && !cars.some((c) => c.marka === mk && c.model === md)) body.araclar = carsTxt([...cars, { marka: mk, model: md }]);
+    if (mk && !cars.some((c) => c.marka === mk && c.model === md && c.paket === (md ? pk : ""))) body.araclar = carsTxt([...cars, { marka: mk, model: md, paket: md ? pk : "" }]);
     setBusy(true);
     try {
       await api("/me/alarms", { body: { category_id: catId, filters: body } });
       toast("Alarm kuruldu. Uygun yeni talep gelince haber vereceğiz.");
-      setCatId(""); setF({}); setMk(""); setMd(""); onSaved();
+      setCatId(""); setF({}); setMk(""); setMd(""); setPk(""); onSaved();
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
 
@@ -131,12 +133,13 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
           <>
             <div className="fg full al-cars"><label>Elinizdeki araçlar <span className="muted">(istediğiniz kadar ekleyin; birine uyan talep gelince haber veririz)</span></label>
               <div className="al-car-add">
-                <select className="sel" aria-label="Marka" value={mk} onChange={(e) => { setMk(e.target.value); setMd(""); }}><option value="">Marka seçin</option>{Object.keys(brands).map((b) => <option key={b}>{b}</option>)}</select>
-                <select className="sel" aria-label="Model" value={md} disabled={!mk} onChange={(e) => setMd(e.target.value)}><option value="">Tüm modeller</option>{(brands[mk] ?? []).map((m) => <option key={m}>{m}</option>)}</select>
+                <select className="sel" aria-label="Marka" value={mk} onChange={(e) => { setMk(e.target.value); setMd(""); setPk(""); }}><option value="">Marka seçin</option>{Object.keys(brands).map((b) => <option key={b}>{b}</option>)}</select>
+                <select className="sel" aria-label="Model" value={md} disabled={!mk} onChange={(e) => { setMd(e.target.value); setPk(""); }}><option value="">Tüm modeller</option>{(brands[mk] ?? []).map((m) => <option key={m}>{m}</option>)}</select>
+                {cat && variantsOf(cat, catId, mk, md).length > 0 && <select className="sel" aria-label="Motor / paket" value={pk} onChange={(e) => setPk(e.target.value)}><option value="">Tüm paketler</option>{variantsOf(cat, catId, mk, md).map((v) => <option key={v}>{v}</option>)}</select>}
                 <button type="button" className="btn btn-wh" disabled={!mk} onClick={addCar}>+ Ekle</button>
               </div>
               <div className="chips" style={{ marginTop: 6 }}>
-                {cars.length ? cars.map((c) => <button key={c.marka + c.model} type="button" className="chip on" aria-label={`${carName(c)} aracını çıkar`} onClick={() => set({ araclar: carsTxt(cars.filter((x) => x !== c)) })}>{carName(c)} ✕</button>)
+                {cars.length ? cars.map((c) => <button key={`${c.marka}:${c.model}:${c.paket}`} type="button" className="chip on" aria-label={`${carName(c)} aracını çıkar`} onClick={() => set({ araclar: carsTxt(cars.filter((x) => x !== c)) })}>{carName(c)} ✕</button>)
                   : <span className="chip on">Tüm markalar (farketmez)</span>}
                 {cars.length > 0 && <button type="button" className="chip" onClick={() => set({ araclar: "" })}>Hepsini temizle</button>}
               </div></div>
@@ -152,10 +155,15 @@ export function AlarmForm({ onSaved }: { onSaved: () => void }) {
             <input className="inp" id={`al-n-${a.k}`} type="number" inputMode="decimal" min={0} value={f[`n_${a.k}`] ?? ""} onChange={(e) => set({ [`n_${a.k}`]: e.target.value })} />
             <span className="hint">{sn.h}</span></div>
         ); })}
-        {attrs.map((a) => (
+        {attrs.map((a) => { const opts = optionsFor(a, f[`a_${a.by}`]); return a.om && !opts.length ? null : (
           <div className="fg full" key={a.k}><label>{a.l} <span className="muted">(birden fazla seçilebilir)</span></label>
-            <Chips label={a.l} options={a.o!} value={f[`a_${a.k}`] ?? ""} onChange={(v) => set({ [`a_${a.k}`]: v })} /></div>
-        ))}
+            <Chips label={a.l} options={opts} value={f[`a_${a.k}`] ?? ""} onChange={(v) => {
+              // Marka değişince artık seçilemeyen modeller de bırakılır.
+              const next: Record<string, string> = { [`a_${a.k}`]: v };
+              for (const b of attrs) if (b.by === a.k && f[`a_${b.k}`]) next[`a_${b.k}`] = f[`a_${b.k}`]!.split(",").filter((m) => optionsFor(b, v).includes(m)).join(",");
+              set(next);
+            }} /></div>
+        ); })}
         {catId && conds.length > 1 && (
           <div className="fg full"><label>Ürün durumu</label><Chips label="Ürün durumu" options={conds} value={f.cond ?? ""} onChange={(v) => set({ cond: v })} /></div>
         )}

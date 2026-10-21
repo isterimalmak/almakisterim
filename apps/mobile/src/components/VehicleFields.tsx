@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
-import { brandsOf, useVehicleCatalog, vehicleName, type VehicleAttrs } from "@/lib/vehicles";
+import { brandsOf, useVehicleCatalog, variantsOf, vehicleName, type VehicleAttrs } from "@/lib/vehicles";
 import { C, R } from "@/lib/theme";
 import { Picker } from "./Picker";
 import { Btn, Field } from "./ui";
@@ -12,6 +12,7 @@ export function VehicleFields({ sub, value, onChange }: { sub: string; value: Ve
   const cat = useVehicleCatalog();
   const [marka, setMarka] = useState("");
   const [model, setModel] = useState("");
+  const [paket, setPaket] = useState("");
   if (!cat) return null;
   const brands = brandsOf(cat, sub);
   const cars = value.araclar ?? [];
@@ -19,22 +20,26 @@ export function VehicleFields({ sub, value, onChange }: { sub: string; value: Ve
   const toggle = (k: "yakit" | "vites", v: string) => { const cur = value[k] ?? []; set({ [k]: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] }); };
   const add = () => {
     if (!marka) return;
-    const x = { marka, model: model || null };
-    if (!cars.some((c) => c.marka === x.marka && c.model === x.model)) set({ araclar: [...cars, x].slice(0, cat.max) });
-    setMarka(""); setModel("");
+    const x = { marka, model: model || null, paket: (model && paket) || null };
+    // Bütün model seçilince aynı modelin paketleri listeden çıkar (sunucuyla aynı kural).
+    const rest = cars.filter((c) => !(x.model && !x.paket && c.marka === x.marka && c.model === x.model));
+    if (!rest.some((c) => c.marka === x.marka && c.model === x.model && (c.paket ?? null) === x.paket)) set({ araclar: [...rest, x].slice(0, cat.max) });
+    setMarka(""); setModel(""); setPaket("");
   };
   return (
     <View style={{ gap: 10 }}>
       <Text style={{ fontSize: 13, fontWeight: "700", color: C.navy }}>Aradığınız araç(lar)</Text>
       {cars.map((c) => (
-        <View key={`${c.marka}|${c.model}`} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.bg, borderRadius: R.md, padding: 10 }}>
+        <View key={`${c.marka}|${c.model}|${c.paket ?? ""}`} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.bg, borderRadius: R.md, padding: 10 }}>
           <Text style={{ fontWeight: "700", color: C.text }}>{vehicleName(c)}</Text>
           <Text accessibilityRole="button" accessibilityLabel={`${vehicleName(c)} kaldır`} style={{ color: C.red, fontWeight: "700" }} onPress={() => set({ araclar: cars.filter((y) => y !== c) })}>Kaldır</Text>
         </View>))}
       {cars.length < cat.max ? (
         <>
-          <Picker label="Marka" value={marka} options={Object.keys(brands).map((b) => ({ value: b, label: b }))} onChange={(b) => { setMarka(b); setModel(""); }} />
-          {marka && brands[marka]?.length ? <Picker label="Model" value={model} placeholder="Tüm modeller" options={[{ value: "", label: "Tüm modeller" }, ...brands[marka]!.map((m) => ({ value: m, label: m }))]} onChange={setModel} /> : null}
+          <Picker label="Marka" value={marka} options={Object.keys(brands).map((b) => ({ value: b, label: b }))} onChange={(b) => { setMarka(b); setModel(""); setPaket(""); }} />
+          {marka && brands[marka]?.length ? <Picker label="Model" value={model} placeholder="Tüm modeller" options={[{ value: "", label: "Tüm modeller" }, ...brands[marka]!.map((m) => ({ value: m, label: m }))]} onChange={(m) => { setModel(m); setPaket(""); }} /> : null}
+          {variantsOf(cat, sub, marka, model).length ? <Picker label="Motor / paket" value={paket} placeholder="Tüm paketler" options={[{ value: "", label: "Tüm paketler" }, ...variantsOf(cat, sub, marka, model).map((v) => ({ value: v, label: v }))]} onChange={setPaket} /> : null}
+          {marka ? <Text accessibilityLabel="Seçiminiz" style={{ color: C.navy, fontSize: 13 }}>Seçiminiz: <Text style={{ fontWeight: "700" }}>{[marka, model || "Tüm modeller", model ? paket || "Tüm paketler" : ""].filter(Boolean).join(" › ")}</Text></Text> : null}
           <Btn title={cars.length ? "+ Bir araç daha ekle" : "+ Aracı ekle"} kind="wh" disabled={!marka} onPress={add} />
           {cars.length ? <Text style={{ color: C.muted, fontSize: 12 }}>Birden fazla araç seçerseniz her biri ayrı talep olarak yayınlanır.</Text> : null}
         </>) : null}

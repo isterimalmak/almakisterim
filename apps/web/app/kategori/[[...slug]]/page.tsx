@@ -8,12 +8,12 @@ import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 import { fmt } from "@/lib/format";
-import { attrsFor, CITIES, condsFor, NUM_SHORT, sellerNum } from "@/lib/catalog";
+import { attrsFor, CITIES, condsFor, NUM_SHORT, optionsFor, pickAttrs, sellerNum } from "@/lib/catalog";
 import { useDistricts, useNeighbourhoods } from "@/lib/locations";
-import { useVehicleCatalog } from "@/lib/vehicles";
+import { useVehicleCatalog, variantsOf } from "@/lib/vehicles";
 
-type Veh = { marka: string; model: string; yil: string; km: string; yakit: string; vites: string };
-const NO_VEH: Veh = { marka: "", model: "", yil: "", km: "", yakit: "", vites: "" };
+type Veh = { marka: string; model: string; paket: string; yil: string; km: string; yakit: string; vites: string };
+const NO_VEH: Veh = { marka: "", model: "", paket: "", yil: "", km: "", yakit: "", vites: "" };
 type F = { veh: Veh; q: string; city: string; district: string; hood: string; bmin: string; bmax: string; cond: string[]; attrs: Record<string, string[]>; nums: Record<string, string>; urgent: boolean; noOffers: boolean; buyer: "" | "bireysel" | "kurumsal"; sort: string; page: number };
 const PER = 20;
 
@@ -65,8 +65,9 @@ function Listing() {
     if (f.noOffers) p.set("no_offers", "1");
     if (f.buyer) p.set("buyer", f.buyer);
     const v = f.veh;
-    if (v.marka) p.set("arac_marka", v.marka);
-    if (v.marka && v.model) p.set("arac_model", v.model);
+    // Motor/paket seçildiyse "BMW:3 Serisi:320d" biçiminde gider (sunucu paketi seçmemiş alıcıları da getirir).
+    if (v.marka && v.model && v.paket) p.set("araclar", `${v.marka}:${v.model}:${v.paket}`);
+    else if (v.marka) { p.set("arac_marka", v.marka); if (v.model) p.set("arac_model", v.model); }
     if (v.yil) p.set("arac_yil", v.yil);
     if (v.km) p.set("arac_km", v.km);
     if (v.yakit) p.set("arac_yakit", v.yakit);
@@ -110,8 +111,8 @@ function Listing() {
   if (f.bmin || f.bmax) chips.push({ k: "b", l: `${f.bmin ? fmt(Number(f.bmin)) : "0"} – ${f.bmax ? fmt(Number(f.bmax)) : "∞"} TL`, clear: () => set({ bmin: "", bmax: "" }) });
   for (const c of f.cond) chips.push({ k: `c-${c}`, l: c, clear: () => set({ cond: f.cond.filter((x) => x !== c) }) });
   for (const [k, v] of Object.entries(f.nums)) if (v) chips.push({ k: `n-${k}`, l: `${NUM_SHORT[k] ?? k}: ${v}`, clear: () => set({ nums: { ...f.nums, [k]: "" } }) });
-  for (const [k, vs] of Object.entries(f.attrs)) for (const v of vs) chips.push({ k: `a-${k}-${v}`, l: v, clear: () => set({ attrs: { ...f.attrs, [k]: (f.attrs[k] ?? []).filter((x) => x !== v) } }) });
-  if (f.veh.marka) chips.push({ k: "veh", l: [f.veh.marka, f.veh.model, f.veh.yil].filter(Boolean).join(" "), clear: () => set({ veh: NO_VEH }) });
+  for (const [k, vs] of Object.entries(f.attrs)) for (const v of vs) chips.push({ k: `a-${k}-${v}`, l: v, clear: () => set({ attrs: pickAttrs(selAttrs, f.attrs, k, (f.attrs[k] ?? []).filter((x) => x !== v)) }) });
+  if (f.veh.marka) chips.push({ k: "veh", l: [f.veh.marka, f.veh.model, f.veh.paket, f.veh.yil].filter(Boolean).join(" "), clear: () => set({ veh: NO_VEH }) });
   if (f.urgent) chips.push({ k: "u", l: "Acil", clear: () => set({ urgent: false }) });
   if (f.buyer) chips.push({ k: "buyer", l: f.buyer === "kurumsal" ? "Kurumsal alıcılar" : "Bireysel alıcılar", clear: () => set({ buyer: "" }) });
 
@@ -173,8 +174,9 @@ function Listing() {
             <div className="flt-sec veh-flt">
               <h4>Elimdeki araç</h4>
               <p className="hint" style={{ marginTop: 0 }}>Satacağınız aracı girin, ona uyan talepleri görün.</p>
-              <select className="sel" aria-label="Aracın markası" value={f.veh.marka} onChange={(e) => setVeh({ marka: e.target.value, model: "" })}><option value="">Marka</option>{Object.keys(vehBrands).map((b) => <option key={b}>{b}</option>)}</select>
-              <select className="sel" aria-label="Aracın modeli" value={f.veh.model} disabled={!f.veh.marka} onChange={(e) => setVeh({ model: e.target.value })}><option value="">Model</option>{(vehBrands[f.veh.marka] ?? []).map((m) => <option key={m}>{m}</option>)}</select>
+              <select className="sel" aria-label="Aracın markası" value={f.veh.marka} onChange={(e) => setVeh({ marka: e.target.value, model: "", paket: "" })}><option value="">Marka</option>{Object.keys(vehBrands).map((b) => <option key={b}>{b}</option>)}</select>
+              <select className="sel" aria-label="Aracın modeli" value={f.veh.model} disabled={!f.veh.marka} onChange={(e) => setVeh({ model: e.target.value, paket: "" })}><option value="">Model</option>{(vehBrands[f.veh.marka] ?? []).map((m) => <option key={m}>{m}</option>)}</select>
+              {variantsOf(cat, s?.id ?? "", f.veh.marka, f.veh.model).length > 0 && <select className="sel" aria-label="Aracın motoru / paketi" value={f.veh.paket} onChange={(e) => setVeh({ paket: e.target.value })}><option value="">Motor / paket</option>{variantsOf(cat, s?.id ?? "", f.veh.marka, f.veh.model).map((x) => <option key={x}>{x}</option>)}</select>}
               <div className="mm"><input className="inp" type="number" placeholder="Yılı" aria-label="Aracın yılı" value={f.veh.yil} onChange={(e) => setVeh({ yil: e.target.value })} /><input className="inp" type="number" placeholder="Km" aria-label="Aracın kilometresi" value={f.veh.km} onChange={(e) => setVeh({ km: e.target.value })} /></div>
               <div className="mm"><select className="sel" aria-label="Aracın yakıtı" value={f.veh.yakit} onChange={(e) => setVeh({ yakit: e.target.value })}><option value="">Yakıt</option>{cat.fuels.map((x) => <option key={x}>{x}</option>)}</select><select className="sel" aria-label="Aracın vitesi" value={f.veh.vites} onChange={(e) => setVeh({ vites: e.target.value })}><option value="">Vites</option>{cat.gears.map((x) => <option key={x}>{x}</option>)}</select></div>
             </div>
@@ -197,11 +199,11 @@ function Listing() {
               ); })}
             </div>
           )}
-          {selAttrs.map((a) => (
+          {selAttrs.map((a) => { const opts = optionsFor(a, f.attrs[a.by ?? ""]); return a.om && !opts.length ? null : (
             <div className="flt-sec" key={a.k}><h4>{a.l}</h4>
-              {a.o!.map((o) => <label className="chk" key={o}><input type="checkbox" checked={(f.attrs[a.k] ?? []).includes(o)} onChange={() => set({ attrs: { ...f.attrs, [a.k]: toggle(f.attrs[a.k] ?? [], o) } })} />{o}</label>)}
+              {opts.map((o) => <label className="chk" key={o}><input type="checkbox" checked={(f.attrs[a.k] ?? []).includes(o)} onChange={() => set({ attrs: pickAttrs(selAttrs, f.attrs, a.k, toggle(f.attrs[a.k] ?? [], o)) })} />{o}</label>)}
             </div>
-          ))}
+          ); })}
           <div className="flt-sec">
             <label className="chk"><input type="checkbox" checked={f.urgent} onChange={(e) => set({ urgent: e.target.checked })} />Sadece acil talepler</label>
             <label className="chk"><input type="checkbox" checked={f.buyer === "kurumsal"} onChange={(e) => set({ buyer: e.target.checked ? "kurumsal" : "" })} />Sadece kurumsal alıcılar (firma, faturalı alım)</label>

@@ -1,3 +1,5 @@
+import { CAR_VARIANTS } from "./vehicle-variants.js";
+
 // Türkiye pazarında yaygın marka ve modeller. Alıcı talebinde birden fazla marka/model seçebilir.
 // Liste yönetim panelinden genişletilebilir hale getirilene kadar burada tutulur.
 export const CAR_BRANDS: Record<string, string[]> = {
@@ -124,4 +126,13 @@ export function matchModel(sub: string, brand: string, raw: string | null | unde
   if (!raw) return null;
   const n = norm(raw);
   return brandsFor(sub)[brand]?.find((m) => norm(m) === n) ?? null;
+}
+
+// Üçüncü seviye (motor / paket): "320d", "1.6 TDI". Yalnızca otomobil grubunda (CAR_VARIANTS).
+export const variantsOf = (sub: string, brand: string, model: string | null | undefined): string[] =>
+  VEHICLE_SUBS[sub] === "moto" || !model ? [] : CAR_VARIANTS[`${brand}|${model}`] ?? [];
+export function matchVariant(sub: string, brand: string, model: string | null | undefined, raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const n = norm(raw);
+  return variantsOf(sub, brand, model).find((v) => norm(v) === n) ?? null;
 }

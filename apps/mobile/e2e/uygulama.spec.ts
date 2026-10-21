@@ -248,3 +248,39 @@ test("emlak talebi: yapay zekâ oda sayısını doldurur, elle değişir; mahall
   await expect(page.getByText("Oda sayısı", { exact: true }).last()).toBeVisible();
   await expect(page.getByText("2+1", { exact: true }).last()).toBeVisible();
 });
+
+test("ayrıntılı seçim: telefonda model markaya göre gelir; araçta motor/paket seçilir; alarmda paket yazılır", async ({ page }) => {
+  await login(page, `0539${rnd().slice(0, 7)}`, "Ayrıntı Alıcı");
+  await page.goto("/talep-ver");
+  await page.getByLabel("Tek cümleyle yazın").fill("iphone 12 pro max almak istiyorum, bütçem 30 bin TL, Ankara");
+  await page.getByRole("button", { name: "Yapay zekâ ile doldur" }).click();
+  await expect(page.getByRole("button", { name: "Model: iPhone 12 Pro Max" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Marka: Apple" })).toBeVisible();
+  // Marka değişince eski model bırakılır; yeni markanın modelleri gelir.
+  await choose(page, "Marka", "Samsung");
+  await expect(page.getByRole("button", { name: "Model: Farketmez" })).toBeVisible();
+  await choose(page, "Model", "Galaxy S24 Ultra");
+
+  await page.goto("/talep-ver");
+  await page.getByLabel("Tek cümleyle yazın").fill("bmw 320d arıyorum, bütçem 1,5 milyon, İstanbul");
+  await page.getByRole("button", { name: "Yapay zekâ ile doldur" }).click();
+  await expect(page.getByText("BMW 3 Serisi 320d", { exact: true })).toBeVisible();
+  await choose(page, "Marka", "Audi");
+  await choose(page, "Model", "A4");
+  await choose(page, "Motor / paket", "2.0 TDI");
+  await expect(page.getByLabel("Seçiminiz")).toHaveText("Seçiminiz: Audi › A4 › 2.0 TDI");
+  await page.getByRole("button", { name: "+ Bir araç daha ekle" }).click();
+  await expect(page.getByText("Audi A4 2.0 TDI", { exact: true })).toBeVisible();
+
+  await page.goto("/hesap/alarmlar");
+  await choose(page, "Kategori *", "Vasıta (tümü)");
+  await choose(page, "Marka", "BMW");
+  await choose(page, "Model", "3 Serisi");
+  await choose(page, "Motor / paket", "320d");
+  await page.getByRole("button", { name: "+ Aracı listeye ekle" }).click();
+  await expect(page.getByText("BMW 3 Serisi 320d", { exact: true })).toBeVisible();
+  const saved = page.waitForResponse((r) => r.url().endsWith("/api/me/alarms") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Alarm kur" }).click();
+  expect((await saved).ok()).toBeTruthy();
+  await expect(page.getByText(/BMW 3 Serisi 320d/).last()).toBeVisible();
+});

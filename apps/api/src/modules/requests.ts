@@ -276,22 +276,31 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
     const attrs = isVehicleSub(b.category_id)
       ? parseVehicleAttrs(b.category_id, b.attrs)
       : z.record(z.string().max(30), z.union([z.string().max(60), z.number()])).parse(b.attrs);
+    // Markaya bağlı model (telefon, tablet, bilgisayar): seçilen model o markanın olmalı; marka boşsa modelden bulunur.
+    if (!isVehicleSub(b.category_id)) for (const a of attrsFor(cat.parent_id, b.category_id)) {
+      const m = (attrs as Record<string, unknown>)[a.k];
+      if (!a.om || !a.by || typeof m !== "string" || !m || m === "Farketmez") continue;
+      const brand = Object.keys(a.om).find((x) => a.om![x]!.includes(m));
+      const cur = (attrs as Record<string, unknown>)[a.by];
+      if (!brand || (cur && cur !== "Farketmez" && cur !== brand)) throw new HttpError(400, "model_gecersiz", "Seçtiğiniz model bu markaya ait değil; marka ve modeli listeden yeniden seçin.");
+      (attrs as Record<string, unknown>)[a.by] = brand;
+    }
     // Birden fazla araç seçildiyse her araç ayrı talep olur (satıcı yalnızca kendi aracına uyan talebi görür);
     // her talep o aracın kendi görselleriyle yayınlanır, ortak görseller ilk talebe eklenir.
-    const cars = isVehicleSub(b.category_id) ? (attrs as { araclar: { marka: string; model: string | null }[] }).araclar : [];
+    const cars = isVehicleSub(b.category_id) ? (attrs as { araclar: { marka: string; model: string | null; paket?: string | null }[] }).araclar : [];
     const units = cars.length > 1
       ? cars.map((car, i) => {
-        const own = b.vehicle_media?.[`${car.marka}|${car.model ?? ""}`] ?? [];
+        const own = (car.paket ? b.vehicle_media?.[`${car.marka}|${car.model ?? ""}|${car.paket}`] : undefined) ?? b.vehicle_media?.[`${car.marka}|${car.model ?? ""}`] ?? [];
         return { attrs: { ...attrs, araclar: [car] }, media: own.length || i > 0 ? own : b.media_ids, car };
       })
-      : [{ attrs, media: b.media_ids, car: null as { marka: string; model: string | null } | null }];
+      : [{ attrs, media: b.media_ids, car: null as { marka: string; model: string | null; paket?: string | null } | null }];
     if (units.length > 1 && new Set(units.flatMap((u) => u.media)).size !== units.reduce((n, u) => n + u.media.length, 0))
       throw new HttpError(400, "medya_gecersiz", "Aynı fotoğraf birden fazla araca eklenemez.");
     if (storage.enabled && (await pool.query("SELECT 1 FROM settings WHERE key = 'photo_required' AND value = 'true'")).rowCount) {
       for (const u of units) {
         const imgs = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM media WHERE id = ANY($1::uuid[]) AND owner_id = $2 AND kind = 'image'", [u.media, user.id])).rows[0]!.n;
         if (!imgs) throw new HttpError(400, "fotograf_gerekli", u.car
-          ? `${[u.car.marka, u.car.model].filter(Boolean).join(" ")} için en az bir fotoğraf ekleyin. Her araç ayrı talep olarak yayınlanır.`
+          ? `${[u.car.marka, u.car.model, u.car.paket].filter(Boolean).join(" ")} için en az bir fotoğraf ekleyin. Her araç ayrı talep olarak yayınlanır.`
           : "Talep vermek için en az bir fotoğraf ekleyin. Kendi fotoğrafınızı yükleyebilir ya da hazır görsellerden seçebilirsiniz.");
       }
     }
@@ -321,7 +330,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
       : mod.verdict === "ok" ? "active" : mod.verdict === "reject" ? "rejected" : s.uncertain === "publish" ? "active" : "pending_review";
     // Bölünen talepte başlık her araç için ayrı kurulur ("2018 ve Sonrası Dizel BMW 3 Serisi").
     const titleOf = (u: (typeof units)[number]) => u.car
-      ? (buildTitle({ sub: b.category_id, subName: cat.name, attrs: u.attrs, city: b.city, district: b.district, neighbourhood: b.neighbourhood, budgetMax: b.budget_max }) ?? buyerTitle([u.car.marka, u.car.model].filter(Boolean).join(" "), { sub: b.category_id, budgetMax: b.budget_max })).slice(0, 120)
+      ? (buildTitle({ sub: b.category_id, subName: cat.name, attrs: u.attrs, city: b.city, district: b.district, neighbourhood: b.neighbourhood, budgetMax: b.budget_max }) ?? buyerTitle([u.car.marka, u.car.model, u.car.paket].filter(Boolean).join(" "), { sub: b.category_id, budgetMax: b.budget_max })).slice(0, 120)
       : title;
     const ids = await tx(pool, async (c) => {
       const group = units.length > 1 ? (await c.query<{ g: string }>("SELECT gen_random_uuid() AS g")).rows[0]!.g : null;

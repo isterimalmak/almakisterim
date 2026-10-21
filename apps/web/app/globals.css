@@ -487,9 +487,9 @@ button.link{padding:0;font-size:inherit}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:16px;padding:5px 11px;font-size:12.5px;background:#fff;cursor:pointer;color:#2A303B}
 .chip.on{background:var(--blue-soft);border-color:var(--blue);color:var(--blue);font-weight:600}
 .chip button{border:0;background:none;color:inherit;font-size:15px;line-height:1;cursor:pointer;padding:0}
-.veh-add{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:6px}
+.veh-add{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}.veh-add .sel{flex:1 1 150px;min-width:0}.veh-add .btn{flex:0 0 auto}
 .veh-flt .sel,.veh-flt .mm{margin-bottom:6px}
-@media (max-width:520px){.veh-add{grid-template-columns:1fr 1fr}.veh-add .btn{grid-column:1/-1}}
+@media (max-width:520px){.veh-add .btn{flex:1 1 100%}}
 
 /* reklam alanları (sol sütun, alt alta) */
 .home-left{align-self:start;display:flex;flex-direction:column;gap:14px;min-width:0}

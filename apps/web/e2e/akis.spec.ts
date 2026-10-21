@@ -1112,3 +1112,43 @@ test("Güvenli Al: satıcı satış başlatır, alıcı öder, satıcı kargolar
   await expect(seller.locator(".tbl tr", { hasText: title })).toContainText("Tamamlandı");
   await buyerCtx.close(); await sellerCtx.close();
 });
+
+test("ayrıntılı seçim: telefonda marka → model, araçta model → motor/paket; satıcı pakete göre süzer", async ({ page }) => {
+  // Metinden model ve marka doldurulur; marka değişince başka markanın modeli kalmaz, liste yeni markanın modelleri olur.
+  await page.goto(`/talep-ver?metin=${encodeURIComponent("iphone 12 pro max almak istiyorum, 256 gb, bütçem 30 bin TL, Ankara")}`);
+  await expect(page.getByLabel("Model", { exact: true })).toHaveValue("iPhone 12 Pro Max");
+  await expect(page.getByLabel("Marka", { exact: true })).toHaveValue("Apple");
+  await page.getByLabel("Marka", { exact: true }).selectOption("Samsung");
+  await expect(page.getByLabel("Model", { exact: true })).toHaveValue("");
+  await page.getByLabel("Model", { exact: true }).selectOption("Galaxy S24 Ultra");
+  await expect(page.getByLabel("Model", { exact: true }).locator("option", { hasText: "iPhone 16 Pro" })).toHaveCount(0);
+  await page.getByLabel("Marka", { exact: true }).selectOption("");
+  await expect(page.getByLabel("Model", { exact: true })).toHaveCount(0);
+
+  // Araç: "BMW 320d" metninden 3 Serisi / 320d çıkar; listeden Audi A4 2.0 TDI eklenir.
+  await page.goto(`/talep-ver?metin=${encodeURIComponent("bmw 320d almak istiyorum, bütçem 1,5 milyon TL, İstanbul")}`);
+  await expect(page.locator(".chip.on", { hasText: "BMW 3 Serisi 320d" })).toBeVisible();
+  await page.getByLabel("Marka", { exact: true }).selectOption("Audi");
+  await page.getByLabel("Model", { exact: true }).selectOption("A4");
+  await page.getByLabel("Motor / paket").selectOption("2.0 TDI");
+  // Seçim yolu tek yerde görünür; araç seçimi formun en üstünde, başlıktan önce.
+  await expect(page.getByLabel("Seçiminiz")).toHaveText("Seçiminiz: Audi › A4 › 2.0 TDI");
+  expect(await page.locator(".form-grid .veh-add").evaluate((el) => !!(el.compareDocumentPosition(document.getElementById("f-t")!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  await page.getByRole("button", { name: "+ Ekle" }).click();
+  await expect(page.locator(".chip.on", { hasText: "Audi A4 2.0 TDI" })).toBeVisible();
+  // Bütün model seçilince aynı modelin tek paketi listeden çıkar.
+  await page.getByLabel("Marka", { exact: true }).selectOption("Audi");
+  await page.getByLabel("Model", { exact: true }).selectOption("A4");
+  await page.getByRole("button", { name: "+ Ekle" }).click();
+  await expect(page.locator(".chip.on", { hasText: /^Audi A4\s*×?$/ })).toBeVisible();
+  await expect(page.locator(".chip.on", { hasText: "Audi A4 2.0 TDI" })).toHaveCount(0);
+
+  // Satıcı: talep listesinde elindeki aracın paketini seçer.
+  await page.goto("/kategori/vasita");
+  const toggle = page.getByRole("button", { name: "Filtrele", exact: true });
+  if (await toggle.isVisible()) await toggle.click();
+  await page.getByLabel("Aracın markası").selectOption("BMW");
+  await page.getByLabel("Aracın modeli").selectOption("3 Serisi");
+  await page.getByLabel("Aracın motoru / paketi").selectOption("320d");
+  await expect(page.getByRole("button", { name: /BMW 3 Serisi 320d.*kaldır/ })).toBeVisible();
+});

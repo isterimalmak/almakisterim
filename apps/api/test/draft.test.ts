@@ -160,7 +160,7 @@ describe("yapay zekâ talebi eksiksiz doldurur", () => {
     expect(locative("Çeşme")).toBe("Çeşme'de");
     expect(buildTitle({ sub: "otomobil", subName: "Otomobil", attrs: { araclar: [{ marka: "Volkswagen", model: "Passat" }], yil_min: 2018, yakit: ["Dizel"] }, city: "İstanbul", district: "", neighbourhood: "" }))
       .toBe("2018 ve Sonrası Dizel Volkswagen Passat Alım Talebi");
-    expect(fillAttrs("256 gb iphone 13 garantili", SUB_ATTRS.telefon!, {})).toEqual({ marka: "Apple", hafiza: "256 GB", garanti: "Var" });
+    expect(fillAttrs("256 gb iphone 13 garantili", SUB_ATTRS.telefon!, {})).toEqual({ marka: "Apple", model: "iPhone 13", hafiza: "256 GB", garanti: "Var" });
     expect(fillAttrs("42 numara erkek ayakkabı", SUB_ATTRS.ayakkabi!, {})).toEqual({ cinsiyet: "Erkek", numara: 42 });
     expect(fillAttrs("12 metre 2015 model tekne", SUB_ATTRS.deniz!, {})).toEqual({ tip: "Tekne", boy: 12, yil: 2015 });
     expect(fillAttrs("dağ bisikleti 29 jant", SUB_ATTRS.bisiklet!, {})).toEqual({ tip: "Dağ", jant: "29" });

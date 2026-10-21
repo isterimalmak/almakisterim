@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { BODIES, CAR_BRANDS, FUELS, GEARS, matchBrand, matchModel, MAX_VEHICLES, MOTO_BRANDS, VEHICLE_SUBS } from "../data/vehicles.js";
+import { BODIES, CAR_BRANDS, FUELS, GEARS, matchBrand, matchModel, matchVariant, MAX_VEHICLES, MOTO_BRANDS, VEHICLE_SUBS } from "../data/vehicles.js";
+import { CAR_VARIANTS } from "../data/vehicle-variants.js";
 import { HttpError } from "../lib/util.js";
 
 export type VehicleAttrs = {
-  araclar: { marka: string; model: string | null }[];
+  // paket: üçüncü seviye (motor / paket, "320d"); yalnızca model seçildiyse ve listede varsa.
+  araclar: { marka: string; model: string | null; paket?: string | null }[];
   yil_min?: number; yil_max?: number; km_max?: number;
   yakit?: string[]; vites?: string[]; kasa?: string[]; hasarsiz?: boolean;
 };
@@ -13,7 +15,7 @@ const thisYear = () => new Date().getFullYear() + 1;
 const Year = z.number().int().min(1950).max(2100);
 
 const RawVehicle = z.object({
-  araclar: z.array(z.object({ marka: z.string().max(40), model: z.string().max(40).nullable().optional() })).max(MAX_VEHICLES).default([]),
+  araclar: z.array(z.object({ marka: z.string().max(40), model: z.string().max(40).nullable().optional(), paket: z.string().max(40).nullable().optional() })).max(MAX_VEHICLES).default([]),
   yil_min: Year.optional(), yil_max: Year.optional(),
   km_max: z.number().int().min(0).max(2_000_000).optional(),
   yakit: z.array(z.enum(FUELS)).max(FUELS.length).optional(),
@@ -34,14 +36,18 @@ export function parseVehicleAttrs(sub: string, raw: unknown): VehicleAttrs {
     if (!marka) throw new HttpError(400, "marka_gecersiz", `"${a.marka}" markasını tanımıyoruz. Listeden seçin.`);
     const model = a.model ? matchModel(sub, marka, a.model) : null;
     if (a.model && !model) throw new HttpError(400, "model_gecersiz", `${marka} için "${a.model}" modelini tanımıyoruz. Listeden seçin.`);
-    const key = `${marka}|${model ?? ""}`;
+    const paket = a.paket ? matchVariant(sub, marka, model, a.paket) : null;
+    if (a.paket && !paket) throw new HttpError(400, "paket_gecersiz", `${marka} ${model ?? ""} için "${a.paket}" paketini tanımıyoruz. Listeden seçin.`);
+    const key = `${marka}|${model ?? ""}|${paket ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    araclar.push({ marka, model });
+    araclar.push(paket ? { marka, model, paket } : { marka, model });
   }
   // Markanın tamamı seçildiyse aynı markanın tek tek modelleri gereksizdir.
   const whole = new Set(araclar.filter((a) => !a.model).map((a) => a.marka));
-  const out: VehicleAttrs = { araclar: araclar.filter((a) => !a.model || !whole.has(a.marka)) };
+  // Modelin tamamı seçildiyse aynı modelin tek tek paketleri de gereksizdir.
+  const wholeModel = new Set(araclar.filter((a) => a.model && !a.paket).map((a) => `${a.marka}|${a.model}`));
+  const out: VehicleAttrs = { araclar: araclar.filter((a) => (!a.model || !whole.has(a.marka)) && (!a.paket || !wholeModel.has(`${a.marka}|${a.model}`))) };
   if (v.yil_min !== undefined && v.yil_max !== undefined && v.yil_min > v.yil_max) throw new HttpError(400, "yil_gecersiz", "En eski model yılı, en yeni model yılından büyük olamaz.");
   if (v.yil_max !== undefined && v.yil_max > thisYear()) throw new HttpError(400, "yil_gecersiz", "Model yılı ileri bir tarih olamaz.");
   for (const k of ["yil_min", "yil_max", "km_max", "hasarsiz"] as const) if (v[k] !== undefined) (out as Record<string, unknown>)[k] = v[k];
@@ -51,10 +57,13 @@ export function parseVehicleAttrs(sub: string, raw: unknown): VehicleAttrs {
 
 // Yapay zekâ veya kural tabanlı taslaktan gelen değerleri temizler; tanınmayanları sessizce atar.
 export function cleanVehicleDraft(sub: string, raw: Record<string, unknown>): VehicleAttrs {
-  const list = Array.isArray(raw.araclar) ? raw.araclar as { marka?: string; model?: string | null }[] : [];
+  const list = Array.isArray(raw.araclar) ? raw.araclar as { marka?: string; model?: string | null; paket?: string | null }[] : [];
   const araclar = list.flatMap((a) => {
     const marka = a?.marka ? matchBrand(sub, a.marka) : null;
-    return marka ? [{ marka, model: matchModel(sub, marka, a.model) }] : [];
+    if (!marka) return [];
+    const model = matchModel(sub, marka, a.model);
+    const paket = matchVariant(sub, marka, model, a.paket);
+    return [paket ? { marka, model, paket } : { marka, model }];
   }).slice(0, MAX_VEHICLES);
   const pick = <T extends string>(arr: unknown, allowed: readonly T[]) => (Array.isArray(arr) ? arr.filter((x): x is T => allowed.includes(x as T)) : []);
   const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? Math.round(x) : undefined);
@@ -85,15 +94,17 @@ export const VehicleQuery = z.object({
   arac_yakit: multi(FUELS), arac_vites: multi(GEARS), arac_kasa: multi(BODIES),
 });
 
-// "BMW:3 Serisi,Audi:" → [{marka: BMW, model: 3 Serisi}, {marka: Audi, model: null}] (tanınan yazıma çevrilir, en fazla 20).
-export function parseCarList(raw: string | undefined): { marka: string; model: string | null }[] {
-  const out: { marka: string; model: string | null }[] = [];
+// "BMW:3 Serisi:320d,Audi:" → [{marka: BMW, model: 3 Serisi, paket: 320d}, {marka: Audi, model: null}]
+// (tanınan yazıma çevrilir, en fazla 20; paket boşsa modelin bütün paketleri, model boşsa markanın tümü).
+export function parseCarList(raw: string | undefined): { marka: string; model: string | null; paket?: string | null }[] {
+  const out: { marka: string; model: string | null; paket?: string | null }[] = [];
   for (const part of (raw ?? "").split(",").slice(0, 20)) {
-    const [m, md] = part.split(":").map((x) => x.trim());
+    const [m, md, pk] = part.split(":").map((x) => x.trim());
     if (!m) continue;
     const marka = matchBrand("otomobil", m) ?? matchBrand("motosiklet", m) ?? m;
     const model = md ? (matchModel("otomobil", marka, md) ?? matchModel("motosiklet", marka, md) ?? md) : null;
-    if (!out.some((x) => x.marka === marka && x.model === model)) out.push({ marka, model });
+    const paket = pk && model ? (matchVariant("otomobil", marka, model, pk) ?? pk) : null;
+    if (!out.some((x) => x.marka === marka && x.model === model && (x.paket ?? null) === paket)) out.push(paket ? { marka, model, paket } : { marka, model });
   }
   return out;
 }
@@ -102,10 +113,15 @@ export function vehicleFilters(q: z.infer<typeof VehicleQuery>, params: unknown[
   const p = (v: unknown) => { params.push(v); return `$${params.length}`; };
   const cars = q.araclar ? parseCarList(q.araclar) : q.arac_marka ? parseCarList(`${q.arac_marka}:${q.arac_model ?? ""}`) : [];
   if (cars.length) {
-    // Alıcı markanın tamamını ("model farketmez") veya tam bu modeli istemişse eşleşir; araçlardan biri uyması yeter.
-    where.push(`(${cars.map(({ marka, model }) => model
-      ? `r.attrs->'araclar' @> ${p(JSON.stringify([{ marka, model: null }]))}::jsonb OR r.attrs->'araclar' @> ${p(JSON.stringify([{ marka, model }]))}::jsonb`
-      : `r.attrs->'araclar' @> ${p(JSON.stringify([{ marka }]))}::jsonb`).join(" OR ")})`);
+    // Satıcının araçlarından birine uyan talep: alıcı markanın tamamını, bu modelin tamamını (paket seçmemiş)
+    // ya da tam bu paketi istemiş olmalı. Satıcı paket yazmadıysa modelin her paketine uyar; model yazmadıysa markanın her modeline.
+    where.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(r.attrs->'araclar') = 'array' THEN r.attrs->'araclar' ELSE '[]'::jsonb END) e WHERE ${cars.map(({ marka, model, paket }) => {
+      const m = p(marka);
+      if (!model) return `(e->>'marka' = ${m})`;
+      const md = p(model);
+      const pk = paket ? `(e->>'paket' IS NULL OR e->>'paket' = ${p(paket)})` : "TRUE";
+      return `(e->>'marka' = ${m} AND (e->>'model' IS NULL OR (e->>'model' = ${md} AND ${pk})))`;
+    }).join(" OR ")})`);
   }
   if (q.arac_yil !== undefined) {
     const y = p(q.arac_yil);
@@ -120,6 +136,6 @@ export function vehicleFilters(q: z.infer<typeof VehicleQuery>, params: unknown[
 export function vehicleRoutes(app: FastifyInstance) {
   app.get("/catalog/vehicles", async (_req, reply) => {
     reply.header("cache-control", "public, max-age=3600");
-    return { cars: CAR_BRANDS, moto: MOTO_BRANDS, subs: VEHICLE_SUBS, fuels: FUELS, gears: GEARS, bodies: BODIES, max: MAX_VEHICLES };
+    return { cars: CAR_BRANDS, moto: MOTO_BRANDS, variants: CAR_VARIANTS, subs: VEHICLE_SUBS, fuels: FUELS, gears: GEARS, bodies: BODIES, max: MAX_VEHICLES };
   });
 }
