@@ -11,7 +11,7 @@ export function buttonText(url: string) {
   if (p.startsWith("/talep/")) return "Talebi görüntüle";
   if (p.startsWith("/guvenli-al")) return "Satışı görüntüle";
   if (p.includes("s=alarm")) return "Talep alarmı kur";
-  if (p.includes("s=mesaj")) return "Mesajları aç";
+  if (p.includes("s=mesaj") || p.includes("#mesajlar")) return "Mesajları aç";
   if (p.startsWith("/bana-ozel")) return "Hesabıma git";
   return "almakisterim'e git";
 }
@@ -31,7 +31,7 @@ export function brandHtml(subject: string, text: string, origin: string) {
     if (/^almakisterim(\.com)?$/i.test(l)) continue; // imza, alt bilgide zaten var
     const only = l.match(/^(https?:\/\/\S+)$/);
     const code = l.match(/^(.*?kodunuz:\s*)(\d{6})(\.?\s*)(.*)$/i);
-    if (only) { flush(); parts.push(`<p style="margin:20px 0"><a href="${esc(only[1]!)}" style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px">${buttonText(only[1]!)}</a></p>`); continue; }
+    if (only) { flush(); parts.push(`<p style="margin:20px 0 8px"><a href="${esc(only[1]!)}" style="display:inline-block;background:${ORANGE};color:#fff;padding:13px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px">${buttonText(only[1]!)}</a></p><p style="margin:0 0 16px;color:#8A93A6;font-size:12px;word-break:break-all">Düğme çalışmazsa bu adresi tarayıcınıza yapıştırın: ${esc(only[1]!)}</p>`); continue; }
     if (code) { flush(); parts.push(`<p style="margin:0 0 10px">${esc(code[1]!.replace(/:\s*$/, ""))}:</p><div style="margin:0 0 14px;padding:16px;border:2px dashed ${ORANGE};border-radius:14px;text-align:center;font-size:32px;font-weight:800;letter-spacing:8px;color:${NAVY}">${code[2]}</div>${code[4] ? `<p style="margin:0 0 12px;color:#6A717C;font-size:13px">${esc(code[4])}</p>` : ""}`); continue; }
     const b = l.match(/^[•\-*]\s+(.*)$/);
     if (b) { bullets.push(linkify(b[1]!)); continue; }
@@ -43,8 +43,8 @@ export function brandHtml(subject: string, text: string, origin: string) {
   return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background:#F1F2F4">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F2F4"><tr><td align="center" style="padding:24px 12px">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden">
-<tr><td style="padding:22px 32px 18px;text-align:center;border-bottom:1px solid #E9EBEE"><a href="${esc(site)}/" style="${font};font-size:24px;font-weight:800;color:${NAVY};text-decoration:none">almakisterim<span style="color:${ORANGE}">.com</span></a></td></tr>
+<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="width:100%;max-width:520px;background:#ffffff;border-radius:18px;overflow:hidden">
+<tr><td style="padding:22px 32px 18px;text-align:center;border-bottom:1px solid #E9EBEE"><a href="${esc(site)}/" style="${font};font-size:24px;font-weight:800;color:${NAVY};text-decoration:none"><img src="${esc(site)}/logo.png" width="36" height="36" alt="" style="vertical-align:middle;margin-right:8px;border:0">almakisterim<span style="color:${ORANGE}">.com</span></a></td></tr>
 <tr><td style="padding:26px 32px 8px;${font};font-size:15px;line-height:1.6;color:#1F2328">
 <h2 style="margin:0 0 16px;font-size:21px;line-height:1.3;color:${NAVY}">${esc(subject)}</h2>
 ${parts.join("\n")}

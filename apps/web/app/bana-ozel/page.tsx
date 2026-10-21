@@ -6,7 +6,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { PhoneVerify } from "@/components/PhoneVerify";
 import { AlarmForm, alarmSummary, type Alarm } from "@/components/AlarmForm";
 import { useSession } from "@/components/Session";
-import { api } from "@/lib/api";
+import { api, type MailPrefs } from "@/lib/api";
 import { ago, budgetTxt, dateTr, initials } from "@/lib/format";
 
 type Row = { id: number; title: string; status?: string; budget_min: number; budget_max: number; city?: string; created_at: string; category_name?: string; offer_count?: number; already_offered?: boolean };
@@ -182,16 +182,21 @@ function ProfileForm() {
   const [name, setName] = useState(user?.name ?? "");
   const [corp, setCorp] = useState(user?.is_corporate ?? false);
   const [marketing, setMarketing] = useState(user?.marketing ?? false);
+  const [prefs, setPrefs] = useState<MailPrefs>(user?.mail_prefs ?? { offer: true, accepted: true, message: true });
   return (
     <div className="box"><div className="box-h"><h2>Hesap Bilgileri</h2></div><div className="box-b">
       <div className="form-grid" style={{ maxWidth: 560 }}>
         <div className="fg full"><label htmlFor="p-n">Ad soyad / firma adı</label><input className="inp" id="p-n" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} /><span className="hint">Diğer kullanıcılara yalnızca adınız ve soyadınızın baş harfi gösterilir.</span></div>
         <div className="fg full"><label className="chk"><input type="checkbox" checked={corp} onChange={(e) => setCorp(e.target.checked)} />Kurumsal hesap (firma adına alım/satım)</label></div>
-        <div className="fg full"><label className="chk"><input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />Kampanya ve fırsat e-postaları almak istiyorum</label><span className="hint">İstediğiniz zaman buradan ya da e-postadaki &quot;Abonelikten çık&quot; bağlantısından kapatabilirsiniz. Talepleriniz ve hesabınızla ilgili bilgilendirmeler her durumda gelir.</span></div>
+        <div className="fg full"><label className="chk"><input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />Kampanya ve fırsat e-postaları almak istiyorum</label><span className="hint">İstediğiniz zaman buradan ya da e-postadaki &quot;Abonelikten çık&quot; bağlantısından kapatabilirsiniz. Giriş kodları ve hesabınızla ilgili zorunlu bilgilendirmeler her durumda gelir.</span></div>
+        <fieldset className="fg full" style={{ border: 0, padding: 0, margin: 0 }}><legend style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>E-posta bildirimleri</legend>
+          {([["offer", "Talebime yeni teklif geldiğinde"], ["accepted", "Teklifim kabul edildiğinde"], ["message", "Yeni mesaj geldiğinde"]] as const).map(([k, l]) => (
+            <label key={k} className="chk"><input type="checkbox" checked={prefs[k]} onChange={(e) => setPrefs((p) => ({ ...p, [k]: e.target.checked }))} />{l}</label>))}
+          <span className="hint">Telefon numarası kayıtlı hesaplarda teklif bildirimleri SMS ile gider. Bildirimler sitede (🔔) her durumda görünür.</span></fieldset>
         <div className="fg"><label>Telefon</label><input className="inp" value={user?.phone ?? "—"} disabled /></div>
         <div className="fg"><label>E-posta</label><input className="inp" value={user?.email ?? "—"} disabled /></div>
       </div>
-      <button className="btn btn-or" style={{ marginTop: 12 }} onClick={async () => { try { await api("/me", { method: "PATCH", body: { name, is_corporate: corp, marketing } }); await refresh(); toast("Bilgileriniz kaydedildi."); } catch (e) { toast((e as Error).message); } }}>Kaydet</button>
+      <button className="btn btn-or" style={{ marginTop: 12 }} onClick={async () => { try { await api("/me", { method: "PATCH", body: { name, is_corporate: corp, marketing, mail_prefs: prefs } }); await refresh(); toast("Bilgileriniz kaydedildi."); } catch (e) { toast((e as Error).message); } }}>Kaydet</button>
     </div></div>
   );
 }

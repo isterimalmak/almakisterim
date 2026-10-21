@@ -7,6 +7,7 @@ import { requireAdmin, type Deps } from '../context.js';
 import type { MediaStorage } from '../services/storage.js';
 import type { Mailer } from '../services/notify.js';
 import { HttpError, safeEqual } from '../lib/util.js';
+import { mailUsage } from '../services/mail-usage.js';
 
 /* =========================================================
    E-posta Stüdyosu
@@ -452,7 +453,7 @@ export function mailStudioRoutes(app: FastifyInstance, deps: Deps) {
          FROM mail_sends WHERE created_at > $1 AND status <> 'test'`, [new Date(Date.now() - 30 * 86400e3)])).rows[0];
     const optin = (await pool.query<{ all: number; optin: number }>('SELECT count(*)::int AS "all", count(*) FILTER (WHERE marketing_at IS NOT NULL)::int AS optin FROM users')).rows[0];
     return {
-      ready: !!mailProvider(config), provider: mailProvider(config), from: mailProvider(config) === "smtp" ? smtpFrom(config) : config.MAIL_FROM,
+      ready: !!mailProvider(config), provider: mailProvider(config), usage: await mailUsage(pool), from: mailProvider(config) === "smtp" ? smtpFrom(config) : config.MAIL_FROM,
       totals: { sent: Number(week?.sent ?? 0), opened: Number(week?.opened ?? 0), clicked: Number(week?.clicked ?? 0), queued: Number(week?.queued ?? 0), users: Number(optin?.all ?? 0), optin: Number(optin?.optin ?? 0) },
       templates: templates.map(t => ({ ...outTpl(t), uses: rules.filter(r => r.template_id === t.id).length })),
       rules: rules.map(r => ({ id: r.id, name: r.name, templateId: r.template_id, trigger: r.trigger, audience: r.audience, delayMin: r.delay_min, sendAt: r.send_at, quietHours: r.quiet_hours, subjectB: r.subject_b, active: r.active, firedAt: r.fired_at, stats: st(r.id) })),

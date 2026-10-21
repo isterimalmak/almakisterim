@@ -28,7 +28,7 @@ export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; stora
 }
 
 export async function resetData(pool: Pool) {
-  await pool.query(`TRUNCATE mail_sends, mail_rules, mail_templates, safe_sale_events, safe_sales, integration_settings, blog_posts, ai_actions, ai_usage, stock_images, messages, ads, notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
+  await pool.query(`TRUNCATE mail_usage, mail_sends, mail_rules, mail_templates, safe_sale_events, safe_sales, integration_settings, blog_posts, ai_actions, ai_usage, stock_images, messages, ads, notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
   await pool.query(`ALTER TABLE requests ALTER COLUMN id RESTART WITH 1048200`);
   await pool.query(`UPDATE categories SET is_visible = true`);
   await pool.query(`UPDATE settings SET value = CASE key WHEN 'safe_enabled' THEN 'true' WHEN 'safe_seller_pct' THEN '5' WHEN 'safe_buyer_pct' THEN '1.5' WHEN 'safe_min_fee' THEN '25' WHEN 'safe_max_fee' THEN '2500' WHEN 'safe_max_price' THEN '250000' WHEN 'safe_ship_days' THEN '5' WHEN 'safe_confirm_days' THEN '10' ELSE '["elektronik", "ev", "yedek", "moda", "bebek", "spor", "toptan"]' END::jsonb WHERE key LIKE 'safe\\_%'`);

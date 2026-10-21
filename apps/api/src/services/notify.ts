@@ -1,11 +1,11 @@
-import type { FastifyBaseLogger } from "fastify";
 import nodemailer, { type Transporter } from "nodemailer";
 import type { Config } from "../config.js";
 import { HttpError } from "../lib/util.js";
 import { brandHtml } from "./mail-html.js";
 
 // html ve başlıklar isteğe bağlı (E-posta Stüdyosu: tasarlanmış e-posta, "abonelikten çık" başlıkları).
-export type MailOpts = { html?: string; headers?: Record<string, string> };
+// critical: giriş kodu gibi her durumda gitmesi gereken e-posta (gönderim sınırına yaklaşınca yalnız bunlar gider).
+export type MailOpts = { html?: string; headers?: Record<string, string>; critical?: boolean };
 export interface Mailer {
   send(to: string, subject: string, text: string, opts?: MailOpts): Promise<void>;
 }
@@ -65,15 +65,16 @@ export class NetgsmSms implements Sms {
   }
 }
 
-// Geliştirme ve testte gerçek gönderim yapılmaz; gönderilenler bellekte tutulur.
+// Geliştirme ve testte gerçek gönderim yapılmaz; son 50 gönderim bellekte tutulur.
+// Yalnız geliştirmede konsola alıcı, konu ve metin yazılır; başka ortamda hiçbir şey yazılmaz.
 export class MemoryOutbox implements Mailer, Sms {
+  static MAX = 50;
   sent: { to: string; subject?: string; text: string; html?: string; headers?: Record<string, string> }[] = [];
-  constructor(private log?: FastifyBaseLogger) {}
   async send(to: string, a: string, b?: string, opts?: MailOpts) {
-    const item = b === undefined ? { to, text: a } : { to, subject: a, text: b, ...(opts?.html ? { html: opts.html } : {}), ...(opts?.headers ? { headers: opts.headers } : {}) };
+    const item: MemoryOutbox["sent"][number] = b === undefined ? { to, text: a } : { to, subject: a, text: b, ...(opts?.html ? { html: opts.html } : {}), ...(opts?.headers ? { headers: opts.headers } : {}) };
     this.sent.push(item);
-    this.log?.info({ to }, "geliştirme: mesaj gönderilmiş sayıldı");
-    if (process.env.NODE_ENV === "development") console.log(`[geliştirme] ${to}: ${item.text}`);
+    if (this.sent.length > MemoryOutbox.MAX) this.sent.shift();
+    if (process.env.NODE_ENV === "development") console.log(`[geliştirme] ${to}${item.subject ? ` · ${item.subject}` : ""}: ${item.text}`);
   }
   last(to: string) {
     return [...this.sent].reverse().find((m) => m.to === to);
@@ -93,8 +94,8 @@ export function branded(m: Mailer, origin: string): Mailer {
   return { send: (to, subject, text, opts = {}) => m.send(to, subject, text, opts.html ? opts : { ...opts, html: brandHtml(subject, text, origin) }) };
 }
 
-export function createNotifiers(config: Config, log?: FastifyBaseLogger): { mailer: Mailer; sms: Sms } {
-  const outbox = new MemoryOutbox(log);
+export function createNotifiers(config: Config): { mailer: Mailer; sms: Sms } {
+  const outbox = new MemoryOutbox();
   const mailFallback = config.isProd ? new UnavailableSender("E-posta ile giriş") : outbox;
   const smsFallback = config.isProd ? new UnavailableSender("SMS ile giriş") : outbox;
   return {

@@ -9,6 +9,7 @@ import { freeUnlocksUsed, unlockSettings } from "./contacts.js";
 import { aiSettings, logAiAction } from "../services/ai-guard.js";
 import { ALARM_SELECT, alarmQuery, cleanAlarmFilters, type AlarmRow } from "./alarms.js";
 import { FROM, listFilters } from "./requests.js";
+import { MAIL_KINDS, wantsMail, type MailPrefs } from "./notifications.js";
 
 export function meRoutes(app: FastifyInstance, deps: Deps) {
   const { pool } = deps;
@@ -19,13 +20,15 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
     const unread = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND read_at IS NULL", [req.user.id])).rows[0]!.n;
     const unreadMsg = await unreadMessages(pool, req.user.id);
     // Kampanya e-postası izni (E-posta Stüdyosu)
-    const marketing = !!(await pool.query("SELECT 1 FROM users WHERE id = $1 AND marketing_at IS NOT NULL", [req.user.id])).rowCount;
-    return { user: { ...req.user, marketing, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg } };
+    const u = (await pool.query<{ marketing: boolean; mail_prefs: MailPrefs }>("SELECT marketing_at IS NOT NULL AS marketing, mail_prefs FROM users WHERE id = $1", [req.user.id])).rows[0]!;
+    const mail_prefs = Object.fromEntries(MAIL_KINDS.map((k) => [k, wantsMail(u.mail_prefs, k)]));
+    return { user: { ...req.user, marketing: u.marketing, mail_prefs, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg } };
   });
 
   app.patch("/me", async (req) => {
     const user = requireUser(req);
-    const b = z.object({ name: z.string().trim().min(2).max(80).optional(), is_corporate: z.boolean().optional(), marketing: z.boolean().optional() }).parse(req.body);
+    const b = z.object({ name: z.string().trim().min(2).max(80).optional(), is_corporate: z.boolean().optional(), marketing: z.boolean().optional(),
+      mail_prefs: z.object({ offer: z.boolean(), accepted: z.boolean(), message: z.boolean() }).partial().strict().optional() }).parse(req.body);
     if (b.name && b.name !== user.name && (await aiSettings(pool)).names) {
       const r = await deps.ai.checkName(b.name);
       if (r.verdict === "block") {
@@ -37,6 +40,7 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
       [user.id, b.name ?? null, b.is_corporate ?? null]);
     // Kampanya e-postası izni: açılınca izin zamanı yazılır, kapatılınca silinir (sıradaki kampanya e-postaları gönderilirken atlanır).
     if (b.marketing !== undefined) await pool.query("UPDATE users SET marketing_at = CASE WHEN $2 THEN coalesce(marketing_at, now()) ELSE NULL END WHERE id = $1", [user.id, b.marketing]);
+    if (b.mail_prefs) await pool.query("UPDATE users SET mail_prefs = mail_prefs || $2::jsonb WHERE id = $1", [user.id, JSON.stringify(b.mail_prefs)]);
     return { ok: true };
   });
 

@@ -636,6 +636,20 @@ test("ana sayfada Vasıta Talepleri ve Emlak Talepleri bölümleri: kategorinin 
   if (await eml.count()) await expect(eml.getByRole("link", { name: /Tümünü gör/ })).toHaveAttribute("href", "/kategori/emlak");
 });
 
+test("Bana Özel → Hesap: e-posta bildirimleri (yeni teklif, teklif kabul, yeni mesaj) açılıp kapatılır, kaydedilince kalır", async ({ page }) => {
+  await loginSms(page, `0537${rnd().slice(0, 7)}`, "Bildirim Ayarı");
+  await page.goto("/bana-ozel?s=hesap");
+  const grp = page.getByRole("group", { name: "E-posta bildirimleri" });
+  for (const l of ["Talebime yeni teklif geldiğinde", "Teklifim kabul edildiğinde", "Yeni mesaj geldiğinde"]) await expect(grp.getByLabel(l)).toBeChecked();
+  await grp.getByLabel("Yeni mesaj geldiğinde").uncheck();
+  const saved = page.waitForResponse((r) => r.url().endsWith("/api/me") && r.request().method() === "PATCH");
+  await page.getByRole("button", { name: "Kaydet", exact: true }).first().click();
+  expect((await saved).ok()).toBeTruthy();
+  await page.reload();
+  await expect(page.getByRole("group", { name: "E-posta bildirimleri" }).getByLabel("Yeni mesaj geldiğinde")).not.toBeChecked();
+  await expect(page.getByRole("group", { name: "E-posta bildirimleri" }).getByLabel("Teklifim kabul edildiğinde")).toBeChecked();
+});
+
 test("sayfalar yana taşmıyor", async ({ page }) => {
   for (const p of ["/", "/kategori", "/kategori/vasita", "/talep-ver", "/giris", "/sayfa/kvkk", "/guvenli-al"]) {
     await page.goto(p);

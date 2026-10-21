@@ -4,7 +4,7 @@ import { requireUser, type Deps } from "../context.js";
 import { tx } from "../db.js";
 import { HttpError, maskContacts, idParam } from "../lib/util.js";
 import { attachMedia, imageUrls, MediaIds } from "./media.js";
-import { notifyUser } from "./notifications.js";
+import { notifyUser, type MailPrefs } from "./notifications.js";
 
 const OfferBody = z.object({
   price: z.number().int().min(1).max(2_000_000_000),
@@ -46,12 +46,12 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
         [requestId, user.id, b.price, b.condition, b.delivery, b.warranty, note]);
       const offerId = ins.rows[0]!.id;
       await attachMedia(c, user.id, b.media_ids, { offer_id: offerId });
-      const buyer = (await c.query<{ email: string | null; phone: string | null }>("SELECT email, phone FROM users WHERE id = $1", [row.buyer_id])).rows[0]!;
+      const buyer = (await c.query<{ email: string | null; phone: string | null; mail_prefs: MailPrefs }>("SELECT email, phone, mail_prefs FROM users WHERE id = $1", [row.buyer_id])).rows[0]!;
       return { offerId, buyer, title: row.title };
     });
 
     void notifyUser(deps, result.buyer, "Talebinize yeni teklif geldi",
-      `almakisterim: "${result.title}" talebinize yeni bir teklif geldi. ${config.APP_URL}/talep/${requestId}`).catch(() => {});
+      `almakisterim: "${result.title}" talebinize yeni bir teklif geldi. ${config.APP_URL}/talep/${requestId}`, "offer").catch(() => {});
     reply.code(201);
     return { id: result.offerId };
   });
@@ -68,11 +68,11 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
       if (row.req_status !== "active" || row.status !== "active") throw new HttpError(409, "kabul_edilemez", "Bu teklif artık kabul edilemez.");
       await c.query("UPDATE offers SET status = CASE WHEN id = $1 THEN 'accepted' ELSE 'rejected' END WHERE request_id = $2 AND status = 'active'", [offerId, row.request_id]);
       await c.query("UPDATE requests SET status = 'closed', accepted_offer_id = $1 WHERE id = $2", [offerId, row.request_id]);
-      const seller = (await c.query<{ email: string | null; phone: string | null }>("SELECT email, phone FROM users WHERE id = $1", [row.seller_id])).rows[0]!;
+      const seller = (await c.query<{ email: string | null; phone: string | null; mail_prefs: MailPrefs }>("SELECT email, phone, mail_prefs FROM users WHERE id = $1", [row.seller_id])).rows[0]!;
       return { seller, title: row.title, requestId: row.request_id };
     });
     void notifyUser(deps, out.seller, "Teklifiniz kabul edildi",
-      `almakisterim: "${out.title}" talebi için verdiğiniz teklif kabul edildi. ${config.APP_URL}/talep/${out.requestId}`).catch(() => {});
+      `almakisterim: "${out.title}" talebi için verdiğiniz teklif kabul edildi. ${config.APP_URL}/talep/${out.requestId}`, "accepted").catch(() => {});
     return { ok: true };
   });
 

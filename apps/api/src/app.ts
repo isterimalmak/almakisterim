@@ -30,6 +30,8 @@ import { stockRoutes } from "./modules/stock.js";
 import { requestRoutes } from "./modules/requests.js";
 import { vehicleRoutes } from "./modules/vehicles.js";
 import { MemoryOutbox } from "./services/notify.js";
+import { metered } from "./services/mail-usage.js";
+import { mailProvider } from "./services/notify.js";
 
 // Loglara gizli bilgi düşmesin: çerez ve yetki başlıkları maskelenir; istek gövdeleri hiç loglanmaz.
 const REDACT = ["req.headers.cookie", "req.headers.authorization", "req.headers[\"x-job-token\"]", "res.headers[\"set-cookie\"]"];
@@ -44,6 +46,8 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     await deps.integrations!.refresh(true).catch(() => {});
   }
   if (!deps.payments) deps = { ...deps, payments: createPayments(deps.config) };
+  // Gönderilen e-postalar sayılır; Resend açıkken ücretsiz plan sınırı korunur (giriş kodları her zaman önceliklidir).
+  { const cfg = deps.config; deps = { ...deps, mailer: metered(deps.mailer, deps.pool, () => mailProvider(cfg) === "resend") }; }
   const app = Fastify({
     logger: deps.config.NODE_ENV === "test" ? false : { level: deps.config.isProd ? "info" : "debug", redact: REDACT },
     trustProxy: true,
