@@ -1,72 +1,77 @@
-name: Android paketi
+# Telefon uygulamasını (apps/mobile, Expo) Google Play için derler: Expo'nun bulutunda (EAS). Yalnızca elle başlatılır:
+# GitHub > Actions > "Android (Google Play)" > Run workflow (main).
+# Gereken tek gizli değer: EXPO_TOKEN (expo.dev > Account settings > Access tokens), GitHub > Settings > Secrets and variables > Actions'a
+# sahibi kendisi girer. Değer bu dosyada ve log'da görünmez. İmza anahtarı ilk derlemede Expo'da oluşturulur ve orada saklanır.
+name: Android (Google Play)
 
-# Google Play'e yüklenecek Android paketini (.aab) derler. Yayın yapmaz: paket Actions sayfasından indirilip
-# Play Console'a elle yüklenir. Yalnızca elle ve main dalından başlatılır.
-# İmza (yükleme) anahtarı Secret Manager'dadır (infra/android-anahtar.sh ile bir kez oluşturulur); depoda tutulmaz.
 on:
   workflow_dispatch:
+    inputs:
+      submit:
+        description: "Derlemeden sonra Google Play'e (dahili test) gönder — ilk sürüm Play Console'a elle yüklendikten sonra açılabilir"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  id-token: write
+
+concurrency:
+  group: android
+  cancel-in-progress: false
 
 jobs:
-  paket:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - name: Yetki kontrolü
+        working-directory: .
         env:
           KIM: ${{ github.triggering_actor }}
           DAL: ${{ github.ref }}
         run: |
-          [[ "$KIM" == "isterimalmak" || "$KIM" == "coskungulerlokalusta" ]] || { echo "::error::Bu hesap paket derleyemez: $KIM"; exit 1; }
-          [[ "$DAL" == "refs/heads/main" ]] || { echo "::error::Paket yalnızca main dalından derlenir."; exit 1; }
+          [[ "$KIM" == "isterimalmak" || "$KIM" == "coskungulerlokalusta" ]] || { echo "::error::Bu hesap derleme başlatamaz: $KIM"; exit 1; }
+          [[ "$DAL" == "refs/heads/main" ]] || { echo "::error::Derleme yalnızca main dalından yapılır."; exit 1; }
+          [ -n "$EXPO_TOKEN" ] || { echo "::error::EXPO_TOKEN tanımlı değil. GitHub > Settings > Secrets and variables > Actions > New repository secret: EXPO_TOKEN"; exit 1; }
 
       - uses: actions/checkout@v4
-
-      - uses: google-github-actions/auth@v2
+      - uses: actions/setup-node@v4
         with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
+          node-version: 22
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.14.3"
-
-      - name: İmza anahtarını kasadan al
+      - name: Bağımlılıklar ve tip denetimi
         run: |
-          gcloud secrets describe ANDROID_UPLOAD_KEYSTORE >/dev/null 2>&1 || { echo "::error::Yükleme anahtarı yok. Önce Cloud Shell'de bash infra/android-anahtar.sh çalıştırın."; exit 1; }
-          PASS=$(gcloud secrets versions access latest --secret ANDROID_UPLOAD_PASSWORD)
-          echo "::add-mask::$PASS"
-          echo "ANDROID_KEYSTORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
-          gcloud secrets versions access latest --secret ANDROID_UPLOAD_KEYSTORE | base64 -d > "$RUNNER_TEMP/upload.jks"
-          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
 
-      - name: Paketi derle
-        working-directory: apps/android
-        env:
-          VERSION_CODE: ${{ github.run_number }}
-        run: gradle --no-daemon bundleRelease
-
-      - name: Parmak izi ve özet
+      - name: Expo projesine bağla
         run: |
-          FP=$(keytool -list -v -keystore "$ANDROID_KEYSTORE_FILE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias upload | awk '/SHA256:/ {print $2; exit}')
-          rm -f "$ANDROID_KEYSTORE_FILE"
-          {
-            echo "### Android paketi hazır"
-            echo "- Sürüm kodu: ${{ github.run_number }}"
-            echo "- Paket: aşağıdaki **almakisterim-aab** dosyası (Play Console → Sürüm oluştur → yükle)"
-            echo "- Yükleme anahtarı SHA-256: \`$FP\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          # projectId app.json'da yoksa Expo hesabında "almakisterim" projesi açılır ya da var olana bağlanır
+          npx --yes eas-cli@25 init --non-interactive --force
+          id=$(node -p "require('./app.json').expo.extra.eas.projectId || ''")
+          echo "PROJECT_ID=$id" >> "$GITHUB_ENV"
+          echo "Expo proje numarası: $id"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: almakisterim-aab
-          path: apps/android/app/build/outputs/bundle/release/app-release.aab
-          retention-days: 30
+      - name: Android paketini derle (AAB)
+        run: |
+          npx --yes eas-cli@25 build --platform android --profile production --non-interactive --wait --json > build.json
+          node -e "
+            const b = require('./build.json')[0];
+            const out = [
+              '### Android derlemesi ✅',
+              '- Sürüm: ' + b.appVersion + ' (' + b.appBuildVersion + ')',
+              '- AAB dosyası: ' + (b.artifacts && b.artifacts.buildUrl || '-'),
+              '- Expo proje numarası: ${{ env.PROJECT_ID }}'
+            ].join('\n');
+            require('fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY, out + '\n');
+            console.log(out);
+          "
+
+      - name: Google Play'e gönder (dahili test)
+        if: ${{ inputs.submit }}
+        run: npx --yes eas-cli@25 submit --platform android --profile production --latest --non-interactive

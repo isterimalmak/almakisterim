@@ -3,13 +3,17 @@ import { welcomeEmail } from "./notifications.js";
 import { mailEvent } from "./mailstudio.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { requireUser, SESSION_COOKIE, SESSION_DAYS, setSessionCookie, type Deps } from "../context.js";
+import { isAppClient, requireUser, SESSION_COOKIE, SESSION_DAYS, sessionToken, setSessionCookie, type Deps } from "../context.js";
 import type { Client, Pool } from "../db.js";
 import { HttpError, maskTarget, normalizeEmail, normalizePhone, randomToken, safeEqual, sha256, sixDigitCode } from "../lib/util.js";
+import { verifyAppleToken } from "../services/apple.js";
 
 const CODE_TTL_MIN = 10;
 const MAX_ATTEMPTS = 5;
 const STATE_COOKIE = "ak_oauth_state";
+const APP_COOKIE = "ak_g_app";
+// Uygulamanın adres şeması (almakisterim://giris?bilet=...)
+const APP_SCHEME = "almakisterim";
 
 const Channel = z.enum(["email", "sms"]);
 
@@ -144,6 +148,8 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
       await mailEvent(pool, "signup", user.rows[0]!.id);
     }
     const token = await createSession(pool, user.rows[0]!.id);
+    // Telefon uygulaması oturumu güvenli depoda tutar; tarayıcıya çerez verilir.
+    if (isAppClient(req)) return { ok: true, token };
     setSessionCookie(reply, token, config.isProd);
     return { ok: true };
   });
@@ -182,16 +188,21 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
     if (!google.enabled) throw new HttpError(503, "google_kapali", "Google ile giriş henüz açılmadı.");
     const state = randomToken();
     reply.setCookie(STATE_COOKIE, state, { httpOnly: true, secure: config.isProd, sameSite: "lax", path: "/api/auth", maxAge: 600 });
+    // ?app=1: telefon uygulamasından (telefonun tarayıcısında) açıldı; giriş sonunda uygulamaya bilet döner.
+    const fromApp = (req.query as { app?: string }).app === "1";
+    if (fromApp) reply.setCookie(APP_COOKIE, "1", { httpOnly: true, secure: config.isProd, sameSite: "lax", path: "/api/auth", maxAge: 600 });
+    else reply.clearCookie(APP_COOKIE, { path: "/api/auth" });
     return reply.redirect(google.authUrl(state, `${config.APP_URL}/api/auth/google/callback`));
   });
 
   app.get("/auth/google/callback", async (req, reply) => {
     const q = z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() }).parse(req.query);
     const expected = req.cookies[STATE_COOKIE];
+    const fromApp = req.cookies[APP_COOKIE] === "1";
     reply.clearCookie(STATE_COOKIE, { path: "/api/auth" });
-    if (q.error || !q.code || !q.state || !expected || !safeEqual(q.state, expected)) {
-      return reply.redirect(`${config.APP_URL}/giris?hata=google`);
-    }
+    reply.clearCookie(APP_COOKIE, { path: "/api/auth" });
+    const fail = () => reply.redirect(fromApp ? `${APP_SCHEME}://giris?hata=google` : `${config.APP_URL}/giris?hata=google`);
+    if (q.error || !q.code || !q.state || !expected || !safeEqual(q.state, expected)) return fail();
     try {
       const g = await google.exchange(q.code, `${config.APP_URL}/api/auth/google/callback`);
       // Aynı e-postayla daha önce kod ile giriş yapılmışsa o hesap Google'a bağlanır.
@@ -207,17 +218,71 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
         void welcomeEmail(deps, userId).catch(() => {});
         await mailEvent(pool, "signup", userId);
       }
+      if (fromApp) {
+        // Uygulamaya tek kullanımlık, 2 dakikalık bilet döner; uygulama bileti oturuma çevirir (POST /auth/app-ticket).
+        const ticket = randomToken();
+        await pool.query("INSERT INTO auth_tickets (ticket_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '2 minutes')", [sha256(ticket), userId]);
+        return reply.redirect(`${APP_SCHEME}://giris?bilet=${ticket}`);
+      }
       setSessionCookie(reply, await createSession(pool, userId), config.isProd);
       return reply.redirect(`${config.APP_URL}/`);
     } catch (e) {
       req.log.warn({ err: (e as Error).message }, "google girişi başarısız");
-      return reply.redirect(`${config.APP_URL}/giris?hata=google`);
+      return fail();
     }
   });
 
+  // Apple ile Giriş (iPhone uygulaması): Apple'ın kimlik jetonu doğrulanır, aynı e-postalı hesap varsa ona bağlanır.
+  app.post("/auth/apple", { config: { rateLimit: { max: 20, timeWindow: "10 minutes" } } }, async (req) => {
+    const b = z.object({ identity_token: z.string().min(20).max(4000), name: z.string().trim().max(80).optional() }).parse(req.body);
+    let a: { sub: string; email: string | null };
+    try { a = await verifyAppleToken(b.identity_token, config.APPLE_BUNDLE_ID); }
+    catch (e) { req.log.warn({ err: (e as Error).message }, "apple girişi başarısız"); throw new HttpError(401, "apple_gecersiz", "Apple ile giriş yapılamadı, lütfen tekrar deneyin."); }
+    const existing = await pool.query<{ id: string }>(
+      `UPDATE users SET apple_sub = $1 WHERE (apple_sub = $1 OR (apple_sub IS NULL AND email = $2 AND $2 IS NOT NULL)) AND deleted_at IS NULL RETURNING id`, [a.sub, a.email]);
+    let userId = existing.rows[0]?.id;
+    if (!userId) {
+      if (b.name?.trim()) await assertName(b.name.trim());
+      const ins = await pool.query<{ id: string }>(`INSERT INTO users (apple_sub, email, name, role) VALUES ($1, $2, $3, $4) RETURNING id`,
+        [a.sub, a.email, (b.name ?? "").trim(), roleFor(a.email, null)]);
+      userId = ins.rows[0]!.id;
+      void welcomeEmail(deps, userId).catch(() => {});
+      await mailEvent(pool, "signup", userId);
+    }
+    return { ok: true, token: await createSession(pool, userId) };
+  });
+
+  // Uygulamadan siteye geçiş (Güvenli Al, kategoriye özel alarm formu…): uygulamanın oturumu 2 dakikalık tek kullanımlık
+  // bilete çevrilir, telefonun tarayıcısı bileti sitede oturuma çevirip istenen sayfaya gider. Kullanıcı yeniden giriş yapmaz.
+  app.post("/auth/web-ticket", { config: { rateLimit: { max: 30, timeWindow: "10 minutes" } } }, async (req) => {
+    const user = requireUser(req);
+    const ticket = randomToken();
+    await pool.query("INSERT INTO auth_tickets (ticket_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '2 minutes')", [sha256(ticket), user.id]);
+    return { bilet: ticket };
+  });
+  app.get("/auth/web", async (req, reply) => {
+    const q = z.object({ bilet: z.string().min(20).max(128), next: z.string().max(300).default("/") }).parse(req.query);
+    // Yalnızca sitenin kendi sayfalarına yönlendirilir (başka siteye yönlendirme yapılamaz).
+    const next = /^\/(?![/\\])/.test(q.next) ? q.next : "/";
+    const row = (await pool.query<{ user_id: string }>("DELETE FROM auth_tickets WHERE ticket_hash = $1 AND expires_at > now() RETURNING user_id", [sha256(q.bilet)])).rows[0];
+    if (!row) return reply.redirect(`${config.APP_URL}/giris?hata=sure`);
+    setSessionCookie(reply, await createSession(pool, row.user_id), config.isProd);
+    return reply.redirect(`${config.APP_URL}${next}`);
+  });
+
+  app.post("/auth/app-ticket", { config: { rateLimit: { max: 20, timeWindow: "10 minutes" } } }, async (req) => {
+    const { bilet } = z.object({ bilet: z.string().min(20).max(128) }).parse(req.body);
+    const row = (await pool.query<{ user_id: string }>("DELETE FROM auth_tickets WHERE ticket_hash = $1 AND expires_at > now() RETURNING user_id", [sha256(bilet)])).rows[0];
+    if (!row) throw new HttpError(400, "bilet_gecersiz", "Giriş süresi doldu, lütfen tekrar deneyin.");
+    return { ok: true, token: await createSession(pool, row.user_id) };
+  });
+
   app.post("/auth/logout", async (req, reply) => {
-    const token = req.cookies[SESSION_COOKIE];
+    const token = sessionToken(req);
     if (token) await pool.query("DELETE FROM sessions WHERE token_hash = $1", [sha256(token)]);
+    // Uygulamadan çıkışta o telefonun bildirim adresi de silinir.
+    const push = (req.body as { push_token?: unknown } | undefined)?.push_token;
+    if (typeof push === "string") await pool.query("DELETE FROM push_tokens WHERE token = $1", [push]);
     reply.clearCookie(SESSION_COOKIE, { path: "/" });
     return { ok: true };
   });

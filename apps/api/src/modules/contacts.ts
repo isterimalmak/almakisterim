@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin, requireUser, type Deps } from "../context.js";
 import { tx, type Client, type Pool } from "../db.js";
 import { HttpError, idParam } from "../lib/util.js";
+import { sendPush } from "../services/push.js";
 
 // Gelir modeli: satıcı, alıcının numarasını görmek için kredi harcar. Numarayı açan satıcı teklif de verebilir.
 export type PriceTier = { max_budget: number | null; credits: number };
@@ -42,8 +43,10 @@ export async function freeUnlocksUsed(db: Pool | Client, userId: string) {
         AND created_at >= date_trunc('month', now() AT TIME ZONE 'Europe/Istanbul') AT TIME ZONE 'Europe/Istanbul'`, [userId])).rows[0]!.n;
 }
 
+// Site içi bildirim (🔔); uygulaması olan üyeye telefonuna da anlık bildirim gider.
 export async function notify(db: Pool | Client, userId: string, text: string, link = "") {
   await db.query("INSERT INTO notifications (user_id, text, link) VALUES ($1, $2, $3)", [userId, text, link]);
+  await sendPush(db, userId, text, link).catch(() => {});
 }
 
 const formatTr = (phone: string) => phone.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4");

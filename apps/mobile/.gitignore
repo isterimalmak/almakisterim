@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+dist-web/
+android/
+ios/
+*.jks
+*.keystore
+test-results/

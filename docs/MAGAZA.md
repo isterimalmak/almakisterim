@@ -1,21 +1,25 @@
 # Google Play ve App Store
 
-Uygulama sitenin birebir aynısıdır. Android'de **Trusted Web Activity (TWA)** ile almakisterim.com Chrome'un tam ekran modunda (adres çubuğu olmadan) açılır. Site güncellenince uygulama da kendiliğinden güncellenir; mağazaya yeniden yüklemek yalnızca simge, ad gibi uygulama ayarları değişince gerekir.
+Uygulama **Expo (React Native)** ile yazıldı: tek kod, hem Android hem iPhone (`apps/mobile`). Ekranlar uygulamanın kendisidir ve siteyle aynı sunucuyu (almakisterim.com/api) kullanır; siteye eklenen talepler, mesajlar, bildirimler uygulamada da anında görünür.
 
-- Kod: `apps/android` (paket adı `com.almakisterim.app`)
-- Derleme: GitHub → Actions → **Android paketi** → Run workflow (main). Çıktı: `almakisterim-aab` (.aab)
-- İmza (yükleme) anahtarı: Secret Manager'da `ANDROID_UPLOAD_KEYSTORE` / `ANDROID_UPLOAD_PASSWORD`. Bir kez Cloud Shell'de `bash infra/android-anahtar.sh` ile oluşturulur. Depoda, GitHub'da ve logda yer almaz.
-- Site–uygulama bağı: `https://almakisterim.com/.well-known/assetlinks.json`. Parmak izleri GitHub → Settings → Secrets and variables → Actions → **Variables** → `ANDROID_CERT_SHA256` (virgülle ayrılmış). Değer girilip "Canlıya al" çalışınca sitede görünür. Bağ kurulmadan uygulama yine çalışır ama üstte adres çubuğu görünür.
+- Paket adı / Bundle ID: `com.almakisterim.app` · Adres şeması: `almakisterim://`
+- Oturum: telefonun güvenli deposunda (iOS Keychain / Android Keystore); sunucuya `x-ak-session` başlığıyla gider.
+- Google ile giriş: telefonun tarayıcısında yapılır (Google uygulama içi görünümde girişe izin vermez), uygulamaya 2 dakikalık tek kullanımlık bilet döner.
+- Anlık bildirim: Expo Push. Sitede düşen her bildirim (yeni teklif, mesaj, alarmınıza uyan talep, numaranızı gören satıcı) telefona da gider.
+- Derleme: GitHub → Actions → **Android (Google Play)** → Run workflow (main). Expo'nun bulutunda (EAS) derlenir; imza anahtarını Expo saklar.
+- Gereken tek gizli değer: **EXPO_TOKEN** — expo.dev → Account settings → Access tokens → GitHub → Settings → Secrets and variables → Actions → New repository secret. Sahibi kendisi girer.
+- `almakisterim.com/talep/...` bağlantılarının uygulamada açılması için Play Console'daki imza SHA-256 değeri GitHub değişkeni `ANDROID_CERT_SHA256`'ya yazılır (site `/.well-known/assetlinks.json`'da yayınlar).
+- Testler: `apps/mobile/e2e` (uygulamanın tarayıcı sürümüyle Playwright), GitHub'daki "Testler" iş akışında her yayında çalışır.
 
 ## Google Play kurulumu (bir kez)
 
-1. play.google.com/console → geliştirici hesabı (25 $ tek seferlik, kimlik doğrulama).
-2. Cloud Shell: `bash infra/android-anahtar.sh` (yükleme anahtarı).
-3. GitHub → Actions → **Android paketi** → Run workflow → biten çalışmadan `almakisterim-aab` dosyasını indir.
+1. expo.dev'de hesap aç (ücretsiz) → Access tokens → yeni token → GitHub'a `EXPO_TOKEN` olarak gir.
+2. play.google.com/console → geliştirici hesabı (25 $ tek seferlik, kimlik doğrulama).
+3. GitHub → Actions → **Android (Google Play)** → Run workflow → biten çalışmanın özetindeki AAB bağlantısından dosyayı indir.
 4. Play Console → **Uygulama oluştur**: ad `almakisterim`, dil Türkçe, Uygulama, Ücretsiz.
 5. **Test → Dahili test** → Sürüm oluştur → `.aab` yükle (Play App Signing'i kabul et).
-6. **Kurulum → Uygulama bütünlüğü → Uygulama imzalama**: "Uygulama imzalama anahtarı sertifikası" ve "Yükleme anahtarı sertifikası" SHA-256 değerlerini GitHub değişkeni `ANDROID_CERT_SHA256`'ya virgülle yaz → "Canlıya al".
-7. Mağaza girişi, içerik derecelendirmesi, veri güvenliği (aşağıda) → Üretim'e gönder.
+6. **Kurulum → Uygulama bütünlüğü → Uygulama imzalama** → "Uygulama imzalama anahtarı sertifikası" SHA-256 → GitHub değişkeni `ANDROID_CERT_SHA256` → "Canlıya al".
+7. Mağaza girişi, içerik derecelendirmesi, veri güvenliği (aşağıda) → Üretim'e gönder. Sonraki sürümler iş akışındaki "Google Play'e gönder" kutusuyla doğrudan gider (Play servis hesabı anahtarı Expo'ya bir kez girilir).
 
 Not: 2023'ten sonra açılan kişisel geliştirici hesaplarında Google, üretime çıkmadan önce **en az 12 test kullanıcısıyla 14 gün kapalı test** ister. Kurumsal (şirket) hesaplarda bu şart yoktur.
 
@@ -37,7 +41,7 @@ Not: 2023'ten sonra açılan kişisel geliştirici hesaplarında Google, üretim
 - **Kategori:** Alışveriş · **İletişim e-postası:** destek@almakisterim.com
 - **Gizlilik politikası:** https://almakisterim.com/sayfa/kvkk
 - **Hesap silme adresi:** https://almakisterim.com/sayfa/hesap-silme
-- **Görseller:** `apps/android/store/` (simge 512×512, öne çıkan görsel 1024×500). Telefon ekran görüntüleri (en az 2, önerilen 4–8): ana sayfa, talep ver, talep sayfası, Bana Özel.
+- **Görseller:** `apps/mobile/store/` (simge 512×512, öne çıkan görsel 1024×500). Telefon ekran görüntüleri (en az 2, önerilen 4–8): ana sayfa, talep ver, talep sayfası, Bana Özel.
 
 ## Veri güvenliği formu (Play Console)
 
@@ -56,11 +60,9 @@ Not: 2023'ten sonra açılan kişisel geliştirici hesaplarında Google, üretim
 
 ## App Store (iPhone)
 
-Apple'ın kuralları Android'den farklıdır:
+Aynı kod iPhone'da da çalışır. Yüklemek için:
 
-1. **Mac ve Apple Developer hesabı** (yıllık 99 $) gerekir; derleme Xcode ile yapılır.
-2. Yalnızca siteyi gösteren uygulamalar "en az işlev" kuralı (4.2) yüzünden sık reddedilir. Uygulamaya web'de olmayan yerel özellikler eklenmelidir: anlık bildirim, kamera ile fotoğraf, paylaşım menüsü, Face ID ile giriş gibi.
-3. Google ile giriş sunulduğu için **Apple ile Giriş** (Sign in with Apple) de eklenmelidir (kural 4.8).
-4. Hesap silme uygulama içinden yapılabilmelidir (hazır).
-
-Önerilen yol: Capacitor ile iOS kabuğu + yerel bildirim ve kamera + Apple ile Giriş. Android yayında oturduktan sonra ayrı iş olarak yapılır.
+1. **Apple Developer hesabı** (yıllık 99 $). Derleme Expo'nun bulutunda yapılır; Mac gerekmez.
+2. **Apple ile Giriş** hazır (kural 4.8): iPhone'da giriş ekranında görünür; sunucu Apple'ın imzalı jetonunu `POST /api/auth/apple` ile doğrular (alıcı: `APPLE_BUNDLE_ID`, varsayılan `com.almakisterim.app`). Apple Developer'da App ID için "Sign in with Apple" yetkisi açılmalıdır.
+   - Yapılacak: Apple hesap silmede Apple jetonunun iptal edilmesini (revoke) ister; bunun için Apple Developer'dan alınacak "Sign in with Apple" anahtarı gerekir — iPhone yüklemesinden önce eklenecek.
+3. Hesap silme uygulama içinden yapılabiliyor (Hesabım → Hesap Bilgileri → Hesabı sil). ✓
