@@ -149,6 +149,27 @@ describe("E-posta Stüdyosu", () => {
     expect(ctx.outbox.sent[0]!.html).toContain("Örnek talep: 2. el iPhone 13");
   });
 
+  it("yönetici e-postayı istediği adrese gönderir: denemesiz konu, alıcı üyeyse adı dolar; kampanya başkasına elle gönderilemez", async () => {
+    const admin = await login(ctx, ADMIN, "Yönetici");
+    await login(ctx, "ayse.uye@example.com", "Ayşe Yılmaz");
+    const t = await fromStarter(admin, "published");
+    ctx.outbox.sent = [];
+    const send = (payload: Record<string, unknown>) => ctx.app.inject({ method: "POST", url: `/api/admin/mail/templates/${t.id}/test`, headers: { cookie: admin }, payload });
+    let r = await send({ to: " Ayse.Uye@Example.com ", test: false });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().to).toBe("ayse.uye@example.com");
+    const m = ctx.outbox.last("ayse.uye@example.com")!;
+    expect(m.subject).not.toMatch(/^\[Deneme\]/);
+    expect(m.subject).toBe("Ayşe, talebiniz yayında");
+    expect((await send({ to: "yabanci@example.com" })).statusCode).toBe(200);
+    expect(ctx.outbox.last("yabanci@example.com")!.subject).toMatch(/^\[Deneme\] /);
+    expect((await send({ to: "adres-degil" })).statusCode).toBe(400);
+    await ctx.pool.query("UPDATE mail_templates SET kind = 'marketing' WHERE id = $1", [t.id]);
+    r = await send({ to: "yabanci@example.com", test: false });
+    expect(r.json().error).toBe("kampanya_izinsiz");
+    expect((await send({})).statusCode).toBe(200);
+  });
+
   it("talep yayına girince ve süresi dolunca görevler sıraya girer; saatlik iş e-postaları da gönderir", async () => {
     const admin = await login(ctx, ADMIN);
     const pub = await fromStarter(admin, "published");

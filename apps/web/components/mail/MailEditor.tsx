@@ -125,6 +125,10 @@ export function MailEditor({ id }: { id: number }) {
     window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
+  // Gönder kutusu (kime, deneme mi)
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendTo, setSendTo] = useState('');
+  const [asTest, setAsTest] = useState(true);
   if (!d) return <Skeleton h={560} />;
 
   const add = (type: MailBlock['type'], at?: number) => {
@@ -144,9 +148,15 @@ export function MailEditor({ id }: { id: number }) {
   const checks = checklist(d);
   const score = checks.filter(c => c.ok).length;
 
+  // Gönder: istenen adrese (varsayılan yöneticinin kendisi); "Deneme" işaretliyse konuya [Deneme] eklenir.
   const sendTest = async () => {
     if (dirty && !(await save(true))) return;
-    try { const r = await api.admin.mail.test(id); toast(r.ready ? `Deneme ${r.to} adresine gönderildi 📨` : 'E-posta servisi henüz bağlı değil: deneme kaydedildi ama gönderilmedi'); } catch (e) { fail(e); }
+    const to = sendTo.trim() || user?.email || '';
+    try {
+      const r = await api.admin.mail.test(id, to || undefined, asTest);
+      toast(r.ready ? `${asTest ? 'Deneme' : 'E-posta'} ${r.to} adresine gönderildi 📨` : 'E-posta servisi henüz bağlı değil: kaydedildi ama gönderilmedi');
+      setSendOpen(false);
+    } catch (e) { fail(e); }
   };
 
   return (
@@ -158,7 +168,17 @@ export function MailEditor({ id }: { id: number }) {
         <div className="ms-top-r">
           <button className="btn btn-sm" title="Geri al (⌘Z)" disabled={!hist.current.past.length} onClick={undo}>↶</button>
           <button className="btn btn-sm" title="Yinele (⌘⇧Z)" disabled={!hist.current.future.length} onClick={redo}>↷</button>
-          <button className="btn btn-sm" onClick={sendTest} title={`Deneme: ${user?.email ?? ''}`}>📨 Kendime dene</button>
+          <span style={{ position: 'relative' }}>
+            <button className="btn btn-sm" aria-expanded={sendOpen} onClick={() => setSendOpen(o => !o)}>📨 Gönder</button>
+            {sendOpen && <form className="ms-send" role="dialog" aria-label="E-postayı gönder" onSubmit={e => { e.preventDefault(); void sendTest(); }}
+              style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 30, width: 300, background: '#fff', border: '1px solid #E3E6EA', borderRadius: 12, padding: 12, boxShadow: '0 10px 30px rgba(19,35,91,.15)', display: 'grid', gap: 8 }}>
+              <label htmlFor="ms-to" style={{ fontWeight: 700, fontSize: 13 }}>Kime gönderilsin?</label>
+              <input id="ms-to" className="inp" type="email" value={sendTo} placeholder={user?.email ?? 'ornek@ornek.com'} onChange={e => setSendTo(e.target.value)} autoFocus />
+              <label className="chk" style={{ fontSize: 13 }}><input type="checkbox" checked={asTest} onChange={e => setAsTest(e.target.checked)} />Deneme olarak gönder (konuya [Deneme] eklenir)</label>
+              <span className="muted" style={{ fontSize: 12 }}>Boş bırakırsanız kendinize ({user?.email}) gider. Kampanya türündeki e-posta yalnız kendinize denenebilir.</span>
+              <button type="submit" className="btn btn-primary btn-sm">📨 Gönder</button>
+            </form>}
+          </span>
           <button className="btn btn-sm" disabled={busy || !dirty} onClick={() => save()}>💾 Kaydet</button>
           <button className="btn btn-primary btn-sm" onClick={async () => { if (dirty && !(await save(true))) return; setRule(true); }}>⚡ Görev ver</button>
         </div>

@@ -370,7 +370,10 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   // Ana Sayfa Düzeni (Marka Bahçem vitrini gibi): son talepler en üste taşınır; yazı ve kayan yazı bölümü eklenir.
   const htag = rnd();
   await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
-  for (let i = 0; i < 8; i++) await Promise.all([page.waitForResponse((r) => r.url().includes("/api/categories")), page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" }).click()]);
+  // Her tıklamada kayıt (PUT) beklenir; düğme en üstte devre dışı kalana kadar yukarı taşınır.
+  const upLatest = page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" });
+  for (let i = 0; i < 20 && (await upLatest.isEnabled()); i++)
+    await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/home-blocks") && r.request().method() === "PUT"), upLatest.click()]);
   await expect(page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" })).toBeDisabled();
   await page.getByRole("button", { name: /Yazı \/ duyuru/ }).click();
   await page.getByLabel("Başlık", { exact: true }).fill(`Hoş geldiniz ${htag}`);
@@ -568,6 +571,18 @@ test("yönetici kayan vitrin ekler: adını, talebini ve hızını seçer; ana s
   const id = page.url().match(/(\d+)$/)![1];
   const tpl = (await (await page.request.get(`/api/admin/mail/templates/${id}`)).json()).template;
   expect(tpl.blocks.some((b: { type: string; text?: string }) => b.type === "heading" && b.text === heading)).toBeTruthy();
+  // İstediği adrese gönderir: Gönder → adres → (deneme işaretini kaldırır) → Gönder.
+  await page.getByRole("button", { name: "📨 Gönder" }).click();
+  const box = page.getByRole("dialog", { name: "E-postayı gönder" });
+  await box.getByLabel("Kime gönderilsin?").fill("musteri@example.com");
+  await box.getByLabel(/Deneme olarak gönder/).uncheck();
+  const sent = page.waitForResponse((r) => /\/api\/admin\/mail\/templates\/\d+\/test$/.test(r.url()));
+  await box.getByRole("button", { name: "📨 Gönder" }).click();
+  const sr = await sent;
+  expect(sr.ok()).toBeTruthy();
+  expect(JSON.parse(sr.request().postData()!)).toEqual({ to: "musteri@example.com", test: false });
+  // E-posta servisi bağlıysa "gönderildi", değilse (test ortamı) "kaydedildi ama gönderilmedi" yazar.
+  await expect(page.getByText(/musteri@example.com adresine gönderildi|henüz bağlı değil/)).toBeVisible();
   // Temizlik: şablon silinir.
   expect((await page.request.delete(`/api/admin/mail/templates/${id}`)).ok()).toBeTruthy();
 });

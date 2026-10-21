@@ -28,7 +28,7 @@ export const api = {
       saveTemplate: (id: number, t: Draft) => put<{ template: MailTemplate }>(`/admin/mail/templates/${id}`, t),
       deleteTemplate: (id: number) => del<Ok>(`/admin/mail/templates/${id}`),
       render: (t: Draft) => post<{ subject: string; html: string }>("/admin/mail/render", t),
-      test: (id: number, to?: string) => post<{ ok: true; to: string; ready: boolean }>(`/admin/mail/templates/${id}/test`, to ? { to } : {}),
+      test: (id: number, to?: string, test = true) => post<{ ok: true; to: string; ready: boolean }>(`/admin/mail/templates/${id}/test`, { ...(to ? { to } : {}), test }),
       audience: (audience: MailAudience, kind: "info" | "marketing") => get<{ count: number; total: number }>("/admin/mail/audience" + qs({ audience, kind })),
       createRule: (b: MailRuleInput) => post<{ id: number }>("/admin/mail/rules", b),
       updateRule: (id: number, b: Partial<MailRuleInput>) => patch<Ok>(`/admin/mail/rules/${id}`, b),
