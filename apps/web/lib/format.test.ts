@@ -5,7 +5,9 @@ describe("biçimlendirme", () => {
   const now = new Date("2026-10-12T12:00:00Z").getTime();
   it("Türkçe sayı ve bütçe biçimi", () => {
     expect(fmt(1400000)).toBe("1.400.000");
-    expect(budgetTxt(17000, 20000)).toBe("17.000 – 20.000 TL");
+    // Talepte tek fiyat: eski aralıklı taleplerde de yalnız fiyat görünür.
+    expect(budgetTxt(17000, 20000)).toBe("20.000 TL");
+    expect(budgetTxt(null, 15000)).toBe("15.000 TL");
     expect(budgetTxt(20000, 20000)).toBe("20.000 TL");
   });
   it("geçen ve kalan süre", () => {
