@@ -504,16 +504,22 @@ export function mailStudioRoutes(app: FastifyInstance, deps: Deps) {
   });
   app.post('/admin/mail/templates/:id/test', async (req) => {
     const u = requireAdmin(req);
-    const b = z.object({ to: z.email().optional() }).parse(req.body ?? {});
+    // to: istenen adres (boşsa yöneticinin kendisi). test=false: konuya "[Deneme]" eklenmez (elle gönderim).
+    const b = z.object({ to: z.string().trim().toLowerCase().pipe(z.email()).optional(), test: z.boolean().default(true) }).parse(req.body ?? {});
     const t = await getTpl(idParam(req));
     if (!t) throw new HttpError(404, 'bulunamadi', 'Şablon bulunamadı');
     const tpl = TemplateSchema.parse(t);
     const to = b.to ?? u.email;
-    if (!to) throw new HttpError(400, 'eposta_yok', 'Deneme için bir e-posta adresi gir');
-    const r = renderMail(tpl, { origin: origin(), kind: tpl.kind, vars: varsOf(u, origin(), { id: 1048200, title: 'Örnek talep: 2. el iPhone 13' }), requests: await loadRequests(pool, deps.storage, tpl.blocks) });
-    const ok = await sendMail(deps.mailer, { to, subject: '[Deneme] ' + (r.subject || tpl.name), text: r.text, html: r.html }, req.log);
+    if (!to) throw new HttpError(400, 'eposta_yok', 'Gönderilecek e-posta adresini yazın');
+    // Kampanya e-postası yalnız izin veren üyelere gider (İYS); elle başkasına gönderilemez.
+    const other = to !== u.email;
+    if (other && tpl.kind === 'marketing') throw new HttpError(400, 'kampanya_izinsiz', 'Kampanya e-postası başka adrese elle gönderilemez; izin veren üyelere "Görev ver" ile gönderin. Bilgilendirme türündeki e-postayı istediğiniz adrese gönderebilirsiniz.');
+    // Alıcı üyeyse {ad} gibi alanlar onun bilgileriyle dolar.
+    const rcpt = other ? (await pool.query<{ name: string; email: string | null }>('SELECT name, email FROM users WHERE lower(email) = $1', [to])).rows[0] : undefined;
+    const r = renderMail(tpl, { origin: origin(), kind: tpl.kind, vars: varsOf(rcpt ?? (other ? { name: '', email: to } : u), origin(), { id: 1048200, title: 'Örnek talep: 2. el iPhone 13' }), requests: await loadRequests(pool, deps.storage, tpl.blocks) });
+    const ok = await sendMail(deps.mailer, { to, subject: (b.test ? '[Deneme] ' : '') + (r.subject || tpl.name), text: r.text, html: r.html }, req.log);
     await pool.query(`INSERT INTO mail_sends (template_id, user_id, email, subject, status, token, sent_at, note) VALUES ($1,$2,$3,$4,'test',$5,now(),$6)`,
-      [t.id, u.id, to, r.subject, token(), ok ? 'Deneme' : 'Deneme gönderilemedi']);
+      [t.id, u.id, to, r.subject, token(), (b.test ? 'Deneme' : 'Elle gönderim') + (ok ? '' : ' gönderilemedi')]);
     if (!ok) throw new HttpError(502, 'eposta_gonderilemedi', 'E-posta servisi deneme e-postasını kabul etmedi');
     return { ok: true, to, ready: !!mailProvider(config) };
   });
