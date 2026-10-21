@@ -11,7 +11,7 @@ import { placeTxt, useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useSession } from "@/components/Session";
 import { VehicleFields, VehicleRows } from "@/components/VehicleFields";
 import { api, type Draft, type Media } from "@/lib/api";
-import { attrsFor, CITIES, condsFor } from "@/lib/catalog";
+import { attrsFor, CITIES, condsFor, optionsFor, pickAttr } from "@/lib/catalog";
 import { budgetTxt } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
@@ -141,7 +141,7 @@ function Create() {
   }, [sp, categories.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hazır görseller, listede seçilip henüz eklenmemiş aracı da hesaba katar (Bentley seçince Bentley görselleri gelsin).
-  const [draftCar, setDraftCar] = useState<{ marka: string; model: string | null } | null>(null);
+  const [draftCar, setDraftCar] = useState<{ marka: string; model: string | null; paket?: string | null } | null>(null);
   const stockAttrs = useMemo(() => {
     const list = Array.isArray(d.attrs.araclar) ? d.attrs.araclar as { marka: string; model: string | null }[] : [];
     if (!draftCar || list.some((x) => x.marka === draftCar.marka && x.model === draftCar.model)) return d.attrs;
@@ -154,8 +154,9 @@ function Create() {
   // Birden fazla araç: her biri ayrı talep olarak, kendi fotoğraflarıyla yayınlanır.
   const cars = vehicle && Array.isArray(d.attrs.araclar) ? d.attrs.araclar as { marka: string; model: string | null }[] : [];
   const multi = cars.length > 1;
-  const carKey = (c: { marka: string; model: string | null }) => `${c.marka}|${c.model ?? ""}`;
-  const carLabel = (c: { marka: string; model: string | null }) => c.model ? `${c.marka} ${c.model}` : `${c.marka} (tüm modeller)`;
+  // Sunucu fotoğrafları bu anahtarla eşler: "BMW|3 Serisi|320d" (paket yoksa "BMW|3 Serisi").
+  const carKey = (c: { marka: string; model: string | null; paket?: string | null }) => `${c.marka}|${c.model ?? ""}${c.paket ? `|${c.paket}` : ""}`;
+  const carLabel = (c: { marka: string; model: string | null; paket?: string | null }) => c.model ? [c.marka, c.model, c.paket].filter(Boolean).join(" ") : `${c.marka} (tüm modeller)`;
 
   const validate = () => {
     if (d.title.trim().length < 3) return "Talep başlığı yazın.";
@@ -232,6 +233,15 @@ function Create() {
           )}
           <div className="box"><div className="box-h"><h2>Talep Detayları</h2><span className="muted" style={{ fontSize: 12.5 }}>{top.name} › {sub.name} · <button className="link" onClick={() => set({ step: 1 })}>Değiştir</button></span></div><div className="box-b">
             <div className="form-grid">
+              {/* Kategoriye özel seçimler en üstte: Vasıta › Otomobil › BMW › 3 Serisi › 320d tek yerde seçilir. */}
+              {vehicle && <VehicleFields sub={d.sub} value={d.attrs as VehicleAttrs} onChange={(attrs) => setD((x) => ({ ...x, attrs }))} onDraft={setDraftCar} />}
+              {sch.map((a) => { const opts = optionsFor(a, d.attrs[a.by ?? ""]); return a.om && !opts.length ? null : (
+                <div className="fg" key={a.k}><label htmlFor={`fa-${a.k}`}>{a.l}</label>
+                  {a.t === "sel"
+                    ? <select className="sel" id={`fa-${a.k}`} value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: pickAttr(sch, d.attrs, a.k, e.target.value) })}><option value="">Farketmez</option>{opts.map((o) => <option key={o}>{o}</option>)}</select>
+                    : <input className="inp" id={`fa-${a.k}`} type="number" value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: { ...d.attrs, [a.k]: e.target.value ? Number(e.target.value) : "" } })} />}
+                </div>
+              ); })}
               <div className="fg full"><label htmlFor="f-t">Talep başlığı *</label><input className="inp" id="f-t" maxLength={120} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="Örn. Kadıköy'de 3+1 kiralık daire arıyorum" /><span className="hint">Ne aradığınızı kısa ve net yazın.</span></div>
               <div className="fg full"><label htmlFor="f-x">Açıklama</label><textarea className="txa" id="f-x" rows={4} maxLength={4000} value={d.description} onChange={(e) => set({ description: e.target.value })} placeholder="Olmazsa olmazlarınız, tercih ettiğiniz marka/model, teslimat şekli..." /></div>
               <div className="fg"><label htmlFor="f-b1">Fiyat (TL) *</label><input className="inp" id="f-b1" type="number" inputMode="numeric" value={d.b1} onChange={(e) => set({ b1: e.target.value })} /></div>
@@ -239,14 +249,6 @@ function Create() {
               <div className="fg"><label htmlFor="f-d">İlçe</label><select className="sel" id="f-d" value={d.district} disabled={!d.city} onChange={(e) => set({ district: e.target.value, hood: "" })}><option value="">{d.city ? "İlçe farketmez" : "Önce il seçin"}</option>{(districts.includes(d.district) || !d.district ? districts : [d.district, ...districts]).map((x) => <option key={x}>{x}</option>)}</select></div>
               {d.district && <div className="fg"><label htmlFor="f-m">Mahalle</label><select className="sel" id="f-m" value={d.hood} onChange={(e) => set({ hood: e.target.value })}><option value="">Mahalle farketmez</option>{(hoods.includes(d.hood) || !d.hood ? hoods : [d.hood, ...hoods]).map((x) => <option key={x}>{x}</option>)}</select></div>}
               {condsFor(d.top).length > 1 && <div className="fg full"><label>Ürün durumu</label><div className="radio-row">{condsFor(d.top).map((c) => <label key={c}><input type="radio" name="k" checked={d.condition === c} onChange={() => set({ condition: c })} />{c}</label>)}</div></div>}
-              {vehicle && <VehicleFields sub={d.sub} value={d.attrs as VehicleAttrs} onChange={(attrs) => setD((x) => ({ ...x, attrs }))} onDraft={setDraftCar} />}
-              {sch.map((a) => (
-                <div className="fg" key={a.k}><label htmlFor={`fa-${a.k}`}>{a.l}</label>
-                  {a.t === "sel"
-                    ? <select className="sel" id={`fa-${a.k}`} value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: { ...d.attrs, [a.k]: e.target.value } })}><option value="">Farketmez</option>{a.o!.map((o) => <option key={o}>{o}</option>)}</select>
-                    : <input className="inp" id={`fa-${a.k}`} type="number" value={String(d.attrs[a.k] ?? "")} onChange={(e) => set({ attrs: { ...d.attrs, [a.k]: e.target.value ? Number(e.target.value) : "" } })} />}
-                </div>
-              ))}
               {multi && user ? (
                 <div className="fg full car-photos">
                   <div className="note n-info"><span><b>{cars.length} araç seçtiniz; her biri ayrı talep olarak yayınlanacak.</b> Böylece her aracın satıcısı yalnızca kendi aracına uyan talebi görür. Her araç için o modele uygun bir fotoğraf seçin.</span></div>

@@ -19,6 +19,7 @@ const SYN: Record<string, string[]> = {
   "Merkezi": ["merkezi ısıtma", "merkezi sistem", "merkezi kalorifer", "kalorifer"], "Yerden ısıtma": ["yerden ısıtma"],
   "Eşyalı": ["eşyalı"], "Eşyasız": ["eşyasız", "boş daire", "boş ev"],
   "Kadın": ["kadın", "bayan"], "Erkek": ["erkek", "bay"], "Çocuk": ["çocuk"], "Unisex": ["unisex"],
+  "PlayStation 5 Pro": ["ps5 pro", "playstation 5 pro"], "Nintendo Switch 2": ["switch 2"], "Nintendo Switch OLED": ["switch oled"], "Xbox One": ["xbox one"],
   "PlayStation 5": ["ps5", "playstation 5"], "PlayStation 4": ["ps4", "playstation 4"], "Xbox Series X/S": ["xbox"], "Nintendo Switch": ["switch", "nintendo"],
   "Dizüstü": ["dizüstü", "laptop", "notebook", "macbook"], "Masaüstü": ["masaüstü"], "Hepsi bir arada": ["hepsi bir arada", "imac"],
   "Akıllı saat": ["akıllı saat", "smartwatch", "apple watch"], "Kol saati": ["kol saati"],
@@ -34,7 +35,15 @@ const STRICT: Record<string, RegExp> = {
   "Tekne": /(^|[^a-zığüşöç])tekne(?!si)/, "Fırın": /(^|[^a-zığüşöç])fırın/,
 };
 
+// Model adları uzundan kısaya denenir ("iPhone 16 Pro Max", "iPhone 16 Pro"'dan önce); "s24 ultra" gibi "Galaxy"siz yazım da sayılır.
+function pickModel(t: string, a: Attr): string | null {
+  const all = [...(a.o ?? [])].filter((o) => o !== "Farketmez").sort((x, y) => y.length - x.length);
+  const alts = (o: string) => [o, o.replace(/[()]/g, ""), o.replace(/^Galaxy /, "")];
+  return all.find((o) => alts(o).some((x) => hasWord(t, x))) ?? null;
+}
+
 function pickOption(t: string, a: Attr): string | null {
+  if (a.om) return pickModel(t, a);
   for (const o of a.o ?? []) {
     if (o === "Farketmez") continue;
     if (STRICT[o]) { if (STRICT[o]!.test(t)) return o; continue; }
@@ -103,12 +112,23 @@ export function fillAttrs(text: string, schema: Attr[], suggested: Record<string
     const v = validValue(a, suggested[a.k]) ?? fromText(t, a);
     if (v !== null) out[a.k] = v;
   }
+  // Model markayı belirler ("iPhone 16 Pro" → Apple); markayla uyuşmayan model bırakılmaz.
+  for (const a of schema) {
+    const m = out[a.k];
+    if (!a.om || !a.by || typeof m !== "string" || m === "Farketmez") continue;
+    const brand = Object.keys(a.om).find((b) => a.om![b]!.includes(m));
+    const cur = out[a.by];
+    if (!cur || cur === "Farketmez") { if (brand) out[a.by] = brand; }
+    else if (cur !== brand) delete out[a.k];
+  }
   return out;
 }
 
 // Yapay zekâya gönderilen kısa katalog: "arsa: m2 (sayı) | imar [Konut, Ticari, …] | tapu […]".
 export function describeAttrs(schema: Attr[]) {
-  return schema.map((a) => (a.t === "num" ? `${a.k} (${a.l}, sayı)` : `${a.k} (${a.l}) [${(a.o ?? []).join(", ")}]`)).join(" | ");
+  return schema.map((a) => (a.t === "num" ? `${a.k} (${a.l}, sayı)`
+    : a.om ? `${a.k} (${a.l}, ${a.by} alanına göre) [${Object.entries(a.om).map(([b, ms]) => `${b}: ${ms.join(", ")}`).join("; ")}]`
+    : `${a.k} (${a.l}) [${(a.o ?? []).join(", ")}]`)).join(" | ");
 }
 
 // Türkçe bulunma eki: "Kadıköy" → "Kadıköy'de", "Urla" → "Urla'da", "Bostancı" → "Bostancı'da", "Çeşme" → "Çeşme'de", "Sinop" → "Sinop'ta".
@@ -161,7 +181,7 @@ export function buildTitle(o: { sub: string | null; subName: string | null; attr
   const place = o.neighbourhood || o.district || o.city || "";
   const parts: string[] = [];
   if (Array.isArray(a.araclar) && a.araclar.length) {
-    const cars = (a.araclar as { marka: string; model: string | null }[]).slice(0, 2).map((c) => [c.marka, c.model].filter(Boolean).join(" ")).join(" veya ");
+    const cars = (a.araclar as { marka: string; model: string | null; paket?: string | null }[]).slice(0, 2).map((c) => [c.marka, c.model, c.paket].filter(Boolean).join(" ")).join(" veya ");
     const yil = a.yil_min ? `${a.yil_min} ve Sonrası ` : "";
     const extra = [...((a.yakit as string[] | undefined) ?? []), ...((a.vites as string[] | undefined) ?? [])].slice(0, 2).join(" ");
     parts.push(`${yil}${extra ? `${extra} ` : ""}${cars}`);

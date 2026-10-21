@@ -10,15 +10,16 @@ import { fmt } from "@/lib/format";
 import { openWebAuthed } from "@/lib/links";
 import { C, R } from "@/lib/theme";
 import { useCats } from "@/lib/useCats";
-import { brandsOf, isVehicleSub, useVehicleCatalog } from "@/lib/vehicles";
+import { brandsOf, isVehicleSub, useVehicleCatalog, variantsOf } from "@/lib/vehicles";
 
 type Alarm = { id: number; category_id: string; category_name: string; top_name: string | null; filters: Record<string, string> };
 type F = Record<string, string>;
 
-// Alarmdaki araç listesi "BMW:3 Serisi,Audi:" biçiminde saklanır (model boşsa markanın bütün modelleri) — sunucuyla aynı.
-const parseCars = (s: string) => s.split(",").filter(Boolean).map((x) => { const [marka = "", model = ""] = x.split(":"); return { marka, model }; });
-const carsTxt = (cs: { marka: string; model: string }[]) => cs.map((c) => `${c.marka}:${c.model}`).join(",");
-const carName = (c: { marka: string; model: string }) => (c.model ? `${c.marka} ${c.model}` : `${c.marka} (tüm modeller)`);
+// Alarmdaki araç listesi "BMW:3 Serisi:320d,Audi:" biçiminde saklanır (model boşsa markanın bütün modelleri, paket boşsa modelin bütün paketleri) — sunucuyla aynı.
+type Car = { marka: string; model: string; paket: string };
+const parseCars = (s: string): Car[] => s.split(",").filter(Boolean).map((x) => { const [marka = "", model = "", paket = ""] = x.split(":"); return { marka, model, paket }; });
+const carsTxt = (cs: Car[]) => cs.map((c) => `${c.marka}:${c.model}${c.paket ? `:${c.paket}` : ""}`).join(",");
+const carName = (c: Car) => (c.model ? [c.marka, c.model, c.paket].filter(Boolean).join(" ") : `${c.marka} (tüm modeller)`);
 const digits = (v: string) => v.replace(/\D/g, "");
 
 /** Alarmın tek satırlık özeti (sitedeki alarmSummary ile aynı sıra). */
@@ -46,6 +47,7 @@ export default function Alarmlar() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [mk, setMk] = useState("");
   const [md, setMd] = useState("");
+  const [pk, setPk] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const load = useCallback(() => { api<{ items: Alarm[] }>("/me/alarms").then((d) => setItems(d.items)).catch(() => setItems([])); }, []);
@@ -65,12 +67,14 @@ export default function Alarmlar() {
   }, [oneCity]);
 
   const set = (p: F) => setF((x) => { const n = { ...x, ...p }; for (const k of Object.keys(n)) if (!n[k]) delete n[k]; return n; });
-  const pick = (id: string) => { setCat(id); setF((x) => Object.fromEntries(Object.entries(x).filter(([k]) => ["city", "district", "bmin", "bmax", "q", "urgent"].includes(k)))); setMk(""); setMd(""); };
+  const pick = (id: string) => { setCat(id); setF((x) => Object.fromEntries(Object.entries(x).filter(([k]) => ["city", "district", "bmin", "bmax", "q", "urgent"].includes(k)))); setMk(""); setMd(""); setPk(""); };
   const addCity = (c: string) => { if (c && !cities.includes(c)) set({ city: [...cities, c].join(","), district: "" }); };
   const addCar = () => {
     if (!mk) return;
-    const next = cars.filter((c) => !(c.marka === mk && (c.model === md || !md)) && !(c.marka === mk && !c.model && md));
-    set({ araclar: carsTxt([...next, { marka: mk, model: md }]) }); setMk(""); setMd("");
+    const p = md ? pk : "";
+    // Aynı araç ya da onu kapsayan/kapsadığı seçim yerine yenisi konur (bütün model ↔ tek paket).
+    const next = cars.filter((c) => !(c.marka === mk && (!md || !c.model || (c.model === md && (!p || !c.paket || c.paket === p)))));
+    set({ araclar: carsTxt([...next, { marka: mk, model: md, paket: p }]) }); setMk(""); setMd(""); setPk("");
   };
   const toggle = (k: "arac_yakit" | "arac_vites", v: string) => { const cur = (f[k] ?? "").split(",").filter(Boolean); set({ [k]: (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]).join(",") }); };
 
@@ -78,9 +82,9 @@ export default function Alarmlar() {
     setBusy(true); setErr("");
     try {
       // Listeye eklenmeden bırakılan marka/model de alarma girsin.
-      const filters = { ...f, ...(mk ? { araclar: carsTxt([...cars, { marka: mk, model: md }]) } : {}) };
+      const filters = { ...f, ...(mk ? { araclar: carsTxt([...cars, { marka: mk, model: md, paket: md ? pk : "" }]) } : {}) };
       await api("/me/alarms", { body: { category_id: cat, filters } });
-      setCat(""); setF({}); setMk(""); setMd(""); load();
+      setCat(""); setF({}); setMk(""); setMd(""); setPk(""); load();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   const del = async (a: Alarm) => {
@@ -114,12 +118,13 @@ export default function Alarmlar() {
           <>
             <Text style={{ fontSize: 13, fontWeight: "700", color: C.navy }}>Elinizdeki araçlar (boş bırakırsanız bütün markalar)</Text>
             {cars.map((c) => (
-              <View key={`${c.marka}:${c.model}`} style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: C.bg, borderRadius: R.md, padding: 10 }}>
+              <View key={`${c.marka}:${c.model}:${c.paket}`} style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: C.bg, borderRadius: R.md, padding: 10 }}>
                 <Text style={{ fontWeight: "700" }}>{carName(c)}</Text>
                 <Text accessibilityRole="button" accessibilityLabel={`${carName(c)} kaldır`} style={{ color: C.red, fontWeight: "700" }} onPress={() => set({ araclar: carsTxt(cars.filter((x) => x !== c)) })}>Kaldır</Text>
               </View>))}
-            <Picker label="Marka" value={mk} options={Object.keys(brands).map((b) => ({ value: b, label: b }))} onChange={(b) => { setMk(b); setMd(""); }} />
-            {mk && brands[mk]?.length ? <Picker label="Model" value={md} placeholder="Tüm modeller" options={[{ value: "", label: "Tüm modeller" }, ...brands[mk]!.map((m) => ({ value: m, label: m }))]} onChange={setMd} /> : null}
+            <Picker label="Marka" value={mk} options={Object.keys(brands).map((b) => ({ value: b, label: b }))} onChange={(b) => { setMk(b); setMd(""); setPk(""); }} />
+            {mk && brands[mk]?.length ? <Picker label="Model" value={md} placeholder="Tüm modeller" options={[{ value: "", label: "Tüm modeller" }, ...brands[mk]!.map((m) => ({ value: m, label: m }))]} onChange={(m) => { setMd(m); setPk(""); }} /> : null}
+            {variantsOf(vc, cat, mk, md).length ? <Picker label="Motor / paket" value={pk} placeholder="Tüm paketler" options={[{ value: "", label: "Tüm paketler" }, ...variantsOf(vc, cat, mk, md).map((v) => ({ value: v, label: v }))]} onChange={setPk} /> : null}
             <Btn title="+ Aracı listeye ekle" kind="wh" disabled={!mk} onPress={addCar} />
             <View style={{ flexDirection: "row", gap: 8 }}>
               <View style={{ flex: 1 }}><Field label="Aracınızın model yılı" value={f.arac_yil ?? ""} onChangeText={(v) => set({ arac_yil: digits(v).slice(0, 4) })} keyboardType="number-pad" /></View>

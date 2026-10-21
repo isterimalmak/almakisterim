@@ -42,7 +42,7 @@ export function cleanAlarmFilters(input: Record<string, string | number>): Recor
   if (out.araclar) {
     const cars = parseCarList(out.araclar);
     if (cars.length > 20) throw new HttpError(400, "arac_cok", "Bir alarma en fazla 20 araç ekleyebilirsiniz.");
-    out.araclar = cars.map((c) => `${c.marka}:${c.model ?? ""}`).join(",");
+    out.araclar = cars.map((c) => `${c.marka}:${c.model ?? ""}${c.paket ? `:${c.paket}` : ""}`).join(",");
     if (!out.araclar) delete out.araclar;
     delete out.arac_marka; delete out.arac_model;
   }

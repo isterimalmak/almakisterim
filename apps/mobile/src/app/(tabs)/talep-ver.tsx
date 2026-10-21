@@ -9,7 +9,7 @@ import { VehicleFields } from "@/components/VehicleFields";
 import { isVehicleSub, vehicleName, type VehicleAttrs } from "@/lib/vehicles";
 import { Box, Btn, Err, Field } from "@/components/ui";
 import { api } from "@/lib/api";
-import { attrsFor, CITIES, condsFor } from "@/lib/catalog";
+import { attrsFor, CITIES, condsFor, optionsFor, pickAttr } from "@/lib/catalog";
 import { openWeb } from "@/lib/links";
 import { useSession } from "@/lib/session";
 import { C, R } from "@/lib/theme";
@@ -67,7 +67,8 @@ export default function TalepVer() {
   const conds = condsFor(top);
   const cars = isVehicleSub(sub) ? (attrs as VehicleAttrs).araclar ?? [] : [];
   const multi = cars.length > 1;
-  const carKey = (c: { marka: string; model: string | null }) => `${c.marka}|${c.model ?? ""}`;
+  // Sunucu fotoğrafları bu anahtarla eşler: "BMW|3 Serisi|320d" (paket yoksa "BMW|3 Serisi").
+  const carKey = (c: { marka: string; model: string | null; paket?: string | null }) => `${c.marka}|${c.model ?? ""}${c.paket ? `|${c.paket}` : ""}`;
   useEffect(() => { if (!conds.includes(cond)) setCond(conds.includes("Farketmez") ? "Farketmez" : conds[0]!); }, [top]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async (k: string, fn: () => Promise<void>) => { setBusy(k); setErr(""); try { await fn(); } catch (e) { setErr((e as Error).message); } finally { setBusy(null); } };
@@ -131,6 +132,17 @@ export default function TalepVer() {
         </Box>
         <Box title="Talep detayları">
           <Picker label="Kategori *" value={sub} options={subs} onChange={setSub} />
+          {isVehicleSub(sub) ? <VehicleFields sub={sub} value={attrs as VehicleAttrs} onChange={(a) => setAttrs(a as Record<string, unknown>)} />
+            // Kategoriye özel alanlar kategorinin hemen altında: Vasıta › Otomobil › BMW › 3 Serisi › 320d tek yerde seçilir.
+            // Kategoriye özel alanlar (emlakta oda sayısı, m², ısıtma; telefonda hafıza…): yapay zekânın doldurduğu değerler değiştirilebilir.
+            // Model, seçilen markanın modelleriyle gelir (Apple → iPhone 16 Pro); marka seçilmeden gösterilmez.
+            : sub ? attrsFor(top, sub).map((a) => a.t === "sel" ? (a.om && !optionsFor(a, attrs[a.by ?? ""]).length ? null : (
+              <Picker key={a.k} label={a.l} value={String(attrs[a.k] ?? "")} placeholder="Farketmez" options={[{ value: "", label: "Farketmez" }, ...optionsFor(a, attrs[a.by ?? ""]).filter((o) => o !== "Farketmez").map((o) => ({ value: o, label: o }))]}
+                onChange={(v) => setAttrs((x) => pickAttr(attrsFor(top, sub), x, a.k, v))} />
+            )) : (
+              <Field key={a.k} label={a.l} value={attrs[a.k] !== undefined && attrs[a.k] !== "" ? String(attrs[a.k]) : ""} keyboardType="decimal-pad"
+                onChangeText={(v) => { const t = v.replace(",", ".").replace(/[^\d.]/g, ""); setAttrs((x) => ({ ...x, [a.k]: t === "" ? "" : Number(t) })); }} />
+            )) : null}
           <Field label="Talep başlığı *" value={title} onChangeText={setTitle} maxLength={120} />
           <Field label="Açıklama" value={desc} onChangeText={setDesc} multiline maxLength={4000} />
           <Field label="Fiyat (TL) *" value={budget} onChangeText={(v) => setBudget(v.replace(/\D/g, ""))} keyboardType="number-pad" />
@@ -145,15 +157,6 @@ export default function TalepVer() {
                   style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: R.pill, backgroundColor: cond === c ? C.navy : C.bg }}>
                   <Text style={{ color: cond === c ? "#fff" : C.navy, fontWeight: "700" }}>{c}</Text></Pressable>))}</View>
             </View>) : null}
-          {isVehicleSub(sub) ? <VehicleFields sub={sub} value={attrs as VehicleAttrs} onChange={(a) => setAttrs(a as Record<string, unknown>)} />
-            // Kategoriye özel alanlar (emlakta oda sayısı, m², ısıtma; telefonda hafıza…): yapay zekânın doldurduğu değerler değiştirilebilir.
-            : sub ? attrsFor(top, sub).map((a) => a.t === "sel" ? (
-              <Picker key={a.k} label={a.l} value={String(attrs[a.k] ?? "")} placeholder="Farketmez" options={[{ value: "", label: "Farketmez" }, ...(a.o ?? []).filter((o) => o !== "Farketmez").map((o) => ({ value: o, label: o }))]}
-                onChange={(v) => setAttrs((x) => ({ ...x, [a.k]: v }))} />
-            ) : (
-              <Field key={a.k} label={a.l} value={attrs[a.k] !== undefined && attrs[a.k] !== "" ? String(attrs[a.k]) : ""} keyboardType="decimal-pad"
-                onChangeText={(v) => { const t = v.replace(",", ".").replace(/[^\d.]/g, ""); setAttrs((x) => ({ ...x, [a.k]: t === "" ? "" : Number(t) })); }} />
-            )) : null}
         </Box>
         {multi ? cars.map((c) => (
           <Box key={carKey(c)} title={`${vehicleName(c)} fotoğrafları (${carPhotos[carKey(c)]?.length ?? 0}/${MAX_PHOTOS})`}>

@@ -28,6 +28,39 @@ describe("araç talepleri", () => {
     expect(all).toEqual([{ marka: "BMW", model: "3 Serisi" }, { marka: "Audi", model: "A4" }, { marka: "Mercedes-Benz", model: null }].map((c) => ({ araclar: [c], ...rest })));
   });
 
+  it("motor/paket (3. seviye): BMW 3 Serisi 320d; tanınmayan paket reddedilir, metinden paket ve model bulunur", async () => {
+    const u = await login(ctx, "05321112233");
+    const post = (attrs: Record<string, unknown>) => ctx.app.inject({ method: "POST", url: "/api/requests", headers: { cookie: u }, payload: car(attrs) });
+    expect((await post({ araclar: [{ marka: "BMW", model: "3 Serisi", paket: "320 D" }] })).statusCode).toBe(201);
+    expect((await ctx.pool.query("SELECT attrs FROM requests")).rows[0].attrs.araclar).toEqual([{ marka: "BMW", model: "3 Serisi", paket: "320d" }]);
+    expect((await post({ araclar: [{ marka: "BMW", model: "3 Serisi", paket: "520d" }] })).json().error).toBe("paket_gecersiz");
+    // Modelin tamamı seçildiyse aynı modelin tek tek paketleri atılır.
+    await ctx.pool.query("DELETE FROM requests");
+    expect((await post({ araclar: [{ marka: "BMW", model: "3 Serisi", paket: "320d" }, { marka: "BMW", model: "3 Serisi" }] })).statusCode).toBe(201);
+    expect((await ctx.pool.query("SELECT attrs FROM requests")).rows.map((r) => r.attrs.araclar)).toEqual([[{ marka: "BMW", model: "3 Serisi" }]]);
+
+    expect(parseVehicleText("2019 sonrası bmw 320d arıyorum, otomatik").araclar).toEqual([{ marka: "BMW", model: "3 Serisi", paket: "320d" }]);
+    expect(parseVehicleText("volkswagen golf 1.6 tdi istiyorum").araclar).toEqual([{ marka: "Volkswagen", model: "Golf", paket: "1.6 TDI" }]);
+    expect(parseVehicleText("mercedes c 200 d veya audi a4 bakıyorum").araclar).toEqual([{ marka: "Mercedes-Benz", model: "C Serisi", paket: "C 200 d" }, { marka: "Audi", model: "A4" }]);
+  });
+
+  it("satıcı eşleştirmesi pakete göre: 320d arayan alıcıya 316i satıcısı gelmez; paket ya da model seçmeyen alıcıya gelir", async () => {
+    const u = await login(ctx, "05321112233");
+    await createRequest(ctx, u, car({ araclar: [{ marka: "BMW", model: "3 Serisi", paket: "320d" }] }, { title: "Paketli 320d talebi" }));
+    await createRequest(ctx, u, car({ araclar: [{ marka: "BMW", model: "3 Serisi" }] }, { title: "Paketsiz 3 Serisi talebi" }));
+    await createRequest(ctx, u, car({ araclar: [{ marka: "BMW", model: null }] }, { title: "Herhangi BMW talebi" }));
+    await createRequest(ctx, u, car({ araclar: [{ marka: "BMW", model: "5 Serisi", paket: "520d" }] }, { title: "520d talebi" }));
+    const q = (araclar: string) => list(`sub=otomobil&araclar=${encodeURIComponent(araclar)}`).then((x) => x.sort());
+    expect(await q("BMW:3 Serisi:316i")).toEqual(["Herhangi BMW talebi", "Paketsiz 3 Serisi talebi"]);
+    expect(await q("BMW:3 Serisi:320d")).toEqual(["Herhangi BMW talebi", "Paketli 320d talebi", "Paketsiz 3 Serisi talebi"]);
+    expect(await q("BMW:3 Serisi")).toEqual(["Herhangi BMW talebi", "Paketli 320d talebi", "Paketsiz 3 Serisi talebi"]);
+    expect(await q("BMW:")).toEqual(["520d talebi", "Herhangi BMW talebi", "Paketli 320d talebi", "Paketsiz 3 Serisi talebi"]);
+    expect(await q("BMW:5 Serisi:530d")).toEqual(["Herhangi BMW talebi"]);
+    // Katalog paketleri de verir.
+    const cat = (await ctx.app.inject({ url: "/api/catalog/vehicles" })).json();
+    expect(cat.variants["BMW|3 Serisi"]).toContain("320d");
+  });
+
   it("tanınmayan marka/model, ters yıl aralığı ve 5'ten fazla araç reddedilir", async () => {
     const u = await login(ctx, "05321112233");
     const post = (attrs: Record<string, unknown>) => ctx.app.inject({ method: "POST", url: "/api/requests", headers: { cookie: u }, payload: car(attrs) });
