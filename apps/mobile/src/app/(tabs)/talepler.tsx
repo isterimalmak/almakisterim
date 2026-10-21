@@ -50,7 +50,7 @@ export default function Talepler() {
   return (
     <View style={{ flex: 1 }}>
       <View style={{ backgroundColor: C.card, padding: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: C.line }}>
-        <TextInput accessibilityLabel="Talep ara" placeholder="Ara" value={q} onChangeText={setQ} returnKeyType="search" onFocus={() => { if (blurT.current) clearTimeout(blurT.current); setFocus(true); }} onBlur={() => { blurT.current = setTimeout(() => setFocus(false), 200); }}
+        <TextInput accessibilityLabel="Talep ara" placeholder="Ara" value={q} onChangeText={(t) => { setQ(t); if (!t) setFocus(true); }} returnKeyType="search" onFocus={() => { if (blurT.current) clearTimeout(blurT.current); setFocus(true); }} onBlur={() => { blurT.current = setTimeout(() => setFocus(false), 200); }}
           onSubmitEditing={() => search(q)} style={[s.inp, { paddingVertical: 9 }]} />
         {focus && !q.trim() && recent.length ? (
           <View accessibilityLabel="Son aramalar" style={{ gap: 6 }}>
