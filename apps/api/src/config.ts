@@ -23,6 +23,9 @@ const schema = z.object({
   NETGSM_USERCODE: z.string().default(""),
   NETGSM_PASSWORD: z.string().default(""),
   NETGSM_HEADER: z.string().default(""),
+  // Mağaza (Google Play / App Store) inceleme hesabı: bu numaraya SMS gitmez, kod sabittir. Kod yalnız sahibinin girdiği gizli değerdir.
+  REVIEW_PHONE: z.string().default(""),
+  REVIEW_CODE: z.string().default(""),
 
   ANTHROPIC_API_KEY: z.string().default(""),
   PEXELS_API_KEY: z.string().default(""),
