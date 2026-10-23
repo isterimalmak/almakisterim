@@ -90,4 +90,25 @@ describe("Google ile giriş", () => {
     expect(me.json().user).toMatchObject({ email: "elif@gmail.com", name: "Elif S" });
     await g.app.close(); await g.pool.end();
   });
+
+  it("mağaza inceleme hesabı: girilen numaraya SMS gitmez, sabit kodla giriş yapılır; diğer numaralar etkilenmez", async () => {
+    await ctx.app.close(); await ctx.pool.end();
+    ctx = await makeApp({ env: { REVIEW_PHONE: "0542 000 11 22", REVIEW_CODE: "482915" } });
+    await resetData(ctx.pool);
+    const before = ctx.outbox.sent.length;
+    const a = await ctx.app.inject({ method: "POST", url: "/api/auth/code", payload: { channel: "sms", target: "05420001122" } });
+    expect(a.statusCode).toBe(200);
+    expect(ctx.outbox.sent.length).toBe(before);
+    const wrong = await ctx.app.inject({ method: "POST", url: "/api/auth/verify", payload: { channel: "sms", target: "05420001122", code: "111111" } });
+    expect(wrong.statusCode).toBe(400);
+    const ok = await ctx.app.inject({ method: "POST", url: "/api/auth/verify", payload: { channel: "sms", target: "05420001122", code: "482915", name: "Play İnceleme" } });
+    expect(ok.statusCode).toBe(200);
+    // Başka numaraya normal SMS kodu gider; sabit kod orada geçmez.
+    await ctx.app.inject({ method: "POST", url: "/api/auth/code", payload: { channel: "sms", target: "05321112233" } });
+    expect(ctx.outbox.sent.length).toBe(before + 1);
+    const other = await ctx.app.inject({ method: "POST", url: "/api/auth/verify", payload: { channel: "sms", target: "05321112233", code: "482915" } });
+    expect(other.statusCode).toBe(400);
+    await ctx.app.close(); await ctx.pool.end();
+    ctx = await makeApp();
+  });
 });

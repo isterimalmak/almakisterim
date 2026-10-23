@@ -37,8 +37,22 @@ export function codeService(deps: Deps) {
   const { config, pool, mailer, sms } = deps;
   const hashCode = (target: string, code: string) => sha256(`${config.CODE_PEPPER}:${target}:${code}`);
 
+  // Mağaza inceleme hesabı: Yönetim → Entegrasyonlar'da girilen numaraya SMS gitmez, girilen sabit kod geçerlidir.
+  const reviewCode = (channel: "email" | "sms", target: string) => {
+    const code = config.REVIEW_CODE.trim();
+    return channel === "sms" && /^\d{6}$/.test(code) && normalizePhone(config.REVIEW_PHONE) === target ? code : null;
+  };
+
   // Kod üretir, gönderir; aynı hedefe dakikada 1, saatte 5 kod.
   async function issueCode(req: FastifyRequest, channel: "email" | "sms", target: string, purpose: string) {
+    const fixed = reviewCode(channel, target);
+    if (fixed) {
+      await pool.query(
+        `INSERT INTO auth_codes (channel, target, code_hash, expires_at) VALUES ($1, $2, $3, now() + make_interval(mins => $4))`,
+        [channel, target, hashCode(target, fixed), CODE_TTL_MIN],
+      );
+      return { ok: true, sent_to: maskTarget(channel, target) };
+    }
     const recent = await pool.query<{ last_min: number; hour_count: number }>(
       // "1 dakika bekleyin" yalnız henüz kullanılmamış kod için: girişten hemen sonra talep onay kodu istenebilsin.
       `SELECT COALESCE(EXTRACT(EPOCH FROM now() - max(created_at) FILTER (WHERE consumed_at IS NULL)) / 60, 999)::float AS last_min,

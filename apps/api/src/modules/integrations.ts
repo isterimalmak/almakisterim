@@ -2,7 +2,7 @@ import { mailProvider, SmtpMailer } from "../services/notify.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAdmin, type Deps } from "../context.js";
-import { HttpError } from "../lib/util.js";
+import { HttpError, maskTarget, normalizePhone } from "../lib/util.js";
 import { FIELDS, GROUPS } from "../services/integrations.js";
 import { testAi } from "./ai-admin.js";
 import { IyzicoPayments } from "../services/payments.js";
@@ -33,6 +33,7 @@ export function integrationRoutes(app: FastifyInstance, deps: Deps) {
     const connected: Record<string, boolean> = {
       ai: has(config.ANTHROPIC_API_KEY), mail: has(config.RESEND_API_KEY), smtp: has(config.SMTP_HOST, config.SMTP_USER, config.SMTP_PASS), sms: has(config.NETGSM_USERCODE, config.NETGSM_PASSWORD, config.NETGSM_HEADER),
       photos: deps.photos?.enabled ?? (has(config.PIXABAY_API_KEY) || has(config.PEXELS_API_KEY)), google: deps.google.enabled, storage: deps.storage.enabled, pay: has(config.IYZICO_API_KEY, config.IYZICO_SECRET_KEY),
+      review: has(config.REVIEW_PHONE, config.REVIEW_CODE),
     };
     return { groups: integ().status().map((g) => ({ ...g, connected: !!connected[g.id] })) };
   });
@@ -87,6 +88,11 @@ export function integrationRoutes(app: FastifyInstance, deps: Deps) {
           if (!admin.phone) return { ok: false, message: "Deneme SMS'i için yönetici hesabınızda telefon numarası olmalı." };
           await deps.sms.send(admin.phone, "almakisterim deneme SMS'i: SMS gönderimi çalışıyor.");
           return { ok: true, message: `Deneme SMS'i ${admin.phone} numarasına gönderildi.` };
+        }
+        case "review": {
+          if (!normalizePhone(config.REVIEW_PHONE)) return { ok: false, message: "Geçerli bir cep telefonu numarası girilmeli (05XXXXXXXXX)." };
+          if (!/^\d{6}$/.test(config.REVIEW_CODE.trim())) return { ok: false, message: "Kod tam 6 rakam olmalı." };
+          return { ok: true, message: `Hazır: ${maskTarget("sms", normalizePhone(config.REVIEW_PHONE)!)} numarasıyla SMS beklemeden, girdiğiniz kodla giriş yapılabilir.` };
         }
         case "photos": {
           if (!deps.photos?.enabled) return { ok: false, message: "Pixabay ya da Pexels anahtarı girilmemiş." };
