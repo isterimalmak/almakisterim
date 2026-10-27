@@ -42,7 +42,7 @@ export default function Bilgiler() {
         <Field label="Ad soyad / firma adı" value={name} onChangeText={setName} maxLength={80} />
         <Text style={{ color: C.muted }}>Telefon: {user.phone ? `0${user.phone.slice(2)}` : "—"}   ·   E-posta: {user.email ?? "—"}</Text>
       </Box>
-      {!user.phone ? <PhoneAdd onDone={refresh} /> : null}
+      {!user.phone ? <PhoneAdd onDone={refresh} /> : <PhoneChange phone={user.phone} email={user.email} onDone={refresh} />}
       <Box title="E-posta bildirimleri">
         {PREFS.map(([k, l]) => (
           <View key={k} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -67,8 +67,45 @@ export default function Bilgiler() {
   );
 }
 
+// Kayıtlı numarayı değiştirme: önce mevcut numaraya ya da e-postaya gelen kodla kimlik doğrulanır, sonra yeni numara (sitedekiyle aynı).
+function PhoneChange({ phone, email, onDone }: { phone: string; email: string | null; onDone: () => Promise<void> }) {
+  const [step, setStep] = useState<"idle" | "code" | "new">("idle");
+  const [via, setVia] = useState<"sms" | "email">("sms");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const run = async (fn: () => Promise<void>) => { setBusy(true); setErr(""); try { await fn(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
+  const start = (v: "sms" | "email") => run(async () => { await api("/me/phone/change/start", { body: { via: v } }); setVia(v); setCode(""); setStep("code"); });
+  const masked = `0${phone.slice(2, 5)} *** ${phone.slice(8, 10)} ${phone.slice(10)}`;
+  return (
+    <Box title="Telefon numarası">
+      <Text style={{ color: C.text }}>Kayıtlı numaranız: <Text style={{ fontWeight: "700" }}>0{phone.slice(2)}</Text></Text>
+      {step === "idle" ? (
+        <>
+          <Text style={{ color: C.muted, fontSize: 13 }}>Numaranızı değiştirmek için önce kimliğinizi doğrulayın. Kod nereye gönderilsin?</Text>
+          <Btn kind="wh" title={`Mevcut numarama (${masked})`} busy={busy} onPress={() => void start("sms")} />
+          {email ? <Btn kind="wh" title={`E-postama (${email.replace(/^(.{2}).*(@.*)$/, "$1***$2")})`} busy={busy} onPress={() => void start("email")} /> : null}
+        </>
+      ) : step === "code" ? (
+        <>
+          <Field label={via === "sms" ? "Mevcut numaranıza gelen kod" : "E-postanıza gelen kod"} value={code} onChangeText={(v) => setCode(v.replace(/\D/g, "").slice(0, 6))} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" />
+          <Btn title="Doğrula" busy={busy} disabled={code.length !== 6} onPress={() => run(async () => { await api("/me/phone/change/confirm", { body: { via, code } }); setStep("new"); })} />
+          <Btn kind="gh" title="Vazgeç" onPress={() => setStep("idle")} />
+        </>
+      ) : (
+        <>
+          <Text style={{ color: C.green, fontWeight: "600" }}>Kimliğiniz doğrulandı. 15 dakika içinde yeni numaranızı doğrulayın.</Text>
+          <PhoneAdd title="Yeni numara" onDone={async () => { setStep("idle"); await onDone(); }} />
+        </>
+      )}
+      <Text style={{ color: C.muted, fontSize: 12 }}>Değişiklikten sonra eski numaranıza ve e-postanıza bilgi gider. Numara 7 günde bir değiştirilebilir.</Text>
+      {err ? <Err text={err} /> : null}
+    </Box>
+  );
+}
+
 // Google / Apple / e-postayla girenler için: talep vermek ve satıcıya ulaşmak için doğrulanmış telefon gerekir.
-function PhoneAdd({ onDone }: { onDone: () => Promise<void> }) {
+function PhoneAdd({ onDone, title = "Telefon numarası ekle" }: { onDone: () => Promise<void>; title?: string }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -76,8 +113,8 @@ function PhoneAdd({ onDone }: { onDone: () => Promise<void> }) {
   const [err, setErr] = useState("");
   const run = async (fn: () => Promise<void>) => { setBusy(true); setErr(""); try { await fn(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
-    <Box title="Telefon numarası ekle">
-      <Text style={{ color: C.muted, fontSize: 13 }}>Talep vermek için doğrulanmış bir telefon numarası gerekir.</Text>
+    <Box title={title}>
+      {title === "Telefon numarası ekle" ? <Text style={{ color: C.muted, fontSize: 13 }}>Talep vermek için doğrulanmış bir telefon numarası gerekir.</Text> : null}
       <Field label="Cep telefonu" value={phone} onChangeText={setPhone} keyboardType="phone-pad" editable={!sent} placeholder="05xx xxx xx xx" />
       {!sent ? <Btn kind="navy" title="Doğrulama kodu gönder" busy={busy} disabled={!phone.trim()} onPress={() => run(async () => { await api("/me/phone/code", { body: { phone } }); setSent(true); })} /> : (
         <>

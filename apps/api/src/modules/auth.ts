@@ -173,9 +173,47 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
   async function phoneTaken(phone: string, userId: string) {
     return !!(await pool.query("SELECT 1 FROM users WHERE phone = $1 AND id <> $2", [phone, userId])).rowCount;
   }
+  // Numara değişikliği: hesapta numara varsa önce mevcut numaraya (ya da e-postaya) gelen kodla kimlik doğrulanır;
+  // ardından 15 dakika içinde yeni numara doğrulanır. 7 günde en fazla bir değişiklik yapılır.
+  const CHANGE_WINDOW_MIN = 15, CHANGE_COOLDOWN_DAYS = 7;
+  const clientIp = (req: FastifyRequest) => String(req.headers["cf-connecting-ip"] ?? req.ip ?? "").slice(0, 64);
+  async function changeTicket(userId: string) {
+    return (await pool.query<{ id: string }>(
+      `SELECT id FROM phone_changes WHERE user_id = $1 AND completed_at IS NULL AND identity_at > now() - make_interval(mins => $2)
+        ORDER BY id DESC LIMIT 1`, [userId, CHANGE_WINDOW_MIN])).rows[0]?.id ?? null;
+  }
+  async function assertCooldown(userId: string) {
+    const r = await pool.query("SELECT 1 FROM phone_changes WHERE user_id = $1 AND completed_at > now() - make_interval(days => $2)", [userId, CHANGE_COOLDOWN_DAYS]);
+    if (r.rowCount) throw new HttpError(429, "degisiklik_siniri", `Telefon numaranızı ${CHANGE_COOLDOWN_DAYS} günde bir kez değiştirebilirsiniz. Acil bir durumsa destek ekibimize yazın.`);
+  }
+  // 1) Kimlik doğrulama kodu: mevcut numaraya ya da hesaptaki e-postaya.
+  app.post("/me/phone/change/start", { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } }, async (req) => {
+    const user = requireUser(req);
+    const { via } = z.object({ via: z.enum(["sms", "email"]) }).parse(req.body);
+    if (!user.phone) throw new HttpError(400, "numara_yok", "Hesabınızda kayıtlı numara yok; aşağıdan numaranızı ekleyin.");
+    if (via === "email" && !user.email) throw new HttpError(400, "eposta_yok", "Hesabınızda e-posta adresi yok. Mevcut numaranıza gelen kodu kullanın ya da destek ekibimize yazın.");
+    await assertCooldown(user.id);
+    return issueCode(req, via, via === "sms" ? user.phone : user.email!, "numara değişikliği");
+  });
+  // 2) Kimlik kodu doğrulanır; 15 dakikalık değişiklik izni açılır.
+  app.post("/me/phone/change/confirm", { config: { rateLimit: { max: 20, timeWindow: "10 minutes" } } }, async (req) => {
+    const user = requireUser(req);
+    const b = z.object({ via: z.enum(["sms", "email"]), code: z.string().regex(/^\d{6}$/) }).parse(req.body);
+    if (!user.phone || (b.via === "email" && !user.email)) throw new HttpError(400, "gecersiz", "Bu işlem için hesap bilgileri eksik.");
+    await assertCooldown(user.id);
+    await consumeCode(b.via, b.via === "sms" ? user.phone : user.email!, b.code);
+    await pool.query("INSERT INTO phone_changes (user_id, old_phone, identity_via, identity_at, ip) VALUES ($1, $2, $3, now(), $4)",
+      [user.id, user.phone, b.via, clientIp(req)]);
+    return { ok: true, minutes: CHANGE_WINDOW_MIN };
+  });
+
   app.post("/me/phone/code", { config: { rateLimit: { max: 10, timeWindow: "10 minutes" } } }, async (req) => {
     const user = requireUser(req);
     const phone = phoneOf(z.object({ phone: z.string().max(30) }).parse(req.body).phone);
+    if (user.phone) {
+      if (phone === user.phone) throw new HttpError(400, "ayni_numara", "Bu zaten kayıtlı numaranız; yeni numaranızı yazın.");
+      if (!(await changeTicket(user.id))) throw new HttpError(403, "kimlik_dogrulama_gerekli", "Numaranızı değiştirmek için önce kimliğinizi doğrulayın.");
+    }
     if (await phoneTaken(phone, user.id)) throw new HttpError(409, "numara_kullanimda", "Bu numara başka bir hesaba bağlı. O numarayla SMS ile giriş yapabilirsiniz.");
     return issueCode(req, "sms", phone, "telefon doğrulama");
   });
@@ -183,10 +221,19 @@ export function authRoutes(app: FastifyInstance, deps: Deps) {
     const user = requireUser(req);
     const b = z.object({ phone: z.string().max(30), code: z.string().regex(/^\d{6}$/) }).parse(req.body);
     const phone = phoneOf(b.phone);
+    const ticket = user.phone ? await changeTicket(user.id) : null;
+    if (user.phone && !ticket) throw new HttpError(403, "kimlik_dogrulama_gerekli", "Numaranızı değiştirmek için önce kimliğinizi doğrulayın.");
     await consumeCode("sms", phone, b.code);
     if (await phoneTaken(phone, user.id)) throw new HttpError(409, "numara_kullanimda", "Bu numara başka bir hesaba bağlı.");
     await pool.query("UPDATE users SET phone = $2, role = CASE WHEN $3 THEN 'admin' ELSE role END WHERE id = $1",
       [user.id, phone, config.adminPhones.has(phone)]);
+    if (ticket) {
+      await pool.query("UPDATE phone_changes SET new_phone = $2, completed_at = now() WHERE id = $1", [ticket, phone]);
+      // Eski numaraya ve e-postaya bilgi: değişikliği üye yapmadıysa hemen haber verebilsin.
+      const text = `almakisterim hesabınızın telefon numarası ${maskTarget("sms", phone)} olarak değiştirildi. Bu işlemi siz yapmadıysanız hemen destek@almakisterim.com adresine yazın.`;
+      void deps.sms.send(user.phone!, text).catch(() => {});
+      if (user.email) void deps.mailer.send(user.email, "Telefon numaranız değiştirildi", text, { critical: true }).catch(() => {});
+    }
     return { ok: true, phone: maskTarget("sms", phone) };
   });
 
