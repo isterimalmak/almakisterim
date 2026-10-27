@@ -215,6 +215,12 @@ function ProfileForm() {
   const [corp, setCorp] = useState(user?.is_corporate ?? false);
   const [marketing, setMarketing] = useState(user?.marketing ?? false);
   const [prefs, setPrefs] = useState<MailPrefs>(user?.mail_prefs ?? { offer: true, accepted: true, message: true });
+  // Hesap bilgisi form açıldıktan sonra gelirse alanlar doldurulur (boş adla kaydedilmesin).
+  useEffect(() => {
+    if (!user) return;
+    setName(user.name ?? ""); setCorp(user.is_corporate ?? false); setMarketing(user.marketing ?? false);
+    if (user.mail_prefs) setPrefs(user.mail_prefs);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="box"><div className="box-h"><h2>Hesap Bilgileri</h2></div><div className="box-b">
       <div className="form-grid" style={{ maxWidth: 560 }}>
