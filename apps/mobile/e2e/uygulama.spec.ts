@@ -3,7 +3,16 @@ import { expect, test, type Page } from "@playwright/test";
 const API = process.env.E2E_API_URL ?? "http://localhost:8080";
 const rnd = () => String(Math.floor(Math.random() * 1e8)).padStart(8, "0");
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-const code = async (page: Page, to: string) => (await (await page.request.get(`${API}/api/__test/last-message?to=${encodeURIComponent(to)}`)).json()).text.match(/\d{6}/)[0] as string;
+// Kod mesajı gönderilene kadar bekler (düğmeye basıldıktan hemen sonra henüz gelmemiş olabilir).
+const code = async (page: Page, to: string) => {
+  let found = "";
+  await expect.poll(async () => {
+    const msg = await (await page.request.get(`${API}/api/__test/last-message?to=${encodeURIComponent(to)}`)).json();
+    found = msg?.text?.match(/\d{6}/)?.[0] ?? "";
+    return found;
+  }, { timeout: 10_000 }).not.toBe("");
+  return found;
+};
 
 // Listeden seçim penceresi: açar, arar, seçer ve pencerenin kapanmasını bekler.
 async function choose(page: Page, label: string, value: string) {
