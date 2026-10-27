@@ -4,6 +4,7 @@ import { isHidden, type HomeBlock } from "@/lib/home";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, type CategoryTop, type User } from "@/lib/api";
 import { TermsGate } from "./TermsGate";
+import { DEFAULT_FOOTER, type Footer } from "@/lib/footer";
 
 type Browse = { min_requests: number; show_counts_min: number };
 
@@ -25,13 +26,18 @@ type Ctx = {
   homeBlocks: HomeBlock[];
   // Logonun yanında yazan ad (yönetim → Ayarlar)
   siteName: string;
+  // Alt bilgi (yönetim → Alt Bilgi ve Sayfalar)
+  footer: Footer;
+  // Ödeme bölümleri yönetimden gizlenebilir: Güvenli Al; kredi ve mağaza.
+  showSafe: boolean;
+  showCredits: boolean;
   homeVitrin: boolean;
   homeLatest: boolean;
   refresh: () => Promise<void>;
   toast: (msg: string) => void;
 };
 
-const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, publishSms: false, photoRequired: false, homeUrgentBox: false, homeBlocks: [], siteName: "almakisterim.com", homeVitrin: true, homeLatest: true, refresh: async () => {}, toast: () => {} });
+const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, publishSms: false, photoRequired: false, homeUrgentBox: false, homeBlocks: [], siteName: "almakisterim.com", footer: DEFAULT_FOOTER, showSafe: true, showCredits: true, homeVitrin: true, homeLatest: true, refresh: async () => {}, toast: () => {} });
 export const useSession = () => useContext(SessionCtx);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -46,12 +52,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [homeUrgentBox, setHomeUrgentBox] = useState(false);
   const [homeBlocks, setHomeBlocks] = useState<HomeBlock[]>([]);
   const [siteName, setSiteName] = useState("almakisterim.com");
+  const [footer, setFooter] = useState<Footer>(DEFAULT_FOOTER);
+  const [showSafe, setShowSafe] = useState(true);
+  const [showCredits, setShowCredits] = useState(true);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
 
   const refresh = useCallback(async () => {
     const [me, cats] = await Promise.all([
       api<{ user: User | null }>("/me").catch(() => ({ user: null })),
-      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_blocks?: HomeBlock[]; site_name?: string }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, publish_sms: false, photo_required: false, home_urgent_box: false, home_blocks: [] as HomeBlock[], site_name: undefined })),
+      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_blocks?: HomeBlock[]; site_name?: string; footer?: Footer; show_safe?: boolean; show_credits?: boolean }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, publish_sms: false, photo_required: false, home_urgent_box: false, home_blocks: [] as HomeBlock[], site_name: undefined, footer: undefined, show_safe: true, show_credits: true })),
     ]);
     setUser(me.user);
     setCategories(cats.categories);
@@ -63,6 +72,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setHomeUrgentBox(!!cats.home_urgent_box);
     setHomeBlocks(cats.home_blocks ?? []);
     if (cats.site_name) setSiteName(cats.site_name);
+    if (cats.footer) setFooter(cats.footer);
+    setShowSafe(cats.show_safe !== false);
+    setShowCredits(cats.show_credits !== false);
     setReady(true);
   }, []);
 
@@ -80,7 +92,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const count = useCallback((n: number | undefined | null) => (n != null && n >= browse.show_counts_min ? n : null), [browse.show_counts_min]);
 
   return (
-    <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, publishSms, photoRequired, homeUrgentBox, homeBlocks, siteName, homeVitrin: !isHidden(homeBlocks, "vitrin"), homeLatest: !isHidden(homeBlocks, "latest"), refresh, toast }}>
+    <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, publishSms, photoRequired, homeUrgentBox, homeBlocks, siteName, footer, showSafe, showCredits, homeVitrin: !isHidden(homeBlocks, "vitrin"), homeLatest: !isHidden(homeBlocks, "latest"), refresh, toast }}>
       {children}
       <TermsGate />
       <div className="toasts" aria-live="polite">{toasts.map((t) => <div key={t.id} className="toast">{t.msg}</div>)}</div>

@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { recordConsent, requireTerms } from "./legal.js";
+import { paymentsUi } from "./site.js";
 import { z } from "zod";
 import { requireAdmin, requireUser, type Deps } from "../context.js";
 import { tx, type Client, type Pool } from "../db.js";
@@ -199,7 +200,7 @@ export function safeRoutes(app: FastifyInstance, deps: Deps) {
     const st = await safeSettings(pool);
     const me = req.user ? (await pool.query<{ iban: string | null; iban_name: string | null }>("SELECT iban, iban_name FROM users WHERE id = $1", [req.user.id])).rows[0] : null;
     return {
-      enabled: st.enabled && pay().enabled, mode: pay().name, seller_pct: st.sellerPct, buyer_pct: st.buyerPct, min_fee: st.minFee, max_fee: st.maxFee,
+      enabled: st.enabled && pay().enabled && (await paymentsUi(pool)).show_safe, mode: pay().name, seller_pct: st.sellerPct, buyer_pct: st.buyerPct, min_fee: st.minFee, max_fee: st.maxFee,
       max_price: st.maxPrice, ship_days: st.shipDays, confirm_days: st.confirmDays, tops: st.tops,
       iban: me?.iban ?? null, iban_name: me?.iban_name ?? null,
     };
@@ -220,7 +221,7 @@ export function safeRoutes(app: FastifyInstance, deps: Deps) {
     await requireTerms(pool, user);
     const b = Create.parse(req.body);
     const st = await safeSettings(pool);
-    if (!st.enabled || !pay().enabled) throw new HttpError(503, "kapali", "Güvenli Al şu anda kullanılamıyor.");
+    if (!st.enabled || !pay().enabled || !(await paymentsUi(pool)).show_safe) throw new HttpError(503, "kapali", "Güvenli Al şu anda kullanılamıyor.");
     const price = Math.round(b.price * 100);
     if (price > st.maxPrice * 100) throw new HttpError(400, "fiyat_yuksek", `Güvenli Al ile en fazla ${st.maxPrice.toLocaleString("tr-TR")} TL'lik satış yapılabilir.`);
     const r = (await pool.query<{ buyer_id: string; top: string | null }>(

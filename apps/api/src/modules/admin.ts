@@ -163,6 +163,9 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
       home_order: z.array(z.enum(HOME_SECTIONS)).max(HOME_SECTIONS.length).optional(),
       home_hidden: z.array(z.enum(HOME_SECTIONS)).max(HOME_SECTIONS.length).optional(),
       photo_required: z.boolean().optional(),
+      // Ödeme bölümlerinin sitede görünmesi (Güvenli Al, kredi ve mağaza)
+      show_safe: z.boolean().optional(),
+      show_credits: z.boolean().optional(),
       store_monthly_price_try: z.number().int().min(0).optional(),
       credit_packages: z.array(z.object({ id: z.string(), credits: z.number().int().min(1), price_try: z.number().int().min(0) })).max(10).optional(),
     }).parse(req.body);

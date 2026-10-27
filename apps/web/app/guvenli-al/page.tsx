@@ -10,11 +10,13 @@ import { dateTr } from "@/lib/format";
 
 // Güvenli Al tanıtımı ve üyenin alış/satışları.
 export default function SafeHome() {
-  const { user } = useSession();
+  const { user, ready, showSafe } = useSession();
   const info = useSafeInfo();
   const [items, setItems] = useState<SafeListItem[] | null>(null);
   useEffect(() => { if (user) void api<{ items: SafeListItem[] }>("/safe/sales").then((r) => setItems(r.items)).catch(() => setItems([])); }, [user]);
 
+  // Yönetimden gizlendiyse (Ayarlar → Ödeme bölümleri) sayfa kapalı görünür.
+  if (ready && !showSafe) return <div className="wrap" style={{ maxWidth: 720, padding: "30px 16px" }}><div className="box"><div className="empty">Bu bölüm şu anda kullanılmıyor. <Link className="link" href="/">Ana sayfaya dön</Link></div></div></div>;
   return (
     <div className="wrap safe-page">
       <div className="crumb"><Link href="/">Ana Sayfa</Link> › Güvenli Al</div>

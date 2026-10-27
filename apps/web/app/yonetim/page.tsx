@@ -14,6 +14,7 @@ import { AiAdmin } from "@/components/admin/AiAdmin";
 import { SafeAdmin } from "@/components/admin/SafeAdmin";
 import { HomeLayoutAdmin } from "@/components/admin/HomeLayoutAdmin";
 import { LegalAdmin } from "@/components/admin/LegalAdmin";
+import { SiteAdmin } from "@/components/admin/SiteAdmin";
 import { api, type Media, type CategoryTop } from "@/lib/api";
 import { dateTr } from "@/lib/format";
 
@@ -24,7 +25,7 @@ type UnlockStats = { summary: { today: number; month: number; month_credits: num
 type ContactReport = { id: number; side: "seller" | "buyer"; reason_text: string; note: string; status: string; created_at: string; credits: number; request_id: number; title: string;
   seller_name: string; seller_phone: string | null; buyer_name: string; buyer_phone: string | null; seller_complaints: number; buyer_complaints: number };
 type UserRow = { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; created_at: string; is_corporate?: boolean; requests?: number; unlocks?: number };
-type Section = "pano" | "talep" | "kul" | "kredi" | "den" | "num" | "bil" | "kat" | "rek" | "gor" | "ent" | "yz" | "gal" | "duz" | "ayar" | "eposta" | "soz";
+type Section = "pano" | "talep" | "kul" | "kredi" | "den" | "num" | "bil" | "kat" | "rek" | "gor" | "ent" | "yz" | "gal" | "duz" | "ayar" | "eposta" | "soz" | "alt";
 const TITLES: Record<Section, [string, string]> = {
   pano: ["Genel Bakış", "Sitenin özeti · bugün ve bu ay"], talep: ["Talepler", "Bütün talepler · arama, vitrin, yayından kaldırma"],
   kul: ["Üyeler ve Kredi", "Üye arama ve elle kredi tanımlama"], den: ["İçerik Denetimi", "İnceleme bekleyen talepler ve şikâyetler"],
@@ -34,7 +35,8 @@ const TITLES: Record<Section, [string, string]> = {
   bil: ["Bildirim Gönder", "Üyelere site içi duyuru"], ent: ["Entegrasyonlar", "Bağlı dış hizmetler"],
   yz: ["Yapay Zekâ", "Otomatik denetim, düzeltme, e-postalar ve blog"],
   duz: ["Ana Sayfa Düzeni", "Bölümlerin sırası; gizle / göster"],
-  soz: ["Sözleşmeler", "Şirket bilgileri ve üyelerin onay geçmişi"],
+  soz: ["Sözleşmeler", "Metinleri düzenleme, şirket bilgileri ve üyelerin onay geçmişi"],
+  alt: ["Alt Bilgi ve Sayfalar", "Sitenin en altındaki bağlantılar; Hakkımızda, İletişim gibi sayfalar"],
   gal: ["Güvenli Al", "Bekletilen ödemeler, sorunlu satışlar, satıcı ödemeleri ve komisyon"],
   eposta: ["E-posta Stüdyosu", "Bloklarla e-posta tasarımı, görevler ve gönderim kaydı"],
 };
@@ -51,7 +53,7 @@ export default function Admin() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [cats, setCats] = useState<CategoryTop[]>([]);
   const [mod, setMod] = useState<{ pending: Pending[]; reports: Report[] } | null>(null);
-  const [settings, setSettings] = useState<{ site_name?: string; home_urgent_box?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; launch_mode?: boolean; browse_min_requests?: number; show_counts_min?: number; unlock_price_tiers?: { max_budget: number | null; credits: number }[]; max_active_requests_per_user?: number; free_unlocks_per_month?: number; unlock_price_credits?: number; unlock_limit_per_request?: number; unlock_price_by_top?: Record<string, number>; store_monthly_price_try?: number } | null>(null);
+  const [settings, setSettings] = useState<{ site_name?: string; home_urgent_box?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; launch_mode?: boolean; show_safe?: boolean; show_credits?: boolean; browse_min_requests?: number; show_counts_min?: number; unlock_price_tiers?: { max_budget: number | null; credits: number }[]; max_active_requests_per_user?: number; free_unlocks_per_month?: number; unlock_price_credits?: number; unlock_limit_per_request?: number; unlock_price_by_top?: Record<string, number>; store_monthly_price_try?: number } | null>(null);
   const [q, setQ] = useState("");
   const [users, setUsers] = useState<UserRow[]>([]);
 
@@ -96,7 +98,7 @@ export default function Admin() {
   const pend = (mod?.pending.length ?? 0) + (mod?.reports.length ?? 0);
   const groups: [string, [Section, string, string, number?][]][] = [
     ["PLATFORM", [["pano", "Genel Bakış", "home"], ["talep", "Talepler", "list"], ["kul", "Üyeler ve Kredi", "user"], ["kredi", "Kredi Hareketleri", "bolt"], ["den", "İçerik Denetimi", "check", pend], ["num", "Numaralar ve Şikâyetler", "phone", creps.length], ["gal", "Güvenli Al", "shield"], ["bil", "Bildirim Gönder", "bell"]]],
-    ["İÇERİK", [["duz", "Ana Sayfa Düzeni", "home"], ["kat", "Kategoriler", "box"], ["rek", "Reklam Alanları", "play"], ["gor", "Hazır Görseller", "camera"], ["eposta", "E-posta Stüdyosu", "mail"]]],
+    ["İÇERİK", [["duz", "Ana Sayfa Düzeni", "home"], ["kat", "Kategoriler", "box"], ["rek", "Reklam Alanları", "play"], ["gor", "Hazır Görseller", "camera"], ["alt", "Alt Bilgi ve Sayfalar", "list"], ["eposta", "E-posta Stüdyosu", "mail"]]],
     ["SİSTEM", [["yz", "Yapay Zekâ", "bolt"], ["ent", "Entegrasyonlar", "lock"], ["soz", "Sözleşmeler", "list"], ["ayar", "Ayarlar", "gear"]]],
   ];
   const [title, sub] = TITLES[tab];
@@ -131,6 +133,7 @@ export default function Admin() {
       {tab === "bil" && <NotifyAdmin />}
       {tab === "ent" && <IntegrationsAdmin />}
       {tab === "soz" && <LegalAdmin />}
+      {tab === "alt" && <SiteAdmin />}
       {tab === "yz" && <AiAdmin />}
       {tab === "gal" && <SafeAdmin />}
       {tab === "duz" && <HomeLayoutAdmin />}
@@ -224,7 +227,9 @@ export default function Admin() {
             <div className="fg full"><label className="chk" style={{ fontWeight: 600 }}><input type="checkbox" checked={!!settings.photo_required} onChange={(e) => setSettings({ ...settings, photo_required: e.target.checked })} />Talep verirken fotoğraf zorunlu</label><span className="hint">Açıkken fotoğrafsız talep yayınlanamaz. Alıcı kendi fotoğrafını yükler ya da talebine uyan hazır görsellerden birini seçer.</span></div>
             <div className="fg full"><label className="chk" style={{ fontWeight: 600 }}><input type="checkbox" checked={!!settings.phone_required} onChange={(e) => setSettings({ ...settings, phone_required: e.target.checked })} />Telefon doğrulaması zorunlu</label><span className="hint">Kapalıyken alıcı telefonsuz talep verebilir, satıcı telefonsuz numara açabilir; telefonu olmayan alıcıya satıcılar ücretsiz mesaj gönderir. SMS sağlayıcısı bağlanınca açın.</span></div>
             <div className="fg full"><label className="chk" style={{ fontWeight: 600 }}><input type="checkbox" checked={!!settings.publish_sms} onChange={(e) => setSettings({ ...settings, publish_sms: e.target.checked })} />Talep verirken SMS onayı</label><span className="hint">Açıkken alıcı talebi yayınlamadan önce kayıtlı cep telefonunu yazar, gelen 6 haneli kodu girer. Numarası olmayan üyenin doğruladığı numara hesabına eklenir.</span></div>
-            <div className="fg full"><label className="chk" style={{ fontWeight: 600 }}><input type="checkbox" checked={!!settings.launch_mode} onChange={(e) => setSettings({ ...settings, launch_mode: e.target.checked })} />Lansman dönemi: numara görmek herkese ücretsiz</label><span className="hint">Başlangıçta satıcı çekmek için açık tutun. Kapatınca aşağıdaki ücretler geçerli olur.</span></div>
+            <div className="fg full"><label className="chk" style={{ fontWeight: 600 }}><input type="checkbox" checked={!!settings.launch_mode} onChange={(e) => setSettings({ ...settings, launch_mode: e.target.checked })} />Lansman dönemi: numara görmek herkese ücretsiz</label><span className="hint">Başlangıçta satıcı çekmek için açık tutun. Numara yine gizli kalır; satıcı &quot;Numarayı Gör&quot;e basınca kredi düşmeden açılır ve kayıt tutulur. Kapatınca aşağıdaki ücretler geçerli olur.</span></div>
+            <div className="fg full"><label className="chk" style={{ fontWeight: 600 }}><input type="checkbox" checked={settings.show_safe !== false} onChange={(e) => setSettings({ ...settings, show_safe: e.target.checked })} />Güvenli Al&apos;ı sitede göster</label><span className="hint">Kapatınca Güvenli Al sayfası, talep sayfasındaki &quot;Güvenli Al ile sat&quot; kutusu, menü ve alt bilgi bağlantıları, ilgili SSS soruları ve sözleşme listedeki metni gizlenir; yeni satış başlatılamaz.</span></div>
+            <div className="fg full"><label className="chk" style={{ fontWeight: 600 }}><input type="checkbox" checked={settings.show_credits !== false} onChange={(e) => setSettings({ ...settings, show_credits: e.target.checked })} />Kredi ve ödeme bölümlerini göster</label><span className="hint">Kapatınca Bana Özel&apos;deki &quot;Kredi ve Mağaza&quot;, kredi sayıları, &quot;Kredi yükle&quot; bağlantıları, ilgili SSS soruları ve ön bilgilendirme / mesafeli satış metinleri listeden gizlenir. Ücretsiz dönemde kapalı tutabilirsiniz.</span></div>
             <div className="fg"><label htmlFor="s-bmin">Menüde görünmesi için en az talep</label><input className="inp" id="s-bmin" type="number" min={1} value={settings.browse_min_requests ?? 1} onChange={(e) => setSettings({ ...settings, browse_min_requests: Number(e.target.value) })} /><span className="hint">Bundan az açık talebi olan kategoriler gezinirken gizlenir; talep verirken hepsi görünür.</span></div>
             <div className="fg"><label htmlFor="s-cmin">Sayaçları göstermek için en az</label><input className="inp" id="s-cmin" type="number" min={0} value={settings.show_counts_min ?? 20} onChange={(e) => setSettings({ ...settings, show_counts_min: Number(e.target.value) })} /><span className="hint">"Tüm talepler (3)" gibi küçük sayılar site boş görünmesin diye gizlenir.</span></div>
             <div className="fg"><label htmlFor="s-active">Kişi başı en fazla açık talep</label><input className="inp" id="s-active" type="number" min={0} value={settings.max_active_requests_per_user ?? 5} onChange={(e) => setSettings({ ...settings, max_active_requests_per_user: Number(e.target.value) })} /><span className="hint">Sahte taleplere karşı. 0 = sınırsız.</span></div>

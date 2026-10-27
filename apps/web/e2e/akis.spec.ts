@@ -128,6 +128,8 @@ test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevap
 test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info) => {
   // Aynı yönetici e-postasına dakikada bir kod gidebildiği için yalnızca masaüstünde çalışır.
   test.skip(info.project.name !== "masaustu");
+  // Birçok yönetim bölümünü sırayla dolaşan uzun test.
+  test.setTimeout(120_000);
   await loginEmail(page, "yonetici@almakisterim.com");
   await page.goto("/yonetim");
   // Panel açılınca genel bakış: sayaç kartları, grafikler, son hareketler.
@@ -1177,6 +1179,17 @@ test("sözleşmeler: yeni üye onay penceresini görür, onaylamadan kapatamaz; 
   await expect(page.getByRole("heading", { name: "Üyelik Sözleşmesi", level: 1 })).toBeVisible();
   await expect(page.getByText(/Sürüm 1\.0 · Yürürlük tarihi: 27 Ekim 2026/)).toBeVisible();
   await expect(page.getByRole("navigation", { name: "İçindekiler" }).getByRole("link", { name: "4. Üyelik" })).toBeVisible();
+  // Kurumsal sayfalar: solda menü, İletişim'de bilgi tablosu.
+  await page.goto("/sayfa/hakkimizda");
+  await expect(page.getByRole("heading", { name: "Hakkımızda", level: 1 })).toBeVisible();
+  await page.getByRole("navigation", { name: "Kurumsal" }).getByRole("link", { name: "İletişim" }).click();
+  await expect(page.getByRole("heading", { name: "İletişim", level: 1 })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Destek Merkezi/ })).toBeVisible();
+  // Sık Sorulan Sorular: gruplar ve açılır cevaplar.
+  await page.goto("/sss");
+  await expect(page.getByRole("heading", { name: "Sık Sorulan Sorular", level: 1 })).toBeVisible();
+  await page.getByText("Talep vermek ücretli mi?").click();
+  await expect(page.getByText("Talep vermek ve üye olmak tamamen ücretsizdir.")).toBeVisible();
   // Eski adresler yeni metinlere yönlenir.
   await page.goto("/sayfa/kvkk");
   await expect(page.getByRole("heading", { name: "Kişisel Verilerin Korunması Aydınlatma Metni", level: 1 })).toBeVisible();
@@ -1209,21 +1222,89 @@ test("sözleşmeler: yeni üye onay penceresini görür, onaylamadan kapatamaz; 
   await expect(page.getByRole("dialog", { name: "Sözleşme onayı" })).toHaveCount(0);
 });
 
-test("yönetici şirket bilgilerini girer; sözleşmelerde görünür", async ({ page }, info) => {
+
+
+test("yönetici alt bilgiyi, sayfaları, sözleşme metnini ve şirket bilgilerini düzenler", async ({ page }, info) => {
   test.skip(info.project.name !== "masaustu");
   await loginEmail(page, "yonetici@almakisterim.com");
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Alt Bilgi ve Sayfalar" }).click();
+  // Alt bilgi: bağlantı adı değişir, yeni bağlantı eklenir.
+  const tag = rnd();
+  await page.getByLabel("Kurumsal 1. bağlantı adı").fill(`Biz Kimiz ${tag}`);
+  await page.getByRole("button", { name: "Kurumsal sütununa bağlantı ekle" }).click();
+  await page.getByLabel(/^Kurumsal \d+\. bağlantı adı$/).last().fill("SSS");
+  await page.getByLabel(/^Kurumsal \d+\. bağlantı adresi$/).last().fill(`/sayfa/sss-${tag}`);
+  await page.getByRole("button", { name: "Alt bilgiyi kaydet" }).click();
+  await expect(page.getByText("Alt bilgi kaydedildi.")).toBeVisible();
+  await expect(page.locator("footer").getByRole("link", { name: `Biz Kimiz ${tag}` })).toBeVisible();
+
+  // Yeni sayfa: SSS.
+  page.once("dialog", (d) => d.accept(`sss-${tag}`));
+  await page.getByRole("button", { name: "+ Yeni sayfa" }).click();
+  await page.getByLabel("Başlık", { exact: true }).fill(`Kampanyalar ${tag}`);
+  await page.getByLabel("İçerik").fill("## Bu ayın kampanyası\n\nSatıcılara **ücretsiz** numara.");
+  await page.getByRole("button", { name: "Sayfayı kaydet" }).click();
+  await expect(page.getByText("Sayfa kaydedildi.")).toBeVisible();
+  await page.locator("footer").getByRole("link", { name: "SSS" }).last().click();
+  await expect(page.getByRole("heading", { name: `Kampanyalar ${tag}`, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Bu ayın kampanyası" })).toBeVisible();
+  // Yeni sayfa kurumsal menüde de görünür.
+  await expect(page.getByRole("navigation", { name: "Kurumsal" }).getByRole("link", { name: `Kampanyalar ${tag}` })).toBeVisible();
+
+  // Sözleşme: Çerez Politikası'na küçük düzeltme; yeni sürüm sitede, eski sürüm geçmişte.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Sözleşmeler" }).click();
+  await page.getByLabel("Metin", { exact: true }).selectOption("cerez-politikasi");
+  await expect(page.getByLabel("Başlık", { exact: true })).toHaveValue("Çerez Politikası");
+  await page.getByLabel("1. bölüm metni").fill(`Çerezler küçük metin dosyalarıdır. ${tag}`);
+  await page.getByLabel("Değişiklik notu (yalnızca yönetimde)").fill("Deneme düzeltmesi");
+  await page.getByRole("button", { name: "Yeni sürüm olarak kaydet" }).click();
+  await expect(page.getByText(/Kaydedildi: sürüm \d+\.\d+\./)).toBeVisible();
+  await page.goto("/sozlesmeler/cerez-politikasi");
+  await expect(page.getByText(`Çerezler küçük metin dosyalarıdır. ${tag}`)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sürüm geçmişi" })).toBeVisible();
+  await page.getByRole("link", { name: "Sürüm 1.0" }).click();
+  await expect(page.getByText("Bu metnin eski bir sürümünü görüntülüyorsunuz.", { exact: false })).toBeVisible();
+  // Şirket bilgileri (aynı yönetici girişiyle: yönetici e-postasına saatte en çok 5 kod gider).
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Sözleşmeler" }).click();
   const unvan = `Almak İsterim Deneme A.Ş. ${rnd()}`;
   await page.getByLabel("Şirket unvanı").fill(unvan);
   await page.getByLabel("Adres", { exact: true }).fill("Moda Cad. No: 1 Kadıköy/İstanbul");
-  await page.getByRole("button", { name: "Kaydet" }).click();
+  await page.getByRole("button", { name: "Şirket bilgilerini kaydet" }).click();
   await expect(page.getByText("Şirket bilgileri kaydedildi", { exact: false })).toBeVisible();
   await page.goto("/sozlesmeler/kvkk-aydinlatma-metni");
   await expect(page.getByText(unvan).first()).toBeVisible();
+  // İletişim sayfasında şirket bilgileri tablosu.
+  await page.goto("/sayfa/iletisim");
+  await expect(page.getByRole("row", { name: /Ticaret Ünvanı/ })).toContainText(unvan);
+  await expect(page.getByRole("row", { name: /Merkez Ofis/ })).toContainText("Moda Cad. No: 1");
+  await expect(page.locator("iframe[title='Merkez ofis haritası']")).toHaveCount(1);
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Sözleşmeler" }).click();
   await page.getByLabel("Onay geçmişi için üye").fill("yonetici@almakisterim.com");
   await page.getByRole("button", { name: "Göster" }).click();
   await expect(page.getByRole("cell", { name: /Üyelik Sözleşmesi/ }).first()).toBeVisible();
+  // Ödeme bölümleri gizlenir: Güvenli Al ve kredi alt bilgiden, Bana Özel'den, SSS'den ve sayfadan kalkar; sonra geri açılır.
+  try {
+    expect((await page.request.put("/api/admin/settings", { data: { show_safe: false, show_credits: false } })).ok()).toBeTruthy();
+    await page.goto("/bana-ozel?s=ozet");
+    await expect(page.locator("footer").getByRole("link", { name: "Sık Sorulan Sorular" })).toBeVisible();
+    await expect(page.locator("footer").getByRole("link", { name: "Güvenli Al", exact: true })).toHaveCount(0);
+    await expect(page.locator("footer").getByRole("link", { name: "Kredi ve Mağaza" })).toHaveCount(0);
+    await expect(page.locator(".acc-menu").getByRole("link", { name: "Kredi ve Mağaza" })).toHaveCount(0);
+    await expect(page.locator(".acc-menu").getByRole("link", { name: "Güvenli Al Alış/Satışlarım" })).toHaveCount(0);
+    await expect(page.getByText("Krediniz", { exact: true })).toHaveCount(0);
+    await page.goto("/guvenli-al");
+    await expect(page.getByText("Bu bölüm şu anda kullanılmıyor.", { exact: false })).toBeVisible();
+    await page.goto("/sss");
+    await expect(page.getByRole("heading", { name: "Alıcılar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Güvenli Al" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Kredi ve Ücretler" })).toHaveCount(0);
+  } finally {
+    await page.request.put("/api/admin/settings", { data: { show_safe: true, show_credits: true } });
+  }
+  await page.goto("/sss");
+  await expect(page.getByRole("heading", { name: "Güvenli Al" })).toBeVisible();
 });

@@ -5,14 +5,17 @@ import { Icon } from "@/components/Icon";
 import { Btn } from "@/components/ui";
 import { openWeb, openWebAuthed } from "@/lib/links";
 import { useSession } from "@/lib/session";
+import { usePaymentsUi } from "@/lib/useCats";
 import { C, R } from "@/lib/theme";
 
 type Row = { icon: string; title: string; go: () => void; badge?: number };
 
 export default function Hesap() {
   const { user, signOut, refresh } = useSession();
+  const ui = usePaymentsUi();
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
   const info: Row[] = [
+    { icon: "book", title: "Sık Sorulan Sorular", go: () => void openWeb("/sss") },
     { icon: "shield", title: "Güvenli alışveriş ipuçları", go: () => void openWeb("/sozlesmeler/guvenli-alisveris") },
     { icon: "book", title: "Sözleşmeler ve Kurallar", go: () => void openWeb("/sozlesmeler") },
     { icon: "lock", title: "KVKK Aydınlatma Metni", go: () => void openWeb("/sozlesmeler/kvkk-aydinlatma-metni") },
@@ -33,7 +36,7 @@ export default function Hesap() {
     { icon: "phone", title: "Numarasını Açtıklarım", go: () => router.push("/hesap/numaralar") },
     { icon: "bolt", title: "Talep Alarmları", go: () => router.push("/hesap/alarmlar") },
     { icon: "bell", title: "Bildirimler", go: () => router.push("/hesap/bildirimler"), badge: user.unread_notifications },
-    { icon: "shield", title: "Güvenli Al satışlarım", go: () => void openWebAuthed("/guvenli-al") },
+    ...(ui.show_safe ? [{ icon: "shield", title: "Güvenli Al satışlarım", go: () => void openWebAuthed("/guvenli-al") }] : []),
     { icon: "user", title: "Hesap Bilgileri", go: () => router.push("/hesap/bilgiler") },
   ];
   return (
@@ -41,7 +44,7 @@ export default function Hesap() {
       <View style={{ backgroundColor: C.navy, borderRadius: R.lg, padding: 16, gap: 4 }}>
         <Text style={{ color: "#fff", fontSize: 18, fontWeight: "800" }}>{user.name || "Üye"}</Text>
         <Text style={{ color: "#C9D0E4" }}>{user.phone ? `0${user.phone.slice(2)}` : user.email}</Text>
-        <Text style={{ color: "#C9D0E4", fontSize: 12 }}>Bu ay ücretsiz numara hakkı: {user.free_unlocks_left} · Krediniz: {user.credits}</Text>
+        <Text style={{ color: "#C9D0E4", fontSize: 12 }}>Bu ay ücretsiz numara hakkı: {user.free_unlocks_left}{ui.show_credits ? ` · Krediniz: ${user.credits}` : ""}</Text>
       </View>
       <List rows={rows} />
       <List rows={info} />

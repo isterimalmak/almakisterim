@@ -1314,7 +1314,7 @@ button.link{padding:0;font-size:inherit}
 .legal-doc .legal-li::before{content:"• "}
 .legal-meta{font-size:12.5px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 .legal-toc{background:var(--bg,#F5F6F8);border-radius:8px;padding:12px 16px;margin:12px 0}
-.legal-toc ol{margin:6px 0 0;padding-left:18px;columns:2;column-gap:24px;font-size:13px}
+.legal-toc ol{margin:6px 0 0;padding-left:0;list-style:none;columns:2;column-gap:24px;font-size:13px;line-height:1.7}
 .legal-toc a{color:var(--blue,#1F54C9)}
 @media (max-width:600px){.legal-toc ol{columns:1}.legal-doc p{text-align:left}}
 @media print{header,footer,.crumb,.legal-toc,.legal-meta button,.app-nav{display:none!important}.legal-doc{border:0;box-shadow:none}}
@@ -1322,3 +1322,76 @@ button.link{padding:0;font-size:inherit}
 .terms-modal .box{max-width:560px;width:100%;max-height:90vh;overflow:auto}
 .terms-modal .chk{align-items:flex-start;line-height:1.5;margin:8px 0}
 .terms-modal ul{margin:8px 0 12px;padding-left:18px;font-size:13.5px;line-height:1.7}
+.legal-versions ul{font-size:13px;line-height:1.8;padding-left:18px}
+.ft-edit{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.ft-col{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.ft-row{display:flex;gap:6px;align-items:center}
+.ft-row .inp{flex:1;min-width:0}
+.ft-link .inp:first-child{flex:.8}
+.le-sec{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;display:flex;flex-direction:column;gap:6px}
+.le-save{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;display:flex;flex-direction:column;gap:10px}
+.le-save .radio-row{flex-direction:column;align-items:flex-start;gap:6px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* sık sorulan sorular */
+.faq-nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.faq-nav a{background:var(--card,#fff);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--navy)}
+.faq-group{margin-bottom:14px}
+.faq-group h2{font-size:15px;color:var(--navy)}
+.faq-item{border-bottom:1px solid var(--line-2)}
+.faq-item:last-child{border-bottom:0}
+.faq-item summary{cursor:pointer;padding:12px 0;font-weight:600;color:var(--text,#1F2328);list-style:none;display:flex;justify-content:space-between;gap:12px}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary::after{content:"+";color:var(--muted);font-weight:700}
+.faq-item[open] summary::after{content:"−"}
+.faq-a{padding:0 0 12px;line-height:1.7;color:var(--text,#1F2328)}
+.faq-a p{margin:0 0 6px}
+.faq-edit{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}
+
+/* kurumsal sayfalar: solda menü, sağda içerik (Hakkımızda, SSS, sözleşmeler, İletişim) */
+.corp{padding-bottom:40px}
+.corp-grid{display:grid;grid-template-columns:280px 1fr;gap:22px;align-items:start}
+.corp-nav{background:var(--card);border:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:12px}
+.corp-i{display:block;padding:17px 22px;border-bottom:1px solid var(--line);color:var(--text);font-size:15px;letter-spacing:.2px;cursor:pointer}
+.corp-i:hover{background:#F6F8FB;color:var(--navy)}
+.corp-i.on{background:#E8F0FC;color:var(--blue);font-weight:600}
+.corp-grp>summary{list-style:none;display:flex;justify-content:space-between;align-items:center}
+.corp-grp>summary::-webkit-details-marker{display:none}
+.corp-grp>summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin-top:-4px}
+.corp-grp[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
+.corp-grp>summary.in{color:var(--navy);font-weight:600}
+.corp-grp .corp-i:not(summary){padding:12px 22px 12px 38px;font-size:14px;background:#FAFBFC}
+.corp-grp .corp-i.on:not(summary){background:#E8F0FC}
+.corp-nav>:last-child{border-bottom:0}
+.corp-main{background:var(--card);border:1px solid var(--line);min-width:0}
+.corp-main>h1{font-size:28px;font-weight:600;color:var(--text);padding:30px 28px 22px;margin:0;border-bottom:1px solid var(--line)}
+.corp-body{padding:22px 22px 28px}
+.corp-text{line-height:1.75;font-size:15px;color:var(--text);padding:0 6px}
+.corp-text h2{font-size:18px;color:var(--navy);margin:22px 0 8px}
+.corp-text ul{padding-left:20px}
+.corp-table{width:100%;border-collapse:separate;border-spacing:0 4px;margin-bottom:18px}
+.corp-table th{width:33%;text-align:left;font-weight:400;background:#F3F4F6;padding:18px 22px 18px 40px;font-size:15px;vertical-align:top}
+.corp-table td{padding:18px 22px;font-size:15px;line-height:1.6;vertical-align:top}
+.corp-table td small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.legal-tbl th{padding-left:22px}
+.corp-map iframe{width:100%;height:360px;border:0;display:block;margin-bottom:18px}
+.corp-note{margin-top:18px;color:var(--muted);font-size:14px}
+.corp .legal-group{margin-bottom:22px}
+.corp .legal-group h2,.corp .faq-group h2{font-size:17px;color:var(--navy);margin:6px 0 8px;padding:0 6px}
+.corp .faq-group{margin-bottom:18px}
+.corp .faq-item{padding:0 6px}
+.corp .legal-doc{padding:0 6px}
+@media (max-width:900px){
+  .corp-grid{grid-template-columns:1fr}
+  .corp-nav{position:static;flex-direction:row;overflow-x:auto;border:0;background:transparent;gap:6px;padding-bottom:4px}
+  .corp-nav .corp-i{border:1px solid var(--line);border-radius:999px;background:var(--card);padding:8px 14px;font-size:13.5px;white-space:nowrap}
+  .corp-grp{display:contents}
+  .corp-grp>summary::after{display:none}
+  .corp-grp:not([open]) .corp-i:not(summary){display:none}
+  .corp-grp .corp-i:not(summary){padding:8px 14px;font-size:13.5px}
+  .corp-main>h1{font-size:22px;padding:20px 16px 14px}
+  .corp-body{padding:16px 12px 20px}
+  .corp-table th{width:40%;padding:12px;font-size:13.5px}
+  .corp-table td{padding:12px;font-size:13.5px}
+  .corp-map iframe{height:260px}
+}
+@media print{.corp-nav{display:none}.corp-grid{display:block}.corp-main{border:0}}
