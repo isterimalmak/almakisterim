@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { paymentsUi, siteFooter, visibleFooter } from "./site.js";
 import { homeBlocks } from "./home-blocks.js";
 import type { Deps } from "../context.js";
 import type { Pool } from "../db.js";
@@ -53,6 +54,7 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
   app.get("/categories", async () => {
     const { rows } = await pool.query<{ key: string; value: unknown }>("SELECT key, value FROM settings WHERE key IN ('browse_min_requests','show_counts_min','launch_mode','phone_required','publish_sms','home_urgent_box','photo_required','home_vitrin','home_latest','home_order','home_hidden','site_name')");
     const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    const ui = await paymentsUi(pool);
     return {
       categories: toTree(await listCategories(pool, true)),
       // Gezinme sayfalarında boş kategoriler ve küçük sayaçlar gizlenir; talep verirken hepsi görünür.
@@ -67,6 +69,10 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
       // Ana sayfa bölümleri: sırası, gizlenenler, yöneticinin eklediği yazı/afiş/kayan yazı (yönetim → Ana Sayfa Düzeni).
       home_blocks: await homeBlocks(pool),
       // Logonun yanındaki ad
+      // Alt bilgi (yönetim → Alt Bilgi ve Sayfalar)
+      footer: visibleFooter(await siteFooter(pool), ui),
+      // Ödeme bölümleri (Güvenli Al, kredi) yönetimden gizlenebilir.
+      ...ui,
       site_name: typeof s.site_name === "string" && s.site_name.trim() ? s.site_name : "almakisterim.com",
       // Eski biçim (önceki sürümle uyum için).
       home_order: Array.isArray(s.home_order) ? s.home_order : [],

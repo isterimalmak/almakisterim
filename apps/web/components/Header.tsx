@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { initials } from "@/lib/format";
+import { withYear } from "@/lib/footer";
 import { Icon } from "./Icon";
 import { useSession } from "./Session";
 
@@ -65,16 +66,18 @@ export function Header() {
 }
 
 export function Footer() {
+  const { footer } = useSession();
+  // Site içi bağlantılar sayfa yenilemeden, dış bağlantılar yeni sekmede açılır.
+  const link = (l: { label: string; href: string }) => (l.href.startsWith("/")
+    ? <Link key={l.label + l.href} href={l.href}>{l.label}</Link>
+    : <a key={l.label + l.href} href={l.href} {...(l.href.startsWith("https://") ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{l.label}</a>);
   return (
     <footer>
       <div className="wrap">
         <div className="ft">
-          <div><b>Kurumsal</b><Link href="/sayfa/hakkimizda">Hakkımızda</Link><Link href="/sayfa/iletisim">İletişim</Link><Link href="/blog">Blog</Link><Link href="/guvenli-al">Güvenli Al</Link></div>
-          <div><b>Alıcılar İçin</b><Link href="/talep-ver">Ücretsiz Talep Ver</Link><Link href="/kategori">Tüm Talepler</Link><Link href="/sozlesmeler/guvenli-alisveris">Güvenli Alışveriş İpuçları</Link></div>
-          <div><b>Satıcılar İçin</b><Link href="/bana-ozel?s=eslesme">Size Uygun Talepler</Link><Link href="/bana-ozel?s=kredi">Kredi ve Mağaza</Link><Link href="/bana-ozel?s=alarm">Talep Alarmları</Link></div>
-          <div><b>Gizlilik ve Kullanım</b><Link href="/sozlesmeler">Sözleşmeler ve Kurallar</Link><Link href="/sozlesmeler/uyelik-sozlesmesi">Üyelik Sözleşmesi</Link><Link href="/sozlesmeler/kvkk-aydinlatma-metni">KVKK Aydınlatma Metni</Link><Link href="/sozlesmeler/cerez-politikasi">Çerez Politikası</Link><Link href="/sozlesmeler/hesap-silme">Hesap Silme</Link></div>
+          {footer.columns.map((c) => <div key={c.title}><b>{c.title}</b>{c.links.map(link)}</div>)}
         </div>
-        <div className="ft-bottom"><span>© {new Date().getFullYear()} almakisterim.com</span><span>Numaranız yalnızca talebinizle ilgilenen sınırlı sayıda satıcıya açılır.</span></div>
+        <div className="ft-bottom"><span>{withYear(footer.bottom_left)}</span><span>{footer.bottom_right}</span></div>
       </div>
     </footer>
   );

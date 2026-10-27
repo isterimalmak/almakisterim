@@ -1,0 +1,34 @@
+// Sık Sorulan Sorular: yönetimden değiştirilmedikçe bu liste gösterilir (Yönetim → Alt Bilgi ve Sayfalar → Sık Sorulan Sorular).
+// tag: "safe" Güvenli Al, "credits" kredi/ödeme; ilgili bölüm yönetimden gizlenince bu sorular da gösterilmez.
+export type FaqItem = { group: string; q: string; a: string; tag?: "safe" | "credits" };
+
+export const DEFAULT_FAQ: FaqItem[] = [
+  { group: "Genel", q: "almakisterim.com nedir?", a: "almakisterim.com bir tersine pazaryeridir. İlan sitelerinde satıcılar ilan verir, alıcılar arar. Burada ise alıcı ne almak istediğini yazar; o ürün ya da hizmet elinde olan satıcılar talebi görüp alıcıya ulaşır." },
+  { group: "Genel", q: "Hangi ürün ve hizmetler için talep verebilirim?", a: "Vasıta, emlak, elektronik, ev eşyası, yedek parça, hizmet, özel ders ve diğer kategorilerde talep verebilirsiniz. Mevzuatla yasaklanmış ürün ve hizmetler için talep verilemez; liste için [Yasaklı Ürün ve Hizmetler](/sozlesmeler/yasakli-urunler) sayfasına bakın." },
+  { group: "Genel", q: "Mobil uygulama var mı?", a: "Evet. Android ve iPhone uygulamamızla talep verebilir, talepleri inceleyebilir, mesajlaşabilir ve yeni taleplerden anında bildirim alabilirsiniz." },
+
+  { group: "Alıcılar", q: "Talep vermek ücretli mi?", a: "Hayır. Talep vermek ve üye olmak tamamen ücretsizdir." },
+  { group: "Alıcılar", q: "Nasıl talep veririm?", a: "\"Ücretsiz Talep Ver\" düğmesine basın ve ne almak istediğinizi tek cümleyle yazın (ör. \"2018 sonrası dizel otomatik BMW 3 Serisi, bütçem 1,5 milyon TL, İstanbul\"). Yapay zekâ kategoriyi, başlığı ve özellikleri sizin için doldurur; kontrol edip yayınlarsınız. Kategoriyi kendiniz de seçebilirsiniz." },
+  { group: "Alıcılar", q: "Talebim ne kadar süre yayında kalır?", a: "Talep verirken 7, 14 veya 30 gün seçebilirsiniz. Süre dolmadan önce size hatırlatma gönderilir; dilediğiniz zaman talebinizi kapatabilir veya yeniden yayınlayabilirsiniz." },
+  { group: "Alıcılar", q: "Telefon numaram herkese görünür mü?", a: "Hayır. Numaranız talepte yazmaz. Yalnızca talebinizle ilgilenen ve numarayı açan sınırlı sayıda satıcı görebilir; kimlerin gördüğünü talep sayfanızda takip edersiniz. Numaranızı dilediğiniz an gizleyebilir, rahatsız eden satıcıyı şikâyet edebilirsiniz." },
+  { group: "Alıcılar", q: "Talebime neden telefon numarası yazamıyorum?", a: "Güvenliğiniz için talep metnine yazılan telefon, e-posta ve bağlantılar otomatik olarak gizlenir. Satıcılar size yalnızca site üzerinden, sınırlı sayıda ve kayıt altında ulaşabilir." },
+  { group: "Alıcılar", q: "Talebim neden yayınlanmadı?", a: "Talepler yayından önce kurallara uygunluk açısından otomatik olarak ve gerektiğinde ekibimizce incelenir. Kurallara aykırı talepler reddedilir; şüpheli olanlar kısa bir incelemenin ardından yayınlanır. İtirazınızı destek adresimize yazabilirsiniz." },
+
+  { group: "Satıcılar", q: "Satıcı olarak nasıl müşteri bulurum?", a: "Kategorilerde ya da \"Size Uygun Talepler\" bölümünde elinizdeki ürüne uyan talepleri görün. Talep alarmı kurarsanız seçtiğiniz kategori, il ve fiyat aralığına uyan yeni talepler yayınlandığında size SMS, e-posta veya uygulama bildirimi gelir." },
+  { group: "Satıcılar", q: "Alıcının numarasını nasıl görürüm?", a: "Talep sayfasındaki \"Numarayı Gör / Mesaj Yaz\" düğmesine basın. Numara açılır; alıcıyı arayabilir ya da site içinden mesaj gönderebilirsiniz. Bir talep için numarayı görebilecek satıcı sayısı sınırlıdır." },
+  { group: "Satıcılar", q: "Alıcının numarasını başka amaçla kullanabilir miyim?", a: "Hayır. Numara yalnızca o talep için teklif vermek amacıyla kullanılabilir. Başka ürünler için aramak, kampanya mesajı göndermek veya numarayı paylaşmak yasaktır ve hesabın kapatılmasına yol açar. Ayrıntılar: [Satıcı Kuralları](/sozlesmeler/satici-kurallari)." },
+  { group: "Satıcılar", q: "Numara yanlış ya da talep sahte çıkarsa ne olur?", a: "Numarayı açtığınız tarihten itibaren 7 gün içinde talep sayfasından bildirin. İncelenip haklı bulunursa harcadığınız kredi iade edilir." },
+
+  { group: "Kredi ve Ücretler", tag: "credits", q: "Numara görmek ücretli mi?", a: "Her ay belirli sayıda numarayı ücretsiz görebilirsiniz. Ücretsiz hakkınız bitince numara açmak için kredi kullanılır; kredi bedeli talepteki fiyata ve kategoriye göre değişir ve düğmenin üzerinde yazar. Tanıtım döneminde numara görmek herkese ücretsizdir." },
+  { group: "Kredi ve Ücretler", tag: "credits", q: "Nasıl kredi alırım?", a: "Bana Özel → Kredi ve Mağaza bölümünden kredi paketlerinden birini seçip kartla ödeyebilirsiniz. Krediler ödemenin hemen ardından hesabınıza tanımlanır ve süresiz kullanılabilir." },
+  { group: "Kredi ve Ücretler", tag: "credits", q: "Kullanmadığım kredinin iadesi var mı?", a: "Hiç kullanılmamış kredi paketleri için satın alma tarihinden itibaren 14 gün içinde iade isteyebilirsiniz. Ayrıntılar [Mesafeli Satış Sözleşmesi](/sozlesmeler/mesafeli-satis-sozlesmesi)'nde yer alır." },
+
+  { group: "Güvenli Al", tag: "safe", q: "Güvenli Al nedir?", a: "Kargoyla yapılan alışverişlerde paranızın güvencesidir. Alıcı kartla öder, para ürün teslim alınıp onaylanana kadar bekletilir; ardından satıcıya aktarılır. Ürün gelmezse ya da sorunlu çıkarsa para iade edilir." },
+  { group: "Güvenli Al", tag: "safe", q: "Güvenli Al'ın ücreti nedir?", a: "Alıcıdan küçük bir hizmet bedeli, satıcıdan satış tutarı üzerinden komisyon alınır. Güncel oranlar [Güvenli Al](/guvenli-al) sayfasında yazar." },
+  { group: "Güvenli Al", tag: "safe", q: "Ürün gelmezse ya da sorunlu çıkarsa ne olur?", a: "Satıcı belirtilen süre içinde kargolamazsa para otomatik olarak iade edilir. Ürün gelir ama sorunluysa onay süresi bitmeden \"Sorun bildir\" deyin; ekibimiz inceler ve haklıysanız paranız iade edilir." },
+
+  { group: "Hesap ve Gizlilik", q: "Şifre neden yok?", a: "Her girişte telefonunuza ya da e-postanıza tek kullanımlık bir kod gönderilir; Google veya Apple hesabınızla da girebilirsiniz. Böylece unutulan ya da çalınan şifre sorunu olmaz. Gelen kodu kimseyle paylaşmayın." },
+  { group: "Hesap ve Gizlilik", q: "Hesabımı nasıl silerim?", a: "Bana Özel → Hesap Bilgileri → \"Hesabı sil\" bölümünden hesabınızı dilediğiniz zaman silebilirsiniz. Nelerin silindiği ve nelerin yasal süre boyunca saklandığı [Hesap Silme](/sozlesmeler/hesap-silme) sayfasında yazar." },
+  { group: "Hesap ve Gizlilik", q: "Kampanya e-postalarını nasıl durdururum?", a: "Bana Özel → Hesap Bilgileri bölümünden ya da e-postaların altındaki \"abonelikten çık\" bağlantısından durdurabilirsiniz. Talepleriniz ve hesabınızla ilgili bilgilendirmeler gelmeye devam eder." },
+  { group: "Hesap ve Gizlilik", q: "Dolandırıcılıktan nasıl korunurum?", a: "Ürünü görmeden kapora veya ön ödeme göndermeyin, size gönderilen ödeme bağlantılarına tıklamayın; almakisterim sizden asla kart bilgisi, şifre ya da doğrulama kodu istemez. Daha fazlası: [Güvenli Alışveriş İpuçları](/sozlesmeler/guvenli-alisveris)." },
+];

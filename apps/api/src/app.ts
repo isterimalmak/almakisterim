@@ -2,6 +2,7 @@ import { aiAdminRoutes } from "./modules/ai-admin.js";
 import { integrationRoutes } from "./modules/integrations.js";
 import { safeRoutes } from "./modules/safe.js";
 import { legalRoutes } from "./modules/legal.js";
+import { siteRoutes } from "./modules/site.js";
 import { homeBlockRoutes } from "./modules/home-blocks.js";
 import { mailStudioRoutes } from "./modules/mailstudio.js";
 import { createPayments } from "./services/payments.js";
@@ -110,6 +111,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     integrationRoutes(api, deps);
     safeRoutes(api, deps);
     legalRoutes(api, deps);
+    siteRoutes(api, deps);
     homeBlockRoutes(api, deps);
     mailStudioRoutes(api, deps);
     // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.

@@ -21,7 +21,7 @@ const STATUS: Record<string, [string, string]> = {
 const St = ({ s }: { s: string }) => <span className={"lbl " + (STATUS[s]?.[1] ?? "l-gy")}>{STATUS[s]?.[0] ?? s}</span>;
 
 function Account() {
-  const { user, ready, categories, refresh, toast } = useSession();
+  const { user, ready, categories, refresh, toast, showSafe, showCredits } = useSession();
   const router = useRouter();
   const s = useSearchParams().get("s") ?? "ozet";
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -74,7 +74,7 @@ function Account() {
     <>
       <div className="kpis">
         <div className="kpi"><small>Bu ay ücretsiz numara</small><b>{user.free_unlocks_left}</b></div>
-        <div className="kpi"><small>Krediniz</small><b>{user.credits}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=kredi">Kredi yükle</Link></div>
+        {showCredits && <div className="kpi"><small>Krediniz</small><b>{user.credits}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=kredi">Kredi yükle</Link></div>}
         <div className="kpi"><small>Konuşma</small><b>{convs?.length ?? "–"}</b></div>
         <div className="kpi"><small>Okunmamış mesaj</small><b>{user.unread_messages ?? 0}</b><Link className="link" style={{ fontSize: 12 }} href="/bana-ozel?s=mesaj">Mesajlar</Link></div>
       </div>
@@ -126,7 +126,8 @@ function Account() {
       <AlarmForm onSaved={() => void load()} />
     </>
   );
-  if (s === "kredi") content = (
+  if (s === "kredi" && !showCredits) content = <div className="box"><div className="empty">Bu bölüm şu anda kullanılmıyor. Numara görmek şimdilik ücretsiz.</div></div>;
+  else if (s === "kredi") content = (
     <>
       <div className="note n-info" style={{ marginBottom: 12 }}><span>Alıcıyla iletişim (numarasını görmek ve mesaj göndermek) kredi ile açılır; açtığınız talebin sahibine ücretsiz mesaj yazarsınız. Her ay birkaç numara ücretsizdir: bu ay kalan hakkınız <b>{user.free_unlocks_left}</b>, krediniz <b>{user.credits}</b>. Bir numara genelde {user.unlock_price} kredidir (bazı kategorilerde farklı olabilir).</span></div>
       <div className="box"><div className="box-b">
@@ -167,10 +168,10 @@ function Account() {
         <div className="grp">Alıcı</div>
         {menu.slice(0, 3).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
         <div className="grp">Satıcı</div>
-        {menu.slice(3, 8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
+        {menu.slice(3, 8).filter(([k]) => showCredits || k !== "kredi").map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
         <div className="grp">Hesap</div>
         {menu.slice(8).map(([k, l]) => <Link key={k} href={`/bana-ozel?s=${k}`} className={s === k ? "on" : ""}><span>{l}</span></Link>)}
-        <Link href="/guvenli-al"><span>Güvenli Al Alış/Satışlarım</span></Link>
+        {showSafe && <Link href="/guvenli-al"><span>Güvenli Al Alış/Satışlarım</span></Link>}
         {user.role === "admin" && <Link href="/yonetim"><span>Yönetim Paneli</span></Link>}
       </nav>
       <div>{content}</div>

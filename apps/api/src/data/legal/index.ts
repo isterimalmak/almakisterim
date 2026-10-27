@@ -21,4 +21,3 @@ export const legalDoc = (slug: string) => LEGAL_DOCS.find((d) => d.slug === slug
 export const TERMS_SLUG = UYELIK.slug;
 // Onayı kaydedilen metinler (consents.doc): her biri kendi sürümüyle.
 export const CONSENT_DOCS = LEGAL_DOCS.filter((d) => d.consent).map((d) => d.slug);
-export const currentVersion = (slug: string) => legalDoc(slug)?.version ?? null;

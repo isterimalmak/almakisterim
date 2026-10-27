@@ -19,7 +19,7 @@ import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
 export default function RequestPage() {
   const { id } = useParams<{ id: string }>();
-  const { user, toast, refresh } = useSession();
+  const { user, toast, refresh, showSafe } = useSession();
   const [data, setData] = useState<{ request: RequestDetail; contact: Contact } | null>(null);
   const [error, setError] = useState("");
   const safe = useSafeInfo();
@@ -178,7 +178,7 @@ export default function RequestPage() {
           </div></div>
           <div className="box rq-tips"><div className="box-b">
             <b><Icon name="shield" size={16} /> Güvenli alışveriş</b>
-            <ul><li>Kapora göndermeyin, ürünü görmeden ödeme yapmayın.</li><li>Kargolu satışlarda <Link className="link" href="/guvenli-al">Güvenli Al</Link> ile para siz onaylayana kadar bekletilir.</li><li>Şüpheli bir durumda talebi şikayet edin.</li></ul>
+            <ul><li>Kapora göndermeyin, ürünü görmeden ödeme yapmayın.</li>{showSafe && <li>Kargolu satışlarda <Link className="link" href="/guvenli-al">Güvenli Al</Link> ile para siz onaylayana kadar bekletilir.</li>}<li>Şüpheli bir durumda talebi şikayet edin.</li></ul>
           </div></div>
         </aside>
       </div>
@@ -279,7 +279,7 @@ function OwnerContact({ r, c, onChange }: { r: RequestDetail; c: Contact; onChan
 }
 
 function UnlockBox({ r, c, onDone }: { r: RequestDetail; c: Contact; onDone: () => void }) {
-  const { user, toast, launchMode, phoneRequired } = useSession();
+  const { user, toast, launchMode, phoneRequired, showCredits } = useSession();
   const [busy, setBusy] = useState(false);
   const full = c.slots_left === 0;
   const free = (user?.free_unlocks_left ?? 0) > 0 || c.price === 0;
@@ -297,14 +297,14 @@ function UnlockBox({ r, c, onDone }: { r: RequestDetail; c: Contact; onDone: () 
       <ul className="unlock-l">
         <li>Açınca alıcının numarasını görür, hemen arayabilir ya da buradan mesaj gönderebilirsiniz.</li>
         <li>Bu talepte numarayı en fazla <b>{c.limit || "sınırsız"}</b> satıcı görebilir{c.slots_left !== null && <>; <b>{c.slots_left}</b> hak kaldı</>}.</li>
-        <li>Ücret: <b>{c.price ? `${c.price} kredi` : launchMode ? "ücretsiz (lansman dönemi)" : "ücretsiz"}</b>{c.price > 0 && <> · Bu ay kalan ücretsiz hakkınız: <b>{user?.free_unlocks_left ?? 0}</b> · Krediniz: <b>{user?.credits ?? 0}</b></>}</li>
+        <li>Ücret: <b>{c.price ? `${c.price} kredi` : launchMode ? "ücretsiz (lansman dönemi)" : "ücretsiz"}</b>{c.price > 0 && <> · Bu ay kalan ücretsiz hakkınız: <b>{user?.free_unlocks_left ?? 0}</b>{showCredits && <> · Krediniz: <b>{user?.credits ?? 0}</b></>}</>}</li>
       </ul>
       {!user?.phone && phoneRequired
         ? <div className="note n-warn" style={{ display: "block" }}><b>Önce kendi numaranızı doğrulayın.</b> Alıcıların güvenliği için numara görmek isteyen satıcıların telefonu doğrulanmış olmalı.<div style={{ marginTop: 10 }}><PhoneVerify /></div></div>
         : full
         ? <div className="note n-info">Bu talepte numara görme hakları doldu.</div>
         : <button className="btn btn-or btn-lg" disabled={busy} onClick={go}>{busy ? "Açılıyor…" : c.price === 0 ? "Numarayı Gör / Mesaj Yaz (ücretsiz)" : free ? "Numarayı Gör / Mesaj Yaz (ücretsiz hak)" : `Numarayı Gör / Mesaj Yaz (${c.price} kredi)`}</button>}
-      {(user?.phone || !phoneRequired) && !full && !free && (user?.credits ?? 0) < c.price && <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Krediniz yetersiz. <Link className="link" href="/bana-ozel?s=kredi">Kredi yükleyin</Link>.</p>}
+      {(user?.phone || !phoneRequired) && !full && !free && (user?.credits ?? 0) < c.price && <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>{showCredits ? <>Krediniz yetersiz. <Link className="link" href="/bana-ozel?s=kredi">Kredi yükleyin</Link>.</> : "Bu ayki ücretsiz numara hakkınız doldu."}</p>}
     </div>
   );
 }
