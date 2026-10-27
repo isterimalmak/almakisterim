@@ -13,9 +13,9 @@ export default function Hesap() {
   const { user, signOut, refresh } = useSession();
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
   const info: Row[] = [
-    { icon: "shield", title: "Güvenli alışveriş ipuçları", go: () => void openWeb("/sayfa/guvenli-alisveris") },
-    { icon: "book", title: "Kullanım Koşulları", go: () => void openWeb("/sayfa/kullanim-kosullari") },
-    { icon: "lock", title: "KVKK Aydınlatma Metni", go: () => void openWeb("/sayfa/kvkk") },
+    { icon: "shield", title: "Güvenli alışveriş ipuçları", go: () => void openWeb("/sozlesmeler/guvenli-alisveris") },
+    { icon: "book", title: "Sözleşmeler ve Kurallar", go: () => void openWeb("/sozlesmeler") },
+    { icon: "lock", title: "KVKK Aydınlatma Metni", go: () => void openWeb("/sozlesmeler/kvkk-aydinlatma-metni") },
     { icon: "mail", title: "İletişim", go: () => void openWeb("/sayfa/iletisim") },
   ];
   if (!user) return (

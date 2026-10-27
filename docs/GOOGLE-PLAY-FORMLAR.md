@@ -110,7 +110,7 @@ Ekran görüntüleri sırası: 1) Ana sayfa · 2) Talep Ver (yapay zekâ ile dol
 
 ### 5.1 Gizlilik politikası
 ```
-https://almakisterim.com/sayfa/kvkk
+https://almakisterim.com/sozlesmeler/kvkk-aydinlatma-metni
 ```
 
 ### 5.2 Uygulama erişimi
@@ -166,7 +166,7 @@ E-posta: `destek@almakisterim.com` · Kategori: **"Diğer tüm uygulama türleri
 - Uygulama içinden hesap silinebiliyor mu? **Evet** — Hesabım → Hesap Bilgileri → Hesabı sil
 - Web bağlantısı:
 ```
-https://almakisterim.com/sayfa/hesap-silme
+https://almakisterim.com/sozlesmeler/hesap-silme
 ```
 
 ### 5.12 Veri güvenliği

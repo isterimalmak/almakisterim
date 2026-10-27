@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { requireTerms } from "./legal.js";
 import { z } from "zod";
 import { requireAdmin, requireUser, type Deps } from "../context.js";
 import { tx, type Client, type Pool } from "../db.js";
@@ -64,6 +65,7 @@ export function contactRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/requests/:id/unlock", { config: { rateLimit: { max: 60, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
+    await requireTerms(pool, user);
     const id = idParam(req.params);
     // Alıcıyı rahatsız eden satıcı bulunabilsin ve ücretsiz haklar çoklu hesapla sömürülmesin (yönetimden açılır).
     if (!user.phone && (await unlockSettings(pool)).phoneRequired) throw new HttpError(409, "telefon_gerekli", "Numara görmek için önce kendi telefon numaranızı doğrulayın.");

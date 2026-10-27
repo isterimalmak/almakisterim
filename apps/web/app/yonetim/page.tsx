@@ -13,6 +13,7 @@ import { CreditsAdmin, IntegrationsAdmin, NotifyAdmin } from "@/components/admin
 import { AiAdmin } from "@/components/admin/AiAdmin";
 import { SafeAdmin } from "@/components/admin/SafeAdmin";
 import { HomeLayoutAdmin } from "@/components/admin/HomeLayoutAdmin";
+import { LegalAdmin } from "@/components/admin/LegalAdmin";
 import { api, type Media, type CategoryTop } from "@/lib/api";
 import { dateTr } from "@/lib/format";
 
@@ -23,7 +24,7 @@ type UnlockStats = { summary: { today: number; month: number; month_credits: num
 type ContactReport = { id: number; side: "seller" | "buyer"; reason_text: string; note: string; status: string; created_at: string; credits: number; request_id: number; title: string;
   seller_name: string; seller_phone: string | null; buyer_name: string; buyer_phone: string | null; seller_complaints: number; buyer_complaints: number };
 type UserRow = { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; created_at: string; is_corporate?: boolean; requests?: number; unlocks?: number };
-type Section = "pano" | "talep" | "kul" | "kredi" | "den" | "num" | "bil" | "kat" | "rek" | "gor" | "ent" | "yz" | "gal" | "duz" | "ayar" | "eposta";
+type Section = "pano" | "talep" | "kul" | "kredi" | "den" | "num" | "bil" | "kat" | "rek" | "gor" | "ent" | "yz" | "gal" | "duz" | "ayar" | "eposta" | "soz";
 const TITLES: Record<Section, [string, string]> = {
   pano: ["Genel Bakış", "Sitenin özeti · bugün ve bu ay"], talep: ["Talepler", "Bütün talepler · arama, vitrin, yayından kaldırma"],
   kul: ["Üyeler ve Kredi", "Üye arama ve elle kredi tanımlama"], den: ["İçerik Denetimi", "İnceleme bekleyen talepler ve şikâyetler"],
@@ -33,6 +34,7 @@ const TITLES: Record<Section, [string, string]> = {
   bil: ["Bildirim Gönder", "Üyelere site içi duyuru"], ent: ["Entegrasyonlar", "Bağlı dış hizmetler"],
   yz: ["Yapay Zekâ", "Otomatik denetim, düzeltme, e-postalar ve blog"],
   duz: ["Ana Sayfa Düzeni", "Bölümlerin sırası; gizle / göster"],
+  soz: ["Sözleşmeler", "Şirket bilgileri ve üyelerin onay geçmişi"],
   gal: ["Güvenli Al", "Bekletilen ödemeler, sorunlu satışlar, satıcı ödemeleri ve komisyon"],
   eposta: ["E-posta Stüdyosu", "Bloklarla e-posta tasarımı, görevler ve gönderim kaydı"],
 };
@@ -95,7 +97,7 @@ export default function Admin() {
   const groups: [string, [Section, string, string, number?][]][] = [
     ["PLATFORM", [["pano", "Genel Bakış", "home"], ["talep", "Talepler", "list"], ["kul", "Üyeler ve Kredi", "user"], ["kredi", "Kredi Hareketleri", "bolt"], ["den", "İçerik Denetimi", "check", pend], ["num", "Numaralar ve Şikâyetler", "phone", creps.length], ["gal", "Güvenli Al", "shield"], ["bil", "Bildirim Gönder", "bell"]]],
     ["İÇERİK", [["duz", "Ana Sayfa Düzeni", "home"], ["kat", "Kategoriler", "box"], ["rek", "Reklam Alanları", "play"], ["gor", "Hazır Görseller", "camera"], ["eposta", "E-posta Stüdyosu", "mail"]]],
-    ["SİSTEM", [["yz", "Yapay Zekâ", "bolt"], ["ent", "Entegrasyonlar", "lock"], ["ayar", "Ayarlar", "gear"]]],
+    ["SİSTEM", [["yz", "Yapay Zekâ", "bolt"], ["ent", "Entegrasyonlar", "lock"], ["soz", "Sözleşmeler", "list"], ["ayar", "Ayarlar", "gear"]]],
   ];
   const [title, sub] = TITLES[tab];
   return (
@@ -128,6 +130,7 @@ export default function Admin() {
       {tab === "kredi" && <CreditsAdmin />}
       {tab === "bil" && <NotifyAdmin />}
       {tab === "ent" && <IntegrationsAdmin />}
+      {tab === "soz" && <LegalAdmin />}
       {tab === "yz" && <AiAdmin />}
       {tab === "gal" && <SafeAdmin />}
       {tab === "duz" && <HomeLayoutAdmin />}

@@ -36,7 +36,8 @@ export async function resetData(pool: Pool) {
 }
 
 // SMS ile giriş yapar ve oturum çerezini döndürür.
-export async function login(ctx: TestCtx, phoneOrEmail: string, name = "Test Kullanıcı"): Promise<string> {
+// Üye girişi; varsayılan olarak Üyelik Sözleşmesi de onaylanır (sözleşme onayı testleri terms: false ile girer).
+export async function login(ctx: TestCtx, phoneOrEmail: string, name = "Test Kullanıcı", opts: { terms?: boolean } = {}): Promise<string> {
   const channel = phoneOrEmail.includes("@") ? "email" : "sms";
   const r1 = await ctx.app.inject({ method: "POST", url: "/api/auth/code", payload: { channel, target: phoneOrEmail } });
   if (r1.statusCode !== 200) throw new Error("kod istenemedi: " + r1.body);
@@ -45,8 +46,12 @@ export async function login(ctx: TestCtx, phoneOrEmail: string, name = "Test Kul
   const code = sent.text.match(/\d{6}/)![0];
   const r2 = await ctx.app.inject({ method: "POST", url: "/api/auth/verify", payload: { channel, target: phoneOrEmail, code, name } });
   if (r2.statusCode !== 200) throw new Error("doğrulanamadı: " + r2.body);
-  const cookie = r2.cookies.find((c) => c.name === "ak_session")!;
-  return `ak_session=${cookie.value}`;
+  const cookie = `ak_session=${r2.cookies.find((c) => c.name === "ak_session")!.value}`;
+  if (opts.terms !== false) {
+    const r3 = await ctx.app.inject({ method: "POST", url: "/api/me/consents", headers: { cookie }, payload: { terms: true, context: "test" } });
+    if (r3.statusCode !== 200) throw new Error("sözleşme onaylanamadı: " + r3.body);
+  }
+  return cookie;
 }
 
 export const sampleRequest = {

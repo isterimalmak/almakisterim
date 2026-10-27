@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { recordConsent, requireTerms } from "./legal.js";
 import { z } from "zod";
 import { requireAdmin, requireUser, type Deps } from "../context.js";
 import { tx, type Client, type Pool } from "../db.js";
@@ -67,12 +68,15 @@ const Create = z.object({
   price: z.number().min(10, "Fiyat en az 10 TL olmalı."),
   iban: z.string().max(40).optional(),
   iban_name: z.string().trim().max(80).optional(),
+  // Güvenli Al Hizmet Sözleşmesi onayı (satıcı satış başlatırken, alıcı ödemeden önce).
+  accept: z.literal(true, { error: "Devam etmek için Güvenli Al Hizmet Sözleşmesi'ni onaylayın." }),
 });
 const Pay = z.object({
   ship_name: z.string().trim().min(3, "Ad soyad yazın.").max(80),
   ship_phone: z.string().trim().min(10, "Telefon numarası yazın.").max(20),
   ship_city: z.string().trim().min(2, "İl yazın.").max(40),
   ship_address: z.string().trim().min(10, "Açık adresi yazın (mahalle, sokak, no).").max(400),
+  accept: z.literal(true, { error: "Ödemeden önce Güvenli Al Hizmet Sözleşmesi'ni onaylayın." }),
 });
 const Ship = z.object({
   cargo_company: z.string().trim().min(2, "Kargo firmasını yazın.").max(40),
@@ -213,6 +217,7 @@ export function safeRoutes(app: FastifyInstance, deps: Deps) {
   // Satıcı satış başlatır: alıcıyla iletişimi açmış olmalı, talep kargolanabilir bir kategoride olmalı.
   app.post("/safe/sales", { config: { rateLimit: { max: 20, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
+    await requireTerms(pool, user);
     const b = Create.parse(req.body);
     const st = await safeSettings(pool);
     if (!st.enabled || !pay().enabled) throw new HttpError(503, "kapali", "Güvenli Al şu anda kullanılamıyor.");
@@ -244,6 +249,7 @@ export function safeRoutes(app: FastifyInstance, deps: Deps) {
         [b.request_id, user.id, r.buyer_id, maskContacts(b.title).text, desc, price, f.seller_fee, f.buyer_fee, pay().name]);
       const id = Number(ins.rows[0]!.id);
       await log(c, id, user.id, "olusturuldu");
+      await recordConsent(c, req, user.id, ["guvenli-al-sozlesmesi"], `guvenli-al:${id}`);
       return id;
     });
     await tell(r.buyer_id, `Satıcı "${b.title}" için Güvenli Al ile ${(price / 100).toLocaleString("tr-TR")} TL'lik satış başlattı. Ödemeniz ürünü teslim alana kadar güvende bekler.`, id);
@@ -274,7 +280,9 @@ export function safeRoutes(app: FastifyInstance, deps: Deps) {
     const { user, s } = await mine(req, idParam(req.params));
     if (s.buyer_id !== user.id) throw new HttpError(403, "yetki_yok", "Ödemeyi yalnızca alıcı yapabilir.");
     if (s.status !== "odeme_bekliyor") throw new HttpError(409, "durum_uygun_degil", "Bu satışın ödemesi artık yapılamaz.");
+    await requireTerms(pool, user);
     const b = Pay.parse(req.body);
+    await recordConsent(pool, req, user.id, ["guvenli-al-sozlesmesi"], `guvenli-al:${s.id}`);
     if (!pay().enabled) throw new HttpError(503, "kapali", "Ödeme altyapısı şu anda kullanılamıyor.");
     const buyer = (await pool.query<{ email: string | null; phone: string | null }>("SELECT email, phone FROM users WHERE id = $1", [user.id])).rows[0]!;
     let started: { token: string; url: string };

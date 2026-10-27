@@ -103,6 +103,7 @@ function SalePage() {
 
 function Action({ s, act, reload, token }: { s: Sale; act: (path: string, body?: Record<string, unknown>, msg?: string) => Promise<void>; reload: () => Promise<void>; token: string | null }) {
   const { toast } = useSession();
+  const [accept, setAccept] = useState(false);
   const [addr, setAddr] = useState({ ship_name: s.ship?.name ?? "", ship_phone: s.ship?.phone ?? "", ship_city: s.ship?.city ?? "", ship_address: s.ship?.address ?? "" });
   const [cargo, setCargo] = useState({ cargo_company: CARGO[0]!, other: "", tracking_no: "" });
   const [dispute, setDispute] = useState<string | null>(null);
@@ -158,9 +159,10 @@ function Action({ s, act, reload, token }: { s: Sale; act: (path: string, body?:
           <tr><th>Güvenli Al hizmet bedeli</th><td>{tl(s.buyer_fee)}</td></tr>
           <tr className="sum"><th>Ödenecek</th><td>{tl(s.total)}</td></tr>
         </tbody></table>
+        <label className="chk" style={{ marginTop: 10 }}><input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} /><span><a className="link" href="/sozlesmeler/guvenli-al-sozlesmesi" target="_blank" rel="noreferrer">Güvenli Al Hizmet Sözleşmesi</a>&apos;ni okudum, kabul ediyorum.</span></label>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-          <button type="button" className="btn btn-or btn-lg" disabled={busy || !ok} onClick={() => void run(async () => {
-            try { const r = await api<{ url: string }>(`/safe/sales/${s.id}/pay`, { body: addr }); window.location.href = r.url; }
+          <button type="button" className="btn btn-or btn-lg" disabled={busy || !ok || !accept} onClick={() => void run(async () => {
+            try { const r = await api<{ url: string }>(`/safe/sales/${s.id}/pay`, { body: { ...addr, accept: true } }); window.location.href = r.url; }
             catch (e) { toast((e as Error).message); }
           })}><Icon name="lock" size={16} /> {busy ? "Ödeme sayfası açılıyor…" : `Güvenli Öde · ${tl(s.total)}`}</button>
           <button type="button" className="btn btn-gh btn-sm" onClick={() => { if (confirm("Satış iptal edilsin mi?")) void act("cancel", {}, "Satış iptal edildi."); }}>İptal et</button>

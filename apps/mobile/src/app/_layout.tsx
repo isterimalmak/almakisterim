@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { TermsGate } from "@/components/TermsGate";
 import { openLink } from "@/lib/links";
 import { SessionProvider } from "@/lib/session";
 import { C } from "@/lib/theme";
@@ -37,6 +38,7 @@ export default function Root() {
             <Stack.Screen name="hesap/favoriler" options={{ title: "Favori Talepler" }} />
             <Stack.Screen name="hesap/uygun" options={{ title: "Size Uygun Talepler" }} />
           </Stack>
+          <TermsGate />
         </SessionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
