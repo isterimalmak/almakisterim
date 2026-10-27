@@ -668,6 +668,7 @@ test("ana sayfada Vasıta Talepleri ve Emlak Talepleri bölümleri: kategorinin 
 test("Bana Özel → Hesap: e-posta bildirimleri (yeni teklif, teklif kabul, yeni mesaj) açılıp kapatılır, kaydedilince kalır", async ({ page }) => {
   await loginSms(page, `0537${rnd().slice(0, 7)}`, "Bildirim Ayarı");
   await page.goto("/bana-ozel?s=hesap");
+  await expect(page.getByLabel("Ad soyad / firma adı")).toHaveValue("Bildirim Ayarı");
   const grp = page.getByRole("group", { name: "E-posta bildirimleri" });
   for (const l of ["Talebime yeni teklif geldiğinde", "Teklifim kabul edildiğinde", "Yeni mesaj geldiğinde"]) await expect(grp.getByLabel(l)).toBeChecked();
   await grp.getByLabel("Yeni mesaj geldiğinde").uncheck();
