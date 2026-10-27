@@ -1308,3 +1308,26 @@ test("yönetici alt bilgiyi, sayfaları, sözleşme metnini ve şirket bilgileri
   await page.goto("/sss");
   await expect(page.getByRole("heading", { name: "Güvenli Al" })).toBeVisible();
 });
+
+test("üye telefon numarasını değiştirir: önce mevcut numarayla kimlik doğrular, sonra yeni numarayı doğrular", async ({ page }) => {
+  const oldPhone = `0537${rnd().slice(0, 7)}`, newPhone = `0537${rnd().slice(0, 7)}`;
+  const code = async (p: string) => (await (await page.request.get(`${API}/api/__test/last-message?to=90${p.slice(1)}`)).json()).text.match(/\d{6}/)[0] as string;
+  await loginSms(page, oldPhone, "Numara Değiştiren");
+  await page.goto("/bana-ozel?s=hesap");
+  await page.getByRole("button", { name: "Numarayı değiştir" }).click();
+  await page.getByRole("button", { name: /Mevcut numarama/ }).click();
+  await expect(page.getByLabel("Mevcut numaranıza gelen kod")).toBeVisible();
+  await page.getByLabel("Mevcut numaranıza gelen kod").fill(await code(oldPhone));
+  await page.getByRole("button", { name: "Doğrula", exact: true }).click();
+  await expect(page.getByText("Kimliğiniz doğrulandı.", { exact: false })).toBeVisible();
+  await page.getByLabel("Cep telefonu").fill(newPhone);
+  await page.getByRole("button", { name: "Kod gönder" }).click();
+  await expect(page.getByLabel("SMS doğrulama kodu")).toBeVisible();
+  await page.getByLabel("SMS doğrulama kodu").fill(await code(newPhone));
+  await page.getByRole("button", { name: "Doğrula", exact: true }).click();
+  await expect(page.getByText("Telefon numaranız değiştirildi.")).toBeVisible();
+  const fmt = newPhone.replace(/^0(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4");
+  await expect(page.getByText(`Doğrulanmış numaranız: ${fmt}`, { exact: false })).toBeVisible();
+  // Eski numaraya bilgilendirme gider.
+  await expect.poll(async () => (await (await page.request.get(`${API}/api/__test/last-message?to=90${oldPhone.slice(1)}`)).json()).text).toContain("olarak değiştirildi");
+});

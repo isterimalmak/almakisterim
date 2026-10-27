@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { PhoneVerify } from "@/components/PhoneVerify";
+import { PhoneChange } from "@/components/PhoneChange";
 import { AlarmForm, alarmSummary, type Alarm } from "@/components/AlarmForm";
 import { useSession } from "@/components/Session";
 import { api, type MailPrefs } from "@/lib/api";
@@ -153,7 +154,7 @@ function Account() {
     <>
       <ProfileForm />
       <div className="box" style={{ marginTop: 14 }}><div className="box-h"><h2>Telefon numarası</h2></div><div className="box-b">
-        {user.phone ? <p>Doğrulanmış numaranız: <b>{user.phone.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4")}</b></p>
+        {user.phone ? <PhoneChange />
           : <><p className="muted" style={{ marginBottom: 10, fontSize: 13 }}>Talep vermek için doğrulanmış bir telefon numarası gerekir.</p><PhoneVerify /></>}
       </div></div>
       <DeleteAccount />
@@ -224,7 +225,7 @@ function ProfileForm() {
           {([["offer", "Talebime yeni teklif geldiğinde"], ["accepted", "Teklifim kabul edildiğinde"], ["message", "Yeni mesaj geldiğinde"]] as const).map(([k, l]) => (
             <label key={k} className="chk"><input type="checkbox" checked={prefs[k]} onChange={(e) => setPrefs((p) => ({ ...p, [k]: e.target.checked }))} />{l}</label>))}
           <span className="hint">Telefon numarası kayıtlı hesaplarda teklif bildirimleri SMS ile gider. Bildirimler sitede (🔔) her durumda görünür.</span></fieldset>
-        <div className="fg"><label>Telefon</label><input className="inp" value={user?.phone ?? "—"} disabled /></div>
+        <div className="fg"><label>Telefon</label><input className="inp" value={user?.phone ? user.phone.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4") : "—"} disabled /><span className="hint">Değiştirmek için aşağıdaki &quot;Telefon numarası&quot; bölümünü kullanın.</span></div>
         <div className="fg"><label>E-posta</label><input className="inp" value={user?.email ?? "—"} disabled /></div>
       </div>
       <button className="btn btn-or" style={{ marginTop: 12 }} onClick={async () => { try { await api("/me", { method: "PATCH", body: { name, is_corporate: corp, marketing, mail_prefs: prefs } }); await refresh(); toast("Bilgileriniz kaydedildi."); } catch (e) { toast((e as Error).message); } }}>Kaydet</button>
