@@ -15,6 +15,7 @@ import { SafeAdmin } from "@/components/admin/SafeAdmin";
 import { HomeLayoutAdmin } from "@/components/admin/HomeLayoutAdmin";
 import { LegalAdmin } from "@/components/admin/LegalAdmin";
 import { SiteAdmin } from "@/components/admin/SiteAdmin";
+import { UserEdit } from "@/components/admin/UserEdit";
 import { api, type Media, type CategoryTop } from "@/lib/api";
 import { dateTr } from "@/lib/format";
 
@@ -28,7 +29,7 @@ type UserRow = { id: string; name: string; email: string | null; phone: string |
 type Section = "pano" | "talep" | "kul" | "kredi" | "den" | "num" | "bil" | "kat" | "rek" | "gor" | "ent" | "yz" | "gal" | "duz" | "ayar" | "eposta" | "soz" | "alt";
 const TITLES: Record<Section, [string, string]> = {
   pano: ["Genel Bakış", "Sitenin özeti · bugün ve bu ay"], talep: ["Talepler", "Bütün talepler · arama, vitrin, yayından kaldırma"],
-  kul: ["Üyeler ve Kredi", "Üye arama ve elle kredi tanımlama"], den: ["İçerik Denetimi", "İnceleme bekleyen talepler ve şikâyetler"],
+  kul: ["Üyeler ve Kredi", "Üye arama, bilgileri düzenleme ve elle kredi tanımlama"], den: ["İçerik Denetimi", "İnceleme bekleyen talepler ve şikâyetler"],
   num: ["Numaralar ve Şikâyetler", "Açılan numaralar, kredi iadeleri"], kat: ["Kategoriler", "Sitede görünen kategoriler"],
   rek: ["Reklam Alanları", "Ana sayfadaki resim ve videolar, açılış karşılaması"], gor: ["Hazır Görseller", "Talep verirken seçilen örnek görseller"],
   ayar: ["Ayarlar", "Ücretler, sınırlar ve site seçenekleri"], kredi: ["Kredi Hareketleri", "Kazanılan ve harcanan krediler"],
@@ -56,6 +57,7 @@ export default function Admin() {
   const [settings, setSettings] = useState<{ site_name?: string; home_urgent_box?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; launch_mode?: boolean; show_safe?: boolean; show_credits?: boolean; browse_min_requests?: number; show_counts_min?: number; unlock_price_tiers?: { max_budget: number | null; credits: number }[]; max_active_requests_per_user?: number; free_unlocks_per_month?: number; unlock_price_credits?: number; unlock_limit_per_request?: number; unlock_price_by_top?: Record<string, number>; store_monthly_price_try?: number } | null>(null);
   const [q, setQ] = useState("");
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [editing, setEditing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [s, c, m, st] = await Promise.all([
@@ -174,12 +176,15 @@ export default function Admin() {
       )}
 
       {tab === "kul" && (
+        <>
+        {editing && <UserEdit key={editing} id={editing} onClose={() => setEditing(null)} onSaved={() => void searchUsers()} />}
         <div className="box"><div className="box-h"><h2>Kullanıcılar</h2></div><div className="box-b">
           <form style={{ display: "flex", gap: 8, marginBottom: 12 }} onSubmit={(e) => { e.preventDefault(); void searchUsers(); }}><input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ad, e-posta veya telefon" /><button className="btn btn-bl">Ara</button><a className="btn btn-wh" href="/api/admin/users.csv" download>Excel'e indir</a></form>
           {users.length ? <table className="tbl"><thead><tr><th>Kullanıcı</th><th>İletişim</th><th className="r">Talep</th><th className="r">Açtığı numara</th><th className="r">Kredi</th><th></th></tr></thead><tbody>
-            {users.map((u) => <tr key={u.id}><td><b>{u.name || "—"}</b> {u.role === "admin" && <span className="lbl l-kur">Yönetici</span>} {u.is_corporate && <span className="lbl l-soft">Kurumsal</span>}<div className="ti-s">{dateTr(u.created_at)}</div></td><td data-m="İletişim">{u.phone ?? u.email}</td><td data-m="Talep" className="r">{u.requests ?? 0}</td><td data-m="Açtığı numara" className="r">{u.unlocks ?? 0}</td><td data-m="Kredi" className="r">{u.credits}</td><td className="r act-cell"><button className="btn btn-wh btn-sm" onClick={() => credit(u)}>Kredi tanımla</button></td></tr>)}
+            {users.map((u) => <tr key={u.id}><td><b>{u.name || "—"}</b> {u.role === "admin" && <span className="lbl l-kur">Yönetici</span>} {u.is_corporate && <span className="lbl l-soft">Kurumsal</span>}<div className="ti-s">{dateTr(u.created_at)}</div></td><td data-m="İletişim">{u.phone ?? u.email}</td><td data-m="Talep" className="r">{u.requests ?? 0}</td><td data-m="Açtığı numara" className="r">{u.unlocks ?? 0}</td><td data-m="Kredi" className="r">{u.credits}</td><td className="r act-cell nowrap"><button className="btn btn-wh btn-sm" aria-label={`${u.name || u.phone || u.email} bilgilerini düzenle`} onClick={() => { setEditing(u.id); window.scrollTo(0, 0); }}>Düzenle</button> <button className="btn btn-wh btn-sm" onClick={() => credit(u)}>Kredi tanımla</button></td></tr>)}
           </tbody></table> : <div className="muted">Üye bulunamadı.</div>}
         </div></div>
+        </>
       )}
 
       {tab === "num" && unl && (

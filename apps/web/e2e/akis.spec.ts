@@ -1224,7 +1224,7 @@ test("sözleşmeler: yeni üye onay penceresini görür, onaylamadan kapatamaz; 
 
 
 
-test("yönetici alt bilgiyi, sayfaları, sözleşme metnini ve şirket bilgilerini düzenler", async ({ page }, info) => {
+test("yönetici alt bilgiyi, sayfaları, sözleşme metnini, şirket bilgilerini ve üye bilgilerini düzenler", async ({ page, browser }, info) => {
   test.skip(info.project.name !== "masaustu");
   await loginEmail(page, "yonetici@almakisterim.com");
   await page.goto("/yonetim");
@@ -1307,6 +1307,35 @@ test("yönetici alt bilgiyi, sayfaları, sözleşme metnini ve şirket bilgileri
   }
   await page.goto("/sss");
   await expect(page.getByRole("heading", { name: "Güvenli Al" })).toBeVisible();
+
+  // Üye bilgileri: yönetici üyenin adını ve numarasını nedenini yazarak değiştirir; geçmişte görünür, üye yeni numarayla girer.
+  const oldPhone = `0538${rnd().slice(0, 7)}`, newPhone = `0538${rnd().slice(0, 7)}`;
+  const mctx = await browser.newContext();
+  await loginSms(await mctx.newPage(), oldPhone, "Düzenlenecek Üye");
+  await mctx.close();
+  await page.goto("/yonetim#kul");
+  await page.getByPlaceholder("Ad, e-posta veya telefon").fill("90" + oldPhone.slice(1));
+  await page.getByRole("main").getByRole("button", { name: "Ara", exact: true }).click();
+  await page.getByRole("button", { name: "Düzenlenecek Üye bilgilerini düzenle" }).click();
+  const ed = page.getByRole("region", { name: "Üye bilgilerini düzenle" });
+  await expect(ed.getByLabel("Cep telefonu")).toHaveValue(oldPhone.replace(/^0(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4"));
+  await ed.getByLabel("Ad soyad").fill("Düzeltilmiş Üye");
+  await ed.getByLabel("Cep telefonu").fill(newPhone);
+  await expect(ed.getByText("hesabın gerçek sahibi olduğundan emin olun", { exact: false })).toBeVisible();
+  await ed.getByRole("button", { name: "Üye bilgilerini kaydet" }).click();
+  await expect(page.getByText("Değişikliğin nedenini yazın", { exact: false })).toBeVisible();
+  await ed.getByLabel("Değişikliğin nedeni (zorunlu)").fill("Kimlik belgesiyle başvurdu");
+  await ed.getByRole("button", { name: "Üye bilgilerini kaydet" }).click();
+  await expect(page.getByText("Kaydedildi: Ad soyad, Telefon")).toBeVisible();
+  await expect(ed.getByRole("cell", { name: /Kimlik belgesiyle başvurdu/ }).first()).toBeVisible();
+  await expect(ed.getByText("Düzeltilmiş Üye", { exact: false }).first()).toBeVisible();
+  // Eski numaraya bilgi gider; üye yeni numarayla aynı hesaba girer.
+  await expect.poll(async () => (await (await page.request.get(`${API}/api/__test/last-message?to=90${oldPhone.slice(1)}`)).json()).text).toContain("destek ekibimiz tarafından değiştirildi");
+  const nctx = await browser.newContext();
+  const np = await nctx.newPage();
+  await loginSms(np, newPhone, "Kullanılmayan Ad");
+  expect((await (await np.request.get("/api/me")).json()).user.name).toBe("Düzeltilmiş Üye");
+  await nctx.close();
 });
 
 test("üye telefon numarasını değiştirir: önce mevcut numarayla kimlik doğrular, sonra yeni numarayı doğrular", async ({ page }) => {

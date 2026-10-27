@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAdmin, type Deps } from "../context.js";
 import { tx } from "../db.js";
-import { HttpError, safeEqual } from "../lib/util.js";
+import { HttpError, normalizeEmail, normalizePhone, safeEqual } from "../lib/util.js";
 import { listCategories, toTree } from "./categories.js";
 import { cleanupOrphans, mediaFor } from "./media.js";
 import { expiryReminders, notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
@@ -200,6 +200,77 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
         WHERE $1 = '' OR u.name ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%' OR u.phone LIKE '%' || $1 || '%'
         ORDER BY u.created_at DESC LIMIT 50`, [q]);
     return { items: rows };
+  });
+
+  // Üye kartı: bilgiler, yöneticinin yaptığı değişiklikler ve üyenin kendi numara değişiklikleri.
+  app.get("/admin/users/:id", async (req) => {
+    requireAdmin(req);
+    const id = z.string().uuid().parse((req.params as { id: string }).id);
+    const user = (await pool.query(
+      `SELECT id, name, email, phone, role, credits, is_corporate, created_at, deleted_at,
+              google_sub IS NOT NULL AS google, apple_sub IS NOT NULL AS apple FROM users WHERE id = $1`, [id])).rows[0];
+    if (!user) throw new HttpError(404, "bulunamadi", "Üye bulunamadı.");
+    const edits = (await pool.query(
+      `SELECT e.id, e.field, e.old_value, e.new_value, e.note, e.created_at, a.name AS admin_name
+         FROM user_edits e LEFT JOIN users a ON a.id = e.admin_id WHERE e.user_id = $1 ORDER BY e.id DESC LIMIT 50`, [id])).rows;
+    const phoneChanges = (await pool.query(
+      `SELECT old_phone, new_phone, identity_via, completed_at FROM phone_changes
+        WHERE user_id = $1 AND completed_at IS NOT NULL ORDER BY id DESC LIMIT 20`, [id])).rows;
+    return { user, edits, phone_changes: phoneChanges };
+  });
+
+  // Üye bilgilerini düzeltme (ad, e-posta, telefon, kurumsal). Her değişiklik nedeniyle ve yöneticinin adıyla kaydedilir;
+  // e-posta ya da telefon değişirse eski adrese/numaraya bilgi gider (hesap ele geçirme girişimi fark edilsin).
+  const FIELD_TR = { name: "Ad soyad", email: "E-posta", phone: "Telefon", is_corporate: "Kurumsal" } as const;
+  app.patch("/admin/users/:id", { config: { rateLimit: { max: 60, timeWindow: "1 hour" } } }, async (req) => {
+    const admin = requireAdmin(req);
+    const id = z.string().uuid().parse((req.params as { id: string }).id);
+    const b = z.object({
+      name: z.string().trim().min(2, "Ad en az 2 karakter olmalı.").max(80).optional(),
+      email: z.string().trim().max(254).optional(), // boş = e-postayı kaldır
+      phone: z.string().trim().max(30).optional(), // boş = numarayı kaldır
+      is_corporate: z.boolean().optional(),
+      note: z.string().trim().min(5, "Değişikliğin nedenini yazın (ör. kimlik belgesiyle başvurdu).").max(300),
+      logout: z.boolean().default(false),
+    }).parse(req.body);
+    const cur = (await pool.query<{ name: string; email: string | null; phone: string | null; is_corporate: boolean; deleted_at: string | null; google: boolean; apple: boolean }>(
+      "SELECT name, email, phone, is_corporate, deleted_at, google_sub IS NOT NULL AS google, apple_sub IS NOT NULL AS apple FROM users WHERE id = $1", [id])).rows[0];
+    if (!cur) throw new HttpError(404, "bulunamadi", "Üye bulunamadı.");
+    if (cur.deleted_at) throw new HttpError(400, "silinmis", "Silinmiş hesap düzenlenemez.");
+
+    const next = { name: cur.name, email: cur.email, phone: cur.phone, is_corporate: cur.is_corporate };
+    if (b.name !== undefined) next.name = b.name;
+    if (b.email !== undefined) {
+      next.email = b.email === "" ? null : normalizeEmail(b.email);
+      if (b.email !== "" && !next.email) throw new HttpError(400, "gecersiz_eposta", "Geçerli bir e-posta adresi yazın.");
+    }
+    if (b.phone !== undefined) {
+      next.phone = b.phone === "" ? null : normalizePhone(b.phone);
+      if (b.phone !== "" && !next.phone) throw new HttpError(400, "gecersiz_numara", "Geçerli bir cep telefonu numarası yazın.");
+    }
+    if (b.is_corporate !== undefined) next.is_corporate = b.is_corporate;
+    const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) => next[k] !== cur[k]);
+    if (!changed.length) throw new HttpError(400, "degisiklik_yok", "Herhangi bir bilgi değişmedi.");
+    if (!next.email && !next.phone && !cur.google && !cur.apple)
+      throw new HttpError(400, "iletisim_gerekli", "Üyenin giriş yapabilmesi için e-posta ya da telefondan birini bırakın.");
+    if (changed.includes("email") && next.email && (await pool.query("SELECT 1 FROM users WHERE email = $1 AND id <> $2", [next.email, id])).rowCount)
+      throw new HttpError(409, "eposta_kullanimda", "Bu e-posta adresi başka bir hesaba bağlı.");
+    if (changed.includes("phone") && next.phone && (await pool.query("SELECT 1 FROM users WHERE phone = $1 AND id <> $2", [next.phone, id])).rowCount)
+      throw new HttpError(409, "numara_kullanimda", "Bu numara başka bir hesaba bağlı.");
+
+    const show = (k: keyof typeof next, v: unknown) => k === "is_corporate" ? (v ? "Evet" : "Hayır") : (v as string | null);
+    await tx(pool, async (c) => {
+      await c.query("UPDATE users SET name = $2, email = $3, phone = $4, is_corporate = $5 WHERE id = $1", [id, next.name, next.email, next.phone, next.is_corporate]);
+      for (const k of changed)
+        await c.query("INSERT INTO user_edits (user_id, admin_id, field, old_value, new_value, note) VALUES ($1,$2,$3,$4,$5,$6)",
+          [id, admin.id, k, show(k, cur[k]), show(k, next[k]), b.note]);
+      if (b.logout) await c.query("DELETE FROM sessions WHERE user_id = $1", [id]);
+    });
+
+    const notice = (what: string) => `almakisterim hesabınızın ${what} destek ekibimiz tarafından değiştirildi. Bu değişikliği siz istemediyseniz hemen destek@almakisterim.com adresine yazın.`;
+    if (changed.includes("phone") && cur.phone) void deps.sms.send(cur.phone, notice("telefon numarası")).catch(() => {});
+    if (changed.includes("email") && cur.email) void deps.mailer.send(cur.email, "Hesap bilgileriniz değiştirildi", notice("e-posta adresi"), { critical: true }).catch(() => {});
+    return { ok: true, changed: changed.map((k) => FIELD_TR[k]) };
   });
 
   // Bildirim gönder: seçilen kitleye site içi bildirim (zil simgesinde görünür).
