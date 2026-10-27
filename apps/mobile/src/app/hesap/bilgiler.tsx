@@ -59,7 +59,7 @@ export default function Bilgiler() {
       {ok ? <Text accessibilityRole="alert" style={{ color: C.green, fontWeight: "700" }}>{ok}</Text> : null}
       <Btn title="Kaydet" busy={busy === "kaydet"} onPress={save} />
       <Box title="Hesabı sil">
-        <Text style={{ color: C.muted, fontSize: 13 }}>Hesabınızı silerseniz adınız, telefon numaranız ve e-posta adresiniz kalıcı olarak silinir; açık talepleriniz kapanır. <Text style={{ color: C.orange }} onPress={() => void openWeb("/sayfa/hesap-silme")}>Ayrıntılar</Text></Text>
+        <Text style={{ color: C.muted, fontSize: 13 }}>Hesabınızı silerseniz adınız, telefon numaranız ve e-posta adresiniz kalıcı olarak silinir; açık talepleriniz kapanır. <Text style={{ color: C.orange }} onPress={() => void openWeb("/sozlesmeler/hesap-silme")}>Ayrıntılar</Text></Text>
         <Field label="Onaylamak için büyük harflerle SİL yazın" value={del} onChangeText={setDel} autoCapitalize="characters" autoCorrect={false} />
         <Btn title="Hesabımı kalıcı olarak sil" kind="wh" busy={busy === "sil"} disabled={del.trim() !== "SİL"} onPress={remove} />
       </Box>

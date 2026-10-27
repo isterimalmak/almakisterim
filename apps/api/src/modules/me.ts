@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { recordConsent, termsAccepted } from "./legal.js";
 import { z } from "zod";
 import { requireUser, SESSION_COOKIE, type Deps } from "../context.js";
 import { tx } from "../db.js";
@@ -23,7 +24,9 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
     // Kampanya e-postası izni (E-posta Stüdyosu)
     const u = (await pool.query<{ marketing: boolean; mail_prefs: MailPrefs }>("SELECT marketing_at IS NOT NULL AS marketing, mail_prefs FROM users WHERE id = $1", [req.user.id])).rows[0]!;
     const mail_prefs = Object.fromEntries(MAIL_KINDS.map((k) => [k, wantsMail(u.mail_prefs, k)]));
-    return { user: { ...req.user, marketing: u.marketing, mail_prefs, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg } };
+    return { user: { ...req.user, marketing: u.marketing, mail_prefs, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg,
+      // Üyelik Sözleşmesi'nin yürürlükteki sürümü onaylanmadıysa site ve uygulama onay penceresi gösterir.
+      terms_ok: await termsAccepted(pool, req.user.id) } };
   });
 
   app.patch("/me", async (req) => {
@@ -40,7 +43,10 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
     await pool.query("UPDATE users SET name = COALESCE($2, name), is_corporate = COALESCE($3, is_corporate) WHERE id = $1",
       [user.id, b.name ?? null, b.is_corporate ?? null]);
     // Kampanya e-postası izni: açılınca izin zamanı yazılır, kapatılınca silinir (sıradaki kampanya e-postaları gönderilirken atlanır).
-    if (b.marketing !== undefined) await pool.query("UPDATE users SET marketing_at = CASE WHEN $2 THEN coalesce(marketing_at, now()) ELSE NULL END WHERE id = $1", [user.id, b.marketing]);
+    if (b.marketing !== undefined) {
+      await pool.query("UPDATE users SET marketing_at = CASE WHEN $2 THEN coalesce(marketing_at, now()) ELSE NULL END WHERE id = $1", [user.id, b.marketing]);
+      await recordConsent(pool, req, user.id, ["ticari-elektronik-ileti-onayi"], "hesap", b.marketing);
+    }
     if (b.mail_prefs) await pool.query("UPDATE users SET mail_prefs = mail_prefs || $2::jsonb WHERE id = $1", [user.id, JSON.stringify(b.mail_prefs)]);
     return { ok: true };
   });

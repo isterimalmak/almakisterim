@@ -60,6 +60,7 @@ export function SafeSellBox({ requestId, title, info }: { requestId: number; tit
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ title, price: "", description: "", iban: info.iban ?? "", iban_name: info.iban_name ?? "" });
   const [busy, setBusy] = useState(false);
+  const [accept, setAccept] = useState(false);
   const [done, setDone] = useState<number | null>(null);
   const p = Number(f.price.replace(/\./g, "").replace(",", "."));
   const fee = p > 0 ? feePreview(p, info) : null;
@@ -67,7 +68,7 @@ export function SafeSellBox({ requestId, title, info }: { requestId: number; tit
   const go = async () => {
     setBusy(true);
     try {
-      const r = await api<{ id: number }>("/safe/sales", { body: { request_id: requestId, title: f.title, description: f.description, price: p, ...(f.iban !== (info.iban ?? "") || !info.iban ? { iban: f.iban, iban_name: f.iban_name } : {}) } });
+      const r = await api<{ id: number }>("/safe/sales", { body: { request_id: requestId, title: f.title, description: f.description, price: p, accept: true, ...(f.iban !== (info.iban ?? "") || !info.iban ? { iban: f.iban, iban_name: f.iban_name } : {}) } });
       setDone(r.id);
       toast("Satış başlatıldı. Alıcıya ödeme bağlantısı gönderildi.");
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
@@ -99,7 +100,8 @@ export function SafeSellBox({ requestId, title, info }: { requestId: number; tit
         </tbody></table>
       )}
       <p className="muted" style={{ fontSize: 12, margin: "8px 0" }}>Alıcı ödeyince size haber veririz; ürünü <b>{info.ship_days} gün</b> içinde kargolayıp takip numarasını girin. Alıcı onaylayınca (ya da kargodan {info.confirm_days} gün sonra) para hesabınıza gönderilir.</p>
-      <button type="button" className="btn btn-or" disabled={busy || !fee || f.title.trim().length < 3} onClick={() => void go()}>{busy ? "Başlatılıyor…" : "Satışı başlat ve alıcıya gönder"}</button>
+      <label className="chk" style={{ marginBottom: 8 }}><input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} /><span><a className="link" href="/sozlesmeler/guvenli-al-sozlesmesi" target="_blank" rel="noreferrer">Güvenli Al Hizmet Sözleşmesi</a>&apos;ni okudum, kabul ediyorum.</span></label>
+      <button type="button" className="btn btn-or" disabled={busy || !fee || !accept || f.title.trim().length < 3} onClick={() => void go()}>{busy ? "Başlatılıyor…" : "Satışı başlat ve alıcıya gönder"}</button>
     </div>
   );
 }

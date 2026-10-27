@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSession } from "@/components/Session";
@@ -76,7 +77,7 @@ function Login() {
               <button type="button" className="btn btn-gh btn-sm" style={{ marginTop: 8 }} onClick={() => { setSentTo(""); setCode(""); }}>Numarayı / e-postayı değiştir</button>
             </form>
           )}
-          <p className="muted" style={{ fontSize: 11.5, marginTop: 14 }}>Devam ederek Kullanım Koşulları&apos;nı ve KVKK Aydınlatma Metni&apos;ni kabul etmiş olursunuz.</p>
+          <p className="muted" style={{ fontSize: 11.5, marginTop: 14 }}>Giriş yaptıktan sonra <Link className="link" href="/sozlesmeler/uyelik-sozlesmesi" target="_blank">Üyelik Sözleşmesi</Link>&apos;ni onaylamanız istenir. Kişisel verileriniz <Link className="link" href="/sozlesmeler/kvkk-aydinlatma-metni" target="_blank">KVKK Aydınlatma Metni</Link> kapsamında işlenir.</p>
         </div>
       </div>
     </div>

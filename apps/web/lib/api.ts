@@ -17,7 +17,7 @@ export async function api<T = unknown>(path: string, init: { method?: string; bo
   return data as T;
 }
 
-export type User = { id: string; name: string; email: string | null; phone: string | null; role: "user" | "admin"; is_corporate: boolean; credits: number; free_unlocks_left: number; unlock_price: number; unread_notifications: number; unread_messages?: number; marketing?: boolean; mail_prefs?: MailPrefs };
+export type User = { id: string; name: string; email: string | null; phone: string | null; role: "user" | "admin"; is_corporate: boolean; credits: number; free_unlocks_left: number; unlock_price: number; unread_notifications: number; unread_messages?: number; marketing?: boolean; mail_prefs?: MailPrefs; terms_ok?: boolean };
 // E-posta bildirimleri: yeni teklif, teklif kabul, yeni mesaj (kapatılan gitmez).
 export type MailPrefs = { offer: boolean; accepted: boolean; message: boolean };
 

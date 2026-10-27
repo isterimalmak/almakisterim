@@ -312,7 +312,7 @@ function Create() {
               <div style={{ marginTop: 10 }}><PhoneVerify /></div>
             </div>
           )}
-          <label className="chk" style={{ marginTop: 12 }}><input type="checkbox" checked={d.agree} onChange={(e) => set({ agree: e.target.checked })} /><span><Link className="link" href="/sayfa/kullanim-kosullari" target="_blank">Talep verme kurallarını</Link> ve <Link className="link" href="/sayfa/kvkk" target="_blank">aydınlatma metnini</Link> okudum; telefon numaramın ücret ödeyen satıcılarla paylaşılmasını onaylıyorum.</span></label>
+          <label className="chk" style={{ marginTop: 12 }}><input type="checkbox" checked={d.agree} onChange={(e) => set({ agree: e.target.checked })} /><span><Link className="link" href="/sozlesmeler/talep-verme-kurallari" target="_blank">Talep Verme Kuralları</Link>&apos;na uygun talep verdiğimi onaylıyorum; <Link className="link" href="/sozlesmeler/acik-riza-metni" target="_blank">Açık Rıza Metni</Link> kapsamında telefon numaramın bu talep için iletişim açan satıcılarla paylaşılmasına rıza veriyorum.</span></label>
           {needCode && (
             <div className="pub-otp">
               <b>Cep telefonu onayı</b>

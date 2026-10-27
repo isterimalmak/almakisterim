@@ -19,7 +19,9 @@ async function appLogin(target: string, name = "Uygulama Üyesi") {
   const r = await ctx.app.inject({ method: "POST", url: "/api/auth/verify", headers: APP, payload: { channel, target, code, name } });
   expect(r.statusCode, r.body).toBe(200);
   expect(r.cookies.find((c) => c.name === "ak_session")).toBeUndefined();
-  return r.json().token as string;
+  const token = r.json().token as string;
+  await ctx.app.inject({ method: "POST", url: "/api/me/consents", headers: { ...APP, "x-ak-session": token }, payload: { terms: true, context: "uygulama" } });
+  return token;
 }
 const as = (token: string) => ({ ...APP, "x-ak-session": token });
 

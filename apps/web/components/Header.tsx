@@ -70,9 +70,9 @@ export function Footer() {
       <div className="wrap">
         <div className="ft">
           <div><b>Kurumsal</b><Link href="/sayfa/hakkimizda">Hakkımızda</Link><Link href="/sayfa/iletisim">İletişim</Link><Link href="/blog">Blog</Link><Link href="/guvenli-al">Güvenli Al</Link></div>
-          <div><b>Alıcılar İçin</b><Link href="/talep-ver">Ücretsiz Talep Ver</Link><Link href="/kategori">Tüm Talepler</Link><Link href="/sayfa/guvenli-alisveris">Güvenli Alışveriş İpuçları</Link></div>
+          <div><b>Alıcılar İçin</b><Link href="/talep-ver">Ücretsiz Talep Ver</Link><Link href="/kategori">Tüm Talepler</Link><Link href="/sozlesmeler/guvenli-alisveris">Güvenli Alışveriş İpuçları</Link></div>
           <div><b>Satıcılar İçin</b><Link href="/bana-ozel?s=eslesme">Size Uygun Talepler</Link><Link href="/bana-ozel?s=kredi">Kredi ve Mağaza</Link><Link href="/bana-ozel?s=alarm">Talep Alarmları</Link></div>
-          <div><b>Gizlilik ve Kullanım</b><Link href="/sayfa/kullanim-kosullari">Kullanım Koşulları</Link><Link href="/sayfa/kvkk">KVKK Aydınlatma Metni</Link><Link href="/sayfa/cerez">Çerez Politikası</Link><Link href="/sayfa/hesap-silme">Hesap Silme</Link></div>
+          <div><b>Gizlilik ve Kullanım</b><Link href="/sozlesmeler">Sözleşmeler ve Kurallar</Link><Link href="/sozlesmeler/uyelik-sozlesmesi">Üyelik Sözleşmesi</Link><Link href="/sozlesmeler/kvkk-aydinlatma-metni">KVKK Aydınlatma Metni</Link><Link href="/sozlesmeler/cerez-politikasi">Çerez Politikası</Link><Link href="/sozlesmeler/hesap-silme">Hesap Silme</Link></div>
         </div>
         <div className="ft-bottom"><span>© {new Date().getFullYear()} almakisterim.com</span><span>Numaranız yalnızca talebinizle ilgilenen sınırlı sayıda satıcıya açılır.</span></div>
       </div>

@@ -1,4 +1,5 @@
 import { mailProvider, smtpFrom } from "../services/notify.js";
+import { recordConsent } from "./legal.js";
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from 'fastify';
@@ -612,6 +613,7 @@ export function mailStudioRoutes(app: FastifyInstance, deps: Deps) {
     const s = await findByTok(req);
     if (s?.user_id) {
       await pool.query('UPDATE users SET marketing_at = NULL WHERE id = $1', [s.user_id]);
+      await recordConsent(pool, req, s.user_id, ['ticari-elektronik-ileti-onayi'], 'abonelikten-cik', false);
       await pool.query(`UPDATE mail_sends x SET status = 'skipped', note = 'Abonelikten çıktı' WHERE x.user_id = $1 AND x.status = 'queued'
         AND EXISTS (SELECT 1 FROM mail_templates y WHERE y.id = x.template_id AND y.kind = 'marketing')`, [s.user_id]);
     }

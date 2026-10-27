@@ -188,7 +188,7 @@ export default function TalepVer() {
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: agree }} onPress={() => setAgree(!agree)} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
             <Switch value={agree} onValueChange={setAgree} accessibilityLabel="Kuralları onaylıyorum" />
             <Text style={{ flex: 1, color: C.text, fontSize: 13 }}>
-              <Text style={{ color: C.orange }} onPress={() => openWeb("/sayfa/kullanim-kosullari")}>Talep verme kurallarını</Text> ve <Text style={{ color: C.orange }} onPress={() => openWeb("/sayfa/kvkk")}>aydınlatma metnini</Text> okudum; telefon numaramın ücret ödeyen satıcılarla paylaşılmasını onaylıyorum.
+              <Text style={{ color: C.orange }} onPress={() => openWeb("/sozlesmeler/talep-verme-kurallari")}>Talep Verme Kuralları</Text>'na uygun talep verdiğimi onaylıyorum; <Text style={{ color: C.orange }} onPress={() => openWeb("/sozlesmeler/acik-riza-metni")}>Açık Rıza Metni</Text> kapsamında telefon numaramın bu talep için iletişim açan satıcılarla paylaşılmasına rıza veriyorum.
             </Text>
           </Pressable>
           {smsOn ? (

@@ -13,7 +13,7 @@ afterAll(async () => { await ctx.app.close(); await ctx.pool.end(); });
 const IBAN = "TR33 0006 1005 1978 6457 8413 26";
 const req = (cookie: string, method: "GET" | "POST" | "PUT", url: string, payload?: Record<string, unknown>) =>
   ctx.app.inject({ method, url: `/api${url}`, headers: { cookie }, payload });
-const address = { ship_name: "Elif Sönmez", ship_phone: "05321112233", ship_city: "İstanbul", ship_address: "Caferağa Mah. Moda Cad. No: 5 D: 3 Kadıköy" };
+const address = { ship_name: "Elif Sönmez", ship_phone: "05321112233", ship_city: "İstanbul", ship_address: "Caferağa Mah. Moda Cad. No: 5 D: 3 Kadıköy", accept: true };
 
 // Alıcı talep verir, satıcı iletişimi açar.
 async function setup() {
@@ -24,7 +24,7 @@ async function setup() {
   return { buyer, seller, id };
 }
 async function startSale(seller: string, id: number, over: Record<string, unknown> = {}) {
-  return req(seller, "POST", "/safe/sales", { request_id: id, title: "iPhone 13 128 GB", description: "Kutulu, faturalı", price: 18000, iban: IBAN, iban_name: "Can Yıldız", ...over });
+  return req(seller, "POST", "/safe/sales", { request_id: id, title: "iPhone 13 128 GB", description: "Kutulu, faturalı", price: 18000, iban: IBAN, iban_name: "Can Yıldız", accept: true, ...over });
 }
 async function paidSale() {
   const s = await setup();

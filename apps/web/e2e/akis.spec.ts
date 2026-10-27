@@ -14,6 +14,17 @@ async function loginSms(page: Page, phone: string, name: string) {
   await page.getByLabel("Adınız soyadınız (ilk girişte)").fill(name);
   await page.getByRole("button", { name: "Giriş yap" }).click();
   await page.waitForURL((u) => !u.pathname.startsWith("/giris"));
+  await acceptTerms(page);
+}
+
+// Yeni üye (ya da sözleşmesi güncellenen üye) girişten sonra Üyelik Sözleşmesi onay penceresini görür.
+async function acceptTerms(page: Page) {
+  const me = await (await page.request.get("/api/me")).json();
+  if (!me.user || me.user.terms_ok !== false) return;
+  const gate = page.getByRole("dialog", { name: "Sözleşme onayı" });
+  await gate.getByLabel("Üyelik Sözleşmesi'ni onaylıyorum").check();
+  await gate.getByRole("button", { name: "Onayla ve devam et" }).click();
+  await expect(gate).toBeHidden();
 }
 
 // Talep verirken zorunlu fotoğraf: 1x1 piksellik resim yüklenir.
@@ -32,6 +43,7 @@ async function loginEmail(page: Page, email: string) {
   await page.getByLabel("Doğrulama kodu").fill(text.match(/\d{6}/)[0]);
   await page.getByRole("button", { name: "Giriş yap" }).click();
   await page.waitForURL((u) => !u.pathname.startsWith("/giris"));
+  await acceptTerms(page);
 }
 
 // Talep verirken SMS onayı: kayıtlı numara (numarası yoksa yeni bir numara) yazılır, gelen kod girilir.
@@ -77,7 +89,7 @@ test("alıcı talep verir; satıcı numarayı görür, mesaj atar; alıcı cevap
   await expect(buyer.getByRole("button", { name: /Kendi fotoğrafını yükle/ })).toBeVisible();
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
-  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByLabel(/Talep Verme Kuralları/).check();
   await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
@@ -466,7 +478,7 @@ test("yeni talep ana sayfa vitrininde kutucuk olarak görünür", async ({ page 
   await page.getByLabel("Fotoğraf / video ekle").setInputFiles({ name: "v.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByAltText("Eklenen fotoğraf 1")).toBeVisible();
   await page.getByRole("button", { name: "Devam" }).click();
-  await page.getByLabel(/kurallarını/).check();
+  await page.getByLabel(/Talep Verme Kuralları/).check();
   await smsOnay(page);
   await page.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
@@ -500,7 +512,7 @@ test("yönetici kayan vitrin ekler: adını, talebini ve hızını seçer; ana s
   await buyer.getByLabel("Talep başlığı *").fill(title);
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
-  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByLabel(/Talep Verme Kuralları/).check();
   await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
@@ -720,7 +732,7 @@ test("alıcı fotoğraf ekler; satıcı talepte fotoğrafı görür, iletişimi 
   await expect(buyer.getByText("Kapak", { exact: true })).toBeVisible();
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByAltText("Talep fotoğrafı")).toBeVisible();
-  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByLabel(/Talep Verme Kuralları/).check();
   await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
@@ -787,7 +799,7 @@ test("alıcı birden fazla araç seçer, satıcı elindeki araca uyan talebi bul
   }
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("3 ayrı talep yayınlanacak:")).toBeVisible();
-  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByLabel(/Talep Verme Kuralları/).check();
   await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   // İlk aracın talebi açılır; diğer iki araç ayrı talep olarak bağlantılı görünür.
@@ -833,7 +845,7 @@ async function phoneless(browser: import("@playwright/test").Browser) {
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("Telefon numaranızı doğrulayın.")).toHaveCount(0);
-  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByLabel(/Talep Verme Kuralları/).check();
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
   const url = buyer.url();
@@ -861,7 +873,7 @@ test("talep yayınlamadan önce SMS onayı: başka numaraya kod gitmez, kod giri
   await page.getByLabel("Talep başlığı *").fill(title);
   await addPhoto(page);
   await page.getByRole("button", { name: "Devam" }).click();
-  await page.getByLabel(/kurallarını/).check();
+  await page.getByLabel(/Talep Verme Kuralları/).check();
   await expect(page.getByText("Cep telefonu onayı")).toBeVisible();
   await page.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(page.getByText("Önce cep telefonunuzu yazıp doğrulama kodu isteyin.")).toBeVisible();
@@ -904,7 +916,7 @@ test("alıcı il/ilçe/mahalle seçer; satıcı İstanbul → Kadıköy diye ara
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
   await expect(buyer.getByText("İstanbul / Kadıköy / Caferağa")).toBeVisible();
-  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByLabel(/Talep Verme Kuralları/).check();
   await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1 })).toContainText(tag);
@@ -937,7 +949,7 @@ test("acil talepler solda kategorilerin üstünde bağlantı olarak durur; ortad
   await page.getByLabel("Talep başlığı *").fill(title);
   await addPhoto(page);
   await page.getByRole("button", { name: "Devam" }).click();
-  await page.getByLabel(/kurallarını/).check();
+  await page.getByLabel(/Talep Verme Kuralları/).check();
   await smsOnay(page);
   await page.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(title);
@@ -1058,7 +1070,7 @@ test("Güvenli Al: satıcı satış başlatır, alıcı öder, satıcı kargolar
   await buyer.getByLabel("Talep başlığı *").fill(title);
   await addPhoto(buyer);
   await buyer.getByRole("button", { name: "Devam" }).click();
-  await buyer.getByLabel(/kurallarını/).check();
+  await buyer.getByLabel(/Talep Verme Kuralları/).check();
   await smsOnay(buyer);
   await buyer.getByRole("button", { name: "Talebi Yayınla" }).click();
   await expect(buyer.getByRole("heading", { level: 1, name: title })).toBeVisible();
@@ -1074,6 +1086,9 @@ test("Güvenli Al: satıcı satış başlatır, alıcı öder, satıcı kargolar
   await expect(seller.locator(".safe-fee")).toContainText("13.300 TL");
   await seller.getByLabel("Paranızın gönderileceği IBAN").fill("TR33 0006 1005 1978 6457 8413 26");
   await seller.getByLabel("Hesap sahibinin adı").fill("Ahmet Kaya");
+  // Sözleşme onaylanmadan satış başlatılamaz.
+  await expect(seller.getByRole("button", { name: "Satışı başlat ve alıcıya gönder" })).toBeDisabled();
+  await seller.getByRole("checkbox", { name: /Güvenli Al Hizmet Sözleşmesi/ }).check();
   await seller.getByRole("button", { name: "Satışı başlat ve alıcıya gönder" }).click();
   await seller.getByRole("link", { name: "Satışı görüntüle »" }).click();
   await expect(seller.getByText("Alıcının ödeme yapması bekleniyor")).toBeVisible();
@@ -1087,6 +1102,8 @@ test("Güvenli Al: satıcı satış başlatır, alıcı öder, satıcı kargolar
   await buyer.getByLabel("Telefon", { exact: true }).fill("05321112233");
   await buyer.getByLabel("İl", { exact: true }).fill("Ankara");
   await buyer.getByLabel("Açık adres").fill("Kızılay Mah. Atatürk Bulvarı No: 10 Çankaya");
+  await expect(buyer.getByRole("button", { name: /Güvenli Öde/ })).toBeDisabled();
+  await buyer.getByRole("checkbox", { name: /Güvenli Al Hizmet Sözleşmesi/ }).check();
   await buyer.getByRole("button", { name: /Güvenli Öde/ }).click();
   await expect(buyer.getByText("Deneme ödeme ekranı")).toBeVisible();
   await buyer.getByRole("button", { name: /öde \(deneme\)/ }).click();
@@ -1151,4 +1168,62 @@ test("ayrıntılı seçim: telefonda marka → model, araçta model → motor/pa
   await page.getByLabel("Aracın modeli").selectOption("3 Serisi");
   await page.getByLabel("Aracın motoru / paketi").selectOption("320d");
   await expect(page.getByRole("button", { name: /BMW 3 Serisi 320d.*kaldır/ })).toBeVisible();
+});
+
+test("sözleşmeler: yeni üye onay penceresini görür, onaylamadan kapatamaz; metinler ve eski adresler açılır", async ({ page }) => {
+  await page.goto("/sozlesmeler");
+  await expect(page.getByRole("heading", { name: "Sözleşmeler ve Kurallar", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: /Üyelik Sözleşmesi/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Üyelik Sözleşmesi", level: 1 })).toBeVisible();
+  await expect(page.getByText(/Sürüm 1\.0 · Yürürlük tarihi: 27 Ekim 2026/)).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "İçindekiler" }).getByRole("link", { name: "4. Üyelik" })).toBeVisible();
+  // Eski adresler yeni metinlere yönlenir.
+  await page.goto("/sayfa/kvkk");
+  await expect(page.getByRole("heading", { name: "Kişisel Verilerin Korunması Aydınlatma Metni", level: 1 })).toBeVisible();
+  await page.goto("/sayfa/cerez");
+  await expect(page.getByText("ak_session", { exact: false }).first()).toBeVisible();
+
+  // Yeni üye: giriş yapınca onay penceresi çıkar; kutu işaretlenmeden onaylanamaz.
+  const phone = `0538${rnd().slice(0, 7)}`;
+  await page.goto("/giris");
+  await page.getByLabel("Cep telefonu", { exact: true }).fill(phone);
+  await page.getByRole("button", { name: "SMS ile kod gönder" }).click();
+  await expect(page.getByLabel("Doğrulama kodu")).toBeVisible();
+  const { text } = await (await page.request.get(`${API}/api/__test/last-message?to=90${phone.slice(1)}`)).json();
+  await page.getByLabel("Doğrulama kodu").fill(text.match(/\d{6}/)[0]);
+  await page.getByLabel("Adınız soyadınız (ilk girişte)").fill("Sözleşme Deneme");
+  await page.getByRole("button", { name: "Giriş yap" }).click();
+  const gate = page.getByRole("dialog", { name: "Sözleşme onayı" });
+  await expect(gate).toBeVisible();
+  await expect(gate.getByRole("button", { name: "Onayla ve devam et" })).toBeDisabled();
+  await gate.getByLabel("Üyelik Sözleşmesi'ni onaylıyorum").check();
+  await gate.getByLabel("Kampanya iletileri almak istiyorum").check();
+  await gate.getByRole("button", { name: "Onayla ve devam et" }).click();
+  await expect(gate).toBeHidden();
+  const me = (await (await page.request.get("/api/me")).json()).user;
+  expect(me).toMatchObject({ terms_ok: true, marketing: true });
+  const mine = (await (await page.request.get("/api/me/consents")).json()).items.map((x: { doc: string }) => x.doc).sort();
+  expect(mine).toEqual(["ticari-elektronik-ileti-onayi", "uyelik-sozlesmesi"]);
+  // Sayfa yenilenince pencere bir daha çıkmaz.
+  await page.reload();
+  await expect(page.getByRole("dialog", { name: "Sözleşme onayı" })).toHaveCount(0);
+});
+
+test("yönetici şirket bilgilerini girer; sözleşmelerde görünür", async ({ page }, info) => {
+  test.skip(info.project.name !== "masaustu");
+  await loginEmail(page, "yonetici@almakisterim.com");
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Sözleşmeler" }).click();
+  const unvan = `Almak İsterim Deneme A.Ş. ${rnd()}`;
+  await page.getByLabel("Şirket unvanı").fill(unvan);
+  await page.getByLabel("Adres", { exact: true }).fill("Moda Cad. No: 1 Kadıköy/İstanbul");
+  await page.getByRole("button", { name: "Kaydet" }).click();
+  await expect(page.getByText("Şirket bilgileri kaydedildi", { exact: false })).toBeVisible();
+  await page.goto("/sozlesmeler/kvkk-aydinlatma-metni");
+  await expect(page.getByText(unvan).first()).toBeVisible();
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Sözleşmeler" }).click();
+  await page.getByLabel("Onay geçmişi için üye").fill("yonetici@almakisterim.com");
+  await page.getByRole("button", { name: "Göster" }).click();
+  await expect(page.getByRole("cell", { name: /Üyelik Sözleşmesi/ }).first()).toBeVisible();
 });

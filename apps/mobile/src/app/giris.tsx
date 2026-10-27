@@ -87,7 +87,7 @@ export default function Giris() {
           cornerRadius={999} style={{ height: 48 }} onPress={withApple} /> : null}
         {google ? <Btn title="Google ile devam et" kind="wh" onPress={withGoogle} busy={busy} /> : null}
         <Text style={{ fontSize: 12, color: C.muted, textAlign: "center" }}>
-          Devam ederek <Text style={{ color: C.orange }} onPress={() => openWeb("/sayfa/kullanim-kosullari")}>Kullanım Koşulları</Text>'nı ve <Text style={{ color: C.orange }} onPress={() => openWeb("/sayfa/kvkk")}>KVKK Aydınlatma Metni</Text>'ni kabul etmiş olursunuz.
+          Giriş yaptıktan sonra <Text style={{ color: C.orange }} onPress={() => openWeb("/sozlesmeler/uyelik-sozlesmesi")}>Üyelik Sözleşmesi</Text>'ni onaylamanız istenir. Kişisel verileriniz <Text style={{ color: C.orange }} onPress={() => openWeb("/sozlesmeler/kvkk-aydinlatma-metni")}>KVKK Aydınlatma Metni</Text> kapsamında işlenir.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -3,6 +3,7 @@
 import { isHidden, type HomeBlock } from "@/lib/home";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, type CategoryTop, type User } from "@/lib/api";
+import { TermsGate } from "./TermsGate";
 
 type Browse = { min_requests: number; show_counts_min: number };
 
@@ -81,6 +82,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   return (
     <SessionCtx.Provider value={{ user, ready, categories, browseCategories, count, launchMode, phoneRequired, publishSms, photoRequired, homeUrgentBox, homeBlocks, siteName, homeVitrin: !isHidden(homeBlocks, "vitrin"), homeLatest: !isHidden(homeBlocks, "latest"), refresh, toast }}>
       {children}
+      <TermsGate />
       <div className="toasts" aria-live="polite">{toasts.map((t) => <div key={t.id} className="toast">{t.msg}</div>)}</div>
     </SessionCtx.Provider>
   );

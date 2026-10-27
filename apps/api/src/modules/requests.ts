@@ -1,4 +1,5 @@
 import { codeService } from "./auth.js";
+import { recordConsent, requireTerms } from "./legal.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireUser, type Deps } from "../context.js";
@@ -248,6 +249,7 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post("/requests", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req, reply) => {
     const user = requireUser(req);
+    await requireTerms(pool, user);
     const b = CreateBody.parse(req.body);
     // İlçe ve mahalle resmî listedeki yazıma çevrilir; satıcı aramasında birebir eşleşsin.
     if (b.district) {
@@ -343,6 +345,8 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
           [user.id, b.category_id, titleOf(u), description, budgetMin, b.budget_max, b.city, b.district, b.neighbourhood, b.condition, u.attrs,
             b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days, group]);
         await attachMedia(c, user.id, u.media, { request_id: rows[0]!.id });
+        // Telefon numarasının satıcılarla paylaşılmasına açık rıza: talep bazında, metnin sürümüyle.
+        await recordConsent(c, req, user.id, ["acik-riza-metni"], `talep:${rows[0]!.id}`);
         out.push(rows[0]!.id);
       }
       return out;

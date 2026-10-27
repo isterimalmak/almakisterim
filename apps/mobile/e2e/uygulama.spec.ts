@@ -13,6 +13,15 @@ async function choose(page: Page, label: string, value: string) {
   await expect(page.getByLabel(`${label} ara`)).toBeHidden();
 }
 
+// Yeni üye girişten sonra Üyelik Sözleşmesi onay penceresini görür; kutu açılmadan onaylanamaz.
+async function acceptTerms(page: Page) {
+  await expect(page.getByText("Sözleşme onayı")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Onayla ve devam et" })).toBeDisabled();
+  await page.getByLabel("Üyelik Sözleşmesi'ni onaylıyorum").click();
+  await page.getByRole("button", { name: "Onayla ve devam et" }).click();
+  await expect(page.getByText("Sözleşme onayı")).toBeHidden();
+}
+
 // Uygulamadaki gibi giriş: Hesabım → Giriş yap → telefon → kod.
 async function login(page: Page, phone: string, name: string) {
   await page.goto("/hesap");
@@ -24,6 +33,7 @@ async function login(page: Page, phone: string, name: string) {
   await page.getByLabel("Adınız soyadınız (yeni üyeyseniz)").fill(name);
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page.getByText(name).first()).toBeVisible();
+  await acceptTerms(page);
 }
 
 test("ana sayfa: arama, kategoriler ve Son Eklenen Talepler; kategoriye dokununca talepler listelenir", async ({ page }) => {
@@ -184,6 +194,7 @@ test("e-postayla giren üye uygulamada telefon numarasını SMS koduyla doğrula
   await page.getByLabel("Adınız soyadınız (yeni üyeyseniz)").fill("Telefon Ekleyen");
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page.getByText("Telefon Ekleyen").first()).toBeVisible();
+  await acceptTerms(page);
   await page.goto("/hesap/bilgiler");
   const phone = `0539${rnd().slice(0, 7)}`;
   await page.getByLabel("Cep telefonu").fill(phone);
