@@ -139,6 +139,11 @@ describe("yapay zekâ asistanı", () => {
     // Aynı başlıktan ikinci yazı farklı adres alır.
     const g2 = await ctx.app.inject({ method: "POST", url: "/api/admin/blog/generate", headers: { cookie: admin }, payload: { topic: "Arsa alırken imar durumu", publish: true } });
     expect(g2.json()).toMatchObject({ slug: "arsa-alirken-imar-durumu-rehber-2", status: "published" });
+    // Hazır konudan yazılan yazı kendi kategorisine bağlanır (altında o kategorinin talepleri çıkar); serbest konu bağlanmaz.
+    expect((await ctx.app.inject({ url: `/api/blog/${g2.json().slug}` })).json()).toMatchObject({ top: null });
+    expect((await ctx.app.inject({ url: `/api/blog/${g2.json().slug}` })).json().topic).toBeUndefined();
+    const g3 = await ctx.app.inject({ method: "POST", url: "/api/admin/blog/generate", headers: { cookie: admin }, payload: { topic: "İkinci el araba alırken nelere dikkat edilmeli?", publish: true } });
+    expect((await ctx.app.inject({ url: `/api/blog/${g3.json().slug}` })).json()).toMatchObject({ top: "vasita" });
     expect((await ctx.app.inject({ url: "/api/admin/blog/generate", method: "POST", headers: { cookie: await login(ctx, "05321119005") }, payload: { topic: "Deneme konusu" } })).statusCode).toBe(403);
     // Elle yazı: yapay zekâ olmadan da eklenir; iletişim bilgisi yine silinir, kısa yazı reddedilir.
     const m = await ctx.app.inject({ method: "POST", url: "/api/admin/blog", headers: { cookie: admin },

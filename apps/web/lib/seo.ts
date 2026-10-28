@@ -32,3 +32,20 @@ export function snippet(text: string, max = 155): string {
 
 // JSON-LD betiği için güvenli metin (</script> kapanmasın).
 export const ldJson = (data: unknown) => JSON.stringify(data).replace(/</g, "\\u003c");
+
+// İl adına bulunma eki: İstanbul'da, İzmir'de, Kars'ta, Bitlis'te.
+export function locative(name: string): string {
+  const v = [...name.toLocaleLowerCase("tr")].reverse().find((ch) => "aıoueiöü".includes(ch));
+  const hard = "fstkçşhp".includes(name.slice(-1).toLocaleLowerCase("tr"));
+  return `${name}'${hard ? "t" : "d"}${v && "aıou".includes(v) ? "a" : "e"}`;
+}
+
+// İl sayfası adresi: /il/istanbul, /il/istanbul/vasita, /il/istanbul/vasita/otomobil.
+export const ilPath = (city: string, top?: string | null, sub?: string | null) =>
+  `/il/${slugify(city)}${top ? `/${top}` : ""}${top && sub ? `/${sub}` : ""}`;
+
+// Paylaşım resmi (app/og): /og/talep/1048231 gibi; sayfanın openGraph.images alanına konur.
+export const ogImage = (...parts: (string | number | null | undefined)[]) =>
+  [{ url: `/og/${parts.filter((x) => x !== null && x !== undefined && x !== "").map((x) => encodeURIComponent(String(x))).join("/")}`, width: 1200, height: 630 }];
+// Alt sayfaların openGraph alanı kök ayarın yerine geçer; site adı ve dil her sayfada tekrar verilir.
+export const OG_BASE = { siteName: "almakisterim.com", locale: "tr_TR" } as const;

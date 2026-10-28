@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { serverApi } from "@/lib/server-api";
-import { SITE_URL, talepPath } from "@/lib/seo";
+import { ilPath, SITE_URL, talepPath } from "@/lib/seo";
 
 // Site haritası (/sitemap.xml): her istekte API'den güncel liste alınır.
 export const dynamic = "force-dynamic";
@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 type Data = {
   requests: { id: number; title: string; city: string | null; created_at: string }[];
   categories: { top: string; sub: string | null; count: number }[];
+  places?: { city: string; top: string | null; sub: string | null; count: number }[];
   blog: { slug: string; published_at: string }[];
   pages: { slug: string; updated_at: string }[];
   legal: string[];
@@ -29,6 +30,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...fixed,
     ...d.categories.map((c) => ({ url: u(c.sub ? `/kategori/${c.top}/${c.sub}` : `/kategori/${c.top}`), changeFrequency: "hourly" as const, priority: c.sub ? 0.7 : 0.8 })),
+    // İl sayfaları: yalnız yeterince açık talebi olan il / il + kategori (API süzer).
+    ...(d.places ?? []).map((p) => ({ url: u(ilPath(p.city, p.top, p.sub)), changeFrequency: "daily" as const, priority: p.sub ? 0.6 : 0.7 })),
     ...d.requests.map((r) => ({ url: u(talepPath(r)), lastModified: new Date(r.created_at), changeFrequency: "daily" as const, priority: 0.6 })),
     ...d.blog.map((b) => ({ url: u(`/blog/${b.slug}`), lastModified: new Date(b.published_at), changeFrequency: "monthly" as const, priority: 0.5 })),
     ...d.pages.map((p) => ({ url: u(`/sayfa/${p.slug}`), lastModified: new Date(p.updated_at), changeFrequency: "monthly" as const, priority: 0.4 })),

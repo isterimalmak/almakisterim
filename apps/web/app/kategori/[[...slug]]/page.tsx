@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { CategoryView } from "@/components/CategoryView";
-import type { CategoryTop } from "@/lib/api";
+import Link from "next/link";
+import { CategoryView, type ListingInitial } from "@/components/CategoryView";
+import type { RequestItem } from "@/lib/api";
 import { fmt } from "@/lib/format";
-import { ldJson, SITE_URL } from "@/lib/seo";
-import { serverApi } from "@/lib/server-api";
+import { ilPath, ldJson, locative, OG_BASE, ogImage, SITE_URL } from "@/lib/seo";
+import { serverApi, siteData } from "@/lib/server-api";
 
 // Kategori sayfaları: her kategori ve alt kategori kendi başlığı ve açıklamasıyla arama motorlarında yer alır.
 // Arama ve süzgeç sonuçları (?q=…) dizine girmez; asıl adres kategorinin kendisidir.
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 type P = { params: Promise<{ slug?: string[] }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 async function resolve(slug: string[] = []) {
-  const cats = (await serverApi<{ categories: CategoryTop[] }>("/categories"))?.categories ?? [];
+  const cats = (await siteData())?.categories ?? [];
   const [top, sub] = slug;
   const t = top ? cats.find((c) => c.id === top) : undefined;
   const s = t && sub ? t.subs.find((x) => x.id === sub) : undefined;
@@ -40,13 +41,28 @@ export async function generateMetadata({ params, searchParams }: P): Promise<Met
     alternates: { canonical: path },
     // Talebi olmayan kategori ve süzgeçli liste arama sonuçlarına girmez ("zayıf içerik" sayılmasın).
     robots: count === 0 || filtered ? { index: false, follow: true } : undefined,
-    openGraph: { title, description, url: path },
+    openGraph: { ...OG_BASE, title, description, url: path, images: t ? ogImage("kategori", t.id, s?.id) : ogImage("site") },
   };
 }
 
-export default async function KategoriPage({ params }: P) {
+type Place = { city: string; top: string | null; sub: string | null; count: number };
+
+export default async function KategoriPage({ params, searchParams }: P) {
   const { slug = [] } = await params;
   const { t, s } = await resolve(slug);
+  // Süzgeçsiz açılışta ilk sayfa sunucuda hazırlanır (CategoryView'deki sorguyla aynı sırada).
+  let initial: ListingInitial | null = null;
+  if (!Object.keys(await searchParams).length) {
+    const p = new URLSearchParams();
+    if (t) p.set("top", t.id);
+    if (s) p.set("sub", s.id);
+    p.set("sort", "new"); p.set("page", "1"); p.set("per", "20");
+    const data = await serverApi<{ total: number; items: RequestItem[] }>(`/requests?${p}`);
+    if (data) initial = { qs: p.toString(), data };
+  }
+  // Bu kategorinin yeterince talebi olan illeri: il sayfalarına bağlantı (arama motorları da bu yoldan bulur).
+  const pl = await serverApi<{ places: Place[]; min: number }>("/seo/places");
+  const cities = (pl?.places ?? []).filter((p) => p.top === (t?.id ?? null) && p.sub === (s?.id ?? null) && p.count >= pl!.min).slice(0, 30);
   return (
     <>
       {t && (
@@ -59,7 +75,17 @@ export default async function KategoriPage({ params }: P) {
           ],
         }) }} />
       )}
-      <CategoryView />
+      <CategoryView initial={initial} />
+      {cities.length > 0 && (
+        <div className="wrap">
+          <section className="box il-links" aria-label="İllere göre talepler">
+            <div className="box-h"><h2>{s?.name ?? t?.name ?? "Alım talepleri"} · illere göre</h2></div>
+            <div className="box-b chips">
+              {cities.map((p) => <Link key={p.city} className="chip" href={ilPath(p.city, t?.id, s?.id)}>{locative(p.city)} <span className="muted">({fmt(p.count)})</span></Link>)}
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }

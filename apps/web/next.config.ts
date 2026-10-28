@@ -9,6 +9,8 @@ const config: NextConfig = {
   poweredByHeader: false,
   // Sunucuda çalışan sayfalar (blog) API'ye doğrudan bağlansın diye adres derlemeye gömülür.
   env: { API_ORIGIN },
+  // Paylaşım resimlerinin yazı tipi sunucu paketine dahil edilir.
+  outputFileTracingIncludes: { "/og/[...p]": ["./assets/fonts/*.ttf"] },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_ORIGIN}/api/:path*` }];
   },

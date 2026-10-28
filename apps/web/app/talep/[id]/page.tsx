@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RequestView, type RequestData } from "@/components/RequestView";
 import { budgetTxt } from "@/lib/format";
-import { ldJson, SITE_URL, snippet, talepId, talepPath } from "@/lib/seo";
+import Link from "next/link";
+import { ilPath, ldJson, locative, OG_BASE, ogImage, SITE_URL, snippet, talepId, talepPath } from "@/lib/seo";
 import { serverApi } from "@/lib/server-api";
 
 // Talep sayfası sunucuda hazırlanır: her talebin kendi başlığı, açıklaması ve asıl adresi olur.
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     alternates: { canonical: url },
     // Kapanan talep sayfası durur ama arama sonuçlarından düşer (benzer açık talepler gösterilir).
     robots: isOpen(r) ? undefined : { index: false, follow: true },
-    openGraph: { type: "website", title, description, url, images: image ? [{ url: image }] : undefined },
+    openGraph: { ...OG_BASE, type: "website", title, description, url, images: [...ogImage("talep", r.id), ...(image ? [{ url: image }] : [])] },
   };
 }
 
@@ -52,6 +53,12 @@ export default async function TalepPage({ params }: { params: Promise<{ id: stri
         }) }} />
       )}
       <RequestView id={id} initial={d} />
+      {r?.city && (
+        <nav className="wrap il-more" aria-label="İlgili talepler">
+          <Link href={ilPath(r.city, r.top_id, r.category_id)}>{locative(r.city)} diğer {r.category_name} talepleri ›</Link>
+          <Link href={ilPath(r.city)}>{locative(r.city)} tüm alım talepleri ›</Link>
+        </nav>
+      )}
     </>
   );
 }

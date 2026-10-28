@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { slugify, snippet, talepId, talepPath } from "./seo";
+import { ilPath, locative, slugify, snippet, talepId, talepPath } from "./seo";
 
 describe("arama motoru adresleri", () => {
   it("Türkçe harfler sadeleşir, işaretler tireye döner", () => {
@@ -21,5 +21,12 @@ describe("arama motoru adresleri", () => {
     const s = snippet("kelime ".repeat(60));
     expect(s.length).toBeLessThanOrEqual(156);
     expect(s.endsWith("…")).toBe(true);
+  });
+  it("il adı bulunma ekini doğru alır; il sayfası adresi sadeleşir", () => {
+    expect(["İstanbul", "İzmir", "Kars", "Bitlis", "Ankara", "Rize", "Muş", "Iğdır", "Hakkari", "Tokat"].map(locative))
+      .toEqual(["İstanbul'da", "İzmir'de", "Kars'ta", "Bitlis'te", "Ankara'da", "Rize'de", "Muş'ta", "Iğdır'da", "Hakkari'de", "Tokat'ta"]);
+    expect(ilPath("Şanlıurfa")).toBe("/il/sanliurfa");
+    expect(ilPath("İstanbul", "vasita", "otomobil")).toBe("/il/istanbul/vasita/otomobil");
+    expect(ilPath("İzmir", null, "x")).toBe("/il/izmir");
   });
 });

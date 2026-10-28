@@ -1,0 +1,2 @@
+Inter yazı tipi (Rasmus Andersson), SIL Open Font License 1.1 ile dağıtılır: https://openfontlicense.org
+Paylaşım resimlerinde (/og/...) Türkçe harfler doğru çıksın diye kullanılır.

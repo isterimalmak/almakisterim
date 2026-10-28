@@ -7,6 +7,8 @@ import { TermsGate } from "./TermsGate";
 import { DEFAULT_FOOTER, type Footer } from "@/lib/footer";
 
 type Browse = { min_requests: number; show_counts_min: number };
+// /api/categories yanıtı: kategoriler ve site ayarları. Kök düzen sunucuda alıp verir; sayfa ilk açılışta dolu gelir, kaymaz.
+export type SiteData = { categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_blocks?: HomeBlock[]; site_name?: string; footer?: Footer; show_safe?: boolean; show_credits?: boolean };
 
 type Ctx = {
   user: User | null;
@@ -40,27 +42,27 @@ type Ctx = {
 const SessionCtx = createContext<Ctx>({ user: null, ready: false, categories: [], browseCategories: [], count: () => null, launchMode: false, phoneRequired: false, publishSms: false, photoRequired: false, homeUrgentBox: false, homeBlocks: [], siteName: "almakisterim.com", footer: DEFAULT_FOOTER, showSafe: true, showCredits: true, homeVitrin: true, homeLatest: true, refresh: async () => {}, toast: () => {} });
 export const useSession = () => useContext(SessionCtx);
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+export function SessionProvider({ children, site }: { children: React.ReactNode; site?: SiteData | null }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
-  const [categories, setCategories] = useState<CategoryTop[]>([]);
-  const [browse, setBrowse] = useState<Browse>({ min_requests: 1, show_counts_min: 0 });
-  const [launchMode, setLaunchMode] = useState(false);
-  const [phoneRequired, setPhoneRequired] = useState(false);
-  const [publishSms, setPublishSms] = useState(false);
-  const [photoRequired, setPhotoRequired] = useState(false);
-  const [homeUrgentBox, setHomeUrgentBox] = useState(false);
-  const [homeBlocks, setHomeBlocks] = useState<HomeBlock[]>([]);
-  const [siteName, setSiteName] = useState("almakisterim.com");
-  const [footer, setFooter] = useState<Footer>(DEFAULT_FOOTER);
-  const [showSafe, setShowSafe] = useState(true);
-  const [showCredits, setShowCredits] = useState(true);
+  const [categories, setCategories] = useState<CategoryTop[]>(site?.categories ?? []);
+  const [browse, setBrowse] = useState<Browse>(site?.browse ?? { min_requests: 1, show_counts_min: 0 });
+  const [launchMode, setLaunchMode] = useState(!!site?.launch_mode);
+  const [phoneRequired, setPhoneRequired] = useState(!!site?.phone_required);
+  const [publishSms, setPublishSms] = useState(!!site?.publish_sms);
+  const [photoRequired, setPhotoRequired] = useState(!!site?.photo_required);
+  const [homeUrgentBox, setHomeUrgentBox] = useState(!!site?.home_urgent_box);
+  const [homeBlocks, setHomeBlocks] = useState<HomeBlock[]>(site?.home_blocks ?? []);
+  const [siteName, setSiteName] = useState(site?.site_name || "almakisterim.com");
+  const [footer, setFooter] = useState<Footer>(site?.footer ?? DEFAULT_FOOTER);
+  const [showSafe, setShowSafe] = useState(site?.show_safe !== false);
+  const [showCredits, setShowCredits] = useState(site?.show_credits !== false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
 
   const refresh = useCallback(async () => {
     const [me, cats] = await Promise.all([
       api<{ user: User | null }>("/me").catch(() => ({ user: null })),
-      api<{ categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_blocks?: HomeBlock[]; site_name?: string; footer?: Footer; show_safe?: boolean; show_credits?: boolean }>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, publish_sms: false, photo_required: false, home_urgent_box: false, home_blocks: [] as HomeBlock[], site_name: undefined, footer: undefined, show_safe: true, show_credits: true })),
+      api<SiteData>("/categories").catch(() => ({ categories: [] as CategoryTop[], browse: undefined, launch_mode: false, phone_required: false, publish_sms: false, photo_required: false, home_urgent_box: false, home_blocks: [] as HomeBlock[], site_name: undefined, footer: undefined, show_safe: true, show_credits: true })),
     ]);
     setUser(me.user);
     setCategories(cats.categories);
