@@ -4,30 +4,52 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, type Ad } from "@/lib/api";
 
-// Yöneticinin eklediği reklam kutuları, alt alta. Hiç reklam yoksa hiçbir şey göstermez.
+// Reklam yalnız telefonda ya da yalnız bilgisayarda görünsün (Yönetim → Reklam Alanları → Hangi cihazda).
+export const adDevice = (a: Ad) => (a.device === "mobile" ? " ad-m" : a.device === "desktop" ? " ad-d" : "");
+
+// Bu cihazda görünecek reklamlar (telefon: 860 pikselden dar ekran). Izgaradaki boşluğu doğru hesaplamak için
+// öbür cihaza ayrılmış reklamlar hiç çizilmez.
+function useForDevice(ads: Ad[]) {
+  const [narrow, setNarrow] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 860px)");
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  if (narrow === null) return ads;
+  return ads.filter((a) => (a.device === "mobile" ? narrow : a.device === "desktop" ? !narrow : true));
+}
+
+function AdBox({ a, wide }: { a: Ad; wide?: boolean }) {
+  const cls = "yk" + adDevice(a) + (wide ? " tam" : "");
+  const body = <AdMedia a={a} />;
+  if (!a.link_url) return <div className={cls}>{body}</div>;
+  return a.link_url.startsWith("/")
+    ? <Link className={cls} href={a.link_url}>{body}</Link>
+    : <a className={cls} href={a.link_url} target="_blank" rel="sponsored noopener noreferrer">{body}</a>;
+}
+
+// Izgarada ikişerli dizilir; sayı tekse son reklam tam genişlikte durur, böylece yanında boşluk kalmaz.
+function AdGrid({ ads, cls, label = "Tanıtımlar" }: { ads: Ad[]; cls: string; label?: string }) {
+  const shown = useForDevice(ads);
+  if (!shown.length) return null;
+  const odd = shown.length % 2 === 1;
+  return (
+    <section className={cls + (shown.length === 1 ? " tek" : "")} aria-label={label}>
+      {shown.map((a, i) => <AdBox key={a.id} a={a} wide={odd && i === shown.length - 1} />)}
+    </section>
+  );
+}
+
+// Sol sütundaki reklamlar: bilgisayarda kategorilerin altında alt alta, telefonda (yk-m) iki sütunlu ızgara.
 export function Ads({ cls = "" }: { cls?: string }) {
   const [ads, setAds] = useState<Ad[]>([]);
   useEffect(() => { void api<{ items: Ad[] }>("/tanitim").then((r) => setAds(r.items)).catch(() => {}); }, []);
   if (!ads.length) return null;
-  return (
-    <div className={"yk-list " + cls} aria-label="Tanıtımlar">
-      {ads.map((a) => {
-        const body = a.media.kind === "video"
-          ? <AdVideo src={a.media.url} label={a.title || "Tanıtım videosu"} />
-          : <img src={a.media.url} alt={a.title || "Tanıtım"} loading="lazy" />;
-        const inner = body;
-        if (!a.link_url) return <div key={a.id} className={"yk" + adDevice(a)}>{inner}</div>;
-        return a.link_url.startsWith("/")
-          ? <Link key={a.id} className={"yk" + adDevice(a)} href={a.link_url}>{inner}</Link>
-          : <a key={a.id} className={"yk" + adDevice(a)} href={a.link_url} target="_blank" rel="sponsored noopener noreferrer">{inner}</a>;
-      })}
-    </div>
-  );
+  return <AdGrid ads={ads} cls={"yk-list " + cls} />;
 }
-
-// Tek reklam görseli: resim ya da sessiz başlayan video.
-// Reklam yalnız telefonda ya da yalnız bilgisayarda görünsün (Yönetim → Reklam Alanları → Hangi cihazda).
-export const adDevice = (a: Ad) => (a.device === "mobile" ? " ad-m" : a.device === "desktop" ? " ad-d" : "");
 
 export function AdMedia({ a }: { a: Ad }) {
   return a.media.kind === "video" ? <AdVideo src={a.media.url} label={a.title || "Tanıtım videosu"} /> : <img src={a.media.url} alt={a.title || "Tanıtım"} loading="lazy" />;
@@ -38,19 +60,7 @@ export function CenterAds() {
   const [ads, setAds] = useState<Ad[]>([]);
   useEffect(() => { void api<{ center?: Ad[] }>("/tanitim").then((r) => setAds(r.center ?? [])).catch(() => {}); }, []);
   if (!ads.length) return null;
-  return (
-    <section className={"yk-orta" + (ads.length === 1 ? " tek" : "")} aria-label="Tanıtımlar">
-      {ads.map((a) => {
-        const body = a.media.kind === "video"
-          ? <AdVideo src={a.media.url} label={a.title || "Tanıtım videosu"} />
-          : <img src={a.media.url} alt={a.title || "Tanıtım"} loading="lazy" />;
-        if (!a.link_url) return <div key={a.id} className={"yk" + adDevice(a)}>{body}</div>;
-        return a.link_url.startsWith("/")
-          ? <Link key={a.id} className={"yk" + adDevice(a)} href={a.link_url}>{body}</Link>
-          : <a key={a.id} className={"yk" + adDevice(a)} href={a.link_url} target="_blank" rel="sponsored noopener noreferrer">{body}</a>;
-      })}
-    </section>
-  );
+  return <AdGrid ads={ads} cls="yk-orta" />;
 }
 
 // Tarayıcılar sesli videonun kendiliğinden oynamasına izin vermez: video sessiz başlar,

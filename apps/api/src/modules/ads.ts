@@ -6,7 +6,7 @@ import { HttpError } from "../lib/util.js";
 import { toPublic } from "./media.js";
 
 // Reklam alanları: yönetici resim veya video yükler, ana sayfada sol sütunda alt alta, sıralı gösterilir.
-type AdRow = { id: number; title: string; link_url: string | null; position: number; is_active: boolean; is_welcome: boolean; placement: "sol" | "orta" | "blok"; device: "all" | "mobile" | "desktop"; created_at: string;
+type AdRow = { id: number; title: string; link_url: string | null; position: number; is_active: boolean; is_welcome: boolean; placement: "sol" | "orta" | "blok" | "yok"; device: "all" | "mobile" | "desktop"; created_at: string;
   media_id: string; kind: "image" | "video"; content_type: string; storage_key: string };
 
 // Boş bırakılırsa bağlantısız reklam.
@@ -20,8 +20,9 @@ const Link = z.preprocess((v) => {
   z.string().trim().max(500).regex(/^(https?:\/\/|\/)/, "Bağlantı https:// veya / ile başlamalı.").nullable().optional());
 const Title = z.string().trim().max(120).optional();
 
-// sol: ana sayfada soldaki kategorilerin altı; orta: ana sayfanın ortası (vitrin ve son talepler bölümlerinin yeri).
-const Placement = z.enum(["sol", "orta", "blok"]);
+// sol: ana sayfada soldaki kategorilerin altı; orta: ana sayfanın ortası (vitrin ve son talepler bölümlerinin yeri);
+// yok: ana sayfada görünmez (yalnız açılış penceresi için ya da bekletilen reklam).
+const Placement = z.enum(["sol", "orta", "blok", "yok"]);
 // Hangi cihazda görünsün: her yerde, yalnız telefonda, yalnız bilgisayarda.
 const Device = z.enum(["all", "mobile", "desktop"]);
 const SELECT = `SELECT a.id, a.title, a.link_url, a.position, a.is_active, a.is_welcome, a.placement, a.device, a.created_at, m.id AS media_id, m.kind, m.content_type, m.storage_key
@@ -52,14 +53,17 @@ export function adRoutes(app: FastifyInstance, deps: Deps) {
   // Yönetici önce dosyayı normal yükleme akışıyla yükler (/media/uploads → /complete), sonra reklam olarak ekler.
   app.post("/admin/tanitim", async (req, reply) => {
     const admin = requireAdmin(req);
-    const b = z.object({ media_id: z.uuid(), title: Title, link_url: Link, is_active: z.boolean().default(true), placement: Placement.default("sol"), device: Device.default("all") }).parse(req.body);
+    const b = z.object({ media_id: z.uuid(), title: Title, link_url: Link, is_active: z.boolean().default(true), is_welcome: z.boolean().default(false),
+      placement: Placement.default("sol"), device: Device.default("all") }).parse(req.body);
     const id = await tx(pool, async (c) => {
       const m = (await c.query("SELECT 1 FROM media WHERE id = $1 AND owner_id = $2 AND status = 'ready' AND request_id IS NULL AND offer_id IS NULL FOR UPDATE", [b.media_id, admin.id])).rowCount;
       if (!m) throw new HttpError(400, "medya_gecersiz", "Dosya bulunamadı. Lütfen yeniden yükleyin.");
       if ((await c.query("SELECT 1 FROM ads WHERE media_id = $1", [b.media_id])).rowCount) throw new HttpError(409, "zaten_ekli", "Bu dosya zaten bir reklamda kullanılıyor.");
+      // Aynı anda tek karşılama reklamı olur.
+      if (b.is_welcome) await c.query("UPDATE ads SET is_welcome = false WHERE is_welcome");
       const r = await c.query<{ id: number }>(
-        "INSERT INTO ads (media_id, title, link_url, is_active, placement, device, position) VALUES ($1, $2, $3, $4, $5, $6, (SELECT coalesce(max(position), 0) + 1 FROM ads)) RETURNING id",
-        [b.media_id, b.title ?? "", b.link_url ?? null, b.is_active, b.placement, b.device]);
+        "INSERT INTO ads (media_id, title, link_url, is_active, is_welcome, placement, device, position) VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT coalesce(max(position), 0) + 1 FROM ads)) RETURNING id",
+        [b.media_id, b.title ?? "", b.link_url ?? null, b.is_active, b.is_welcome, b.placement, b.device]);
       return Number(r.rows[0]!.id);
     });
     reply.code(201);

@@ -10,8 +10,8 @@ const TYPES = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quic
 // Yönetim paneli: ana sayfada sol sütundaki reklam kutuları. İstenildiği kadar eklenir, sırası değiştirilir.
 export function AdsAdmin() {
   const { toast, homeVitrin, homeLatest, homeBlocks, refresh } = useSession();
-  // Yüklenecek dosyanın yeri: sol sütun ya da ana sayfanın ortası.
-  const [target, setTarget] = useState<"sol" | "orta">("orta");
+  // Yüklenecek dosyanın yeri: ana sayfanın ortası, sol sütun ya da yalnız açılış penceresi.
+  const [target, setTarget] = useState<"sol" | "orta" | "acilis">("orta");
   const section = async (key: "home_vitrin" | "home_latest", on: boolean) => {
     try {
       await saveHomeBlocks(withHidden(homeBlocks, key === "home_vitrin" ? "vitrin" : "latest", !on));
@@ -34,13 +34,14 @@ export function AdsAdmin() {
       try {
         setBusy(`${f.name} yükleniyor… %0`);
         const m = await uploadFile(f, (pct) => setBusy(`${f.name} yükleniyor… %${pct}`));
-        await api("/admin/tanitim", { body: { media_id: m.id, title: f.name.replace(/\.[^.]+$/, ""), placement: target } });
+        const welcomeOnly = target === "acilis";
+        await api("/admin/tanitim", { body: { media_id: m.id, title: f.name.replace(/\.[^.]+$/, ""), placement: welcomeOnly ? "yok" : target, is_welcome: welcomeOnly } });
         ok++;
       } catch (e) { toast((e as Error).message); }
     }
     setBusy(null);
     if (input.current) input.current.value = "";
-    if (ok) toast(ok > 1 ? `${ok} reklam eklendi; ana sayfada görünüyor.` : "Reklam eklendi; ana sayfada görünüyor.");
+    if (ok) toast(target === "acilis" ? "Reklam eklendi; siteye girişte açılış penceresinde görünüyor." : ok > 1 ? `${ok} reklam eklendi; ana sayfada görünüyor.` : "Reklam eklendi; ana sayfada görünüyor.");
     await load();
   };
 
@@ -74,11 +75,13 @@ export function AdsAdmin() {
         ))}
       </div>
       <p className="muted" style={{ fontSize: 12.5, margin: "0 0 14px" }}>Site yeniyken talep az olduğu için bu bölümleri gizleyebilirsiniz. Ana sayfanın ortasına eklediğiniz resim ve videolar vitrinin yerinde, büyük kutular hâlinde görünür.</p>
-      <div className="note n-info" style={{ marginBottom: 12 }}><span>Eklediğiniz resim ve videolar seçtiğiniz yerde, buradaki sırayla görünür: "Ana sayfanın ortası" vitrinin yerinde büyük kutular, "Sol sütun" kategorilerin altında alt alta (telefonda kategorilerin altında). İstediğiniz kadar ekleyebilirsiniz. Önerilen boyut: 460×300 veya 460×600 piksel; video sessiz başlar, ziyaretçi köşedeki düğmeyle sesi açabilir. "Açılışta göster" işaretlediğiniz reklam siteye girişte ekranın ortasında açılır (tek bir reklam seçilebilir; videoda ses açık başlatılmaya çalışılır). Her reklamın altındaki "Tıklayınca gideceği adres" kutusuna bağlantı yazarsanız reklama tıklayan oraya gider.</span></div>
+      <div className="note n-info" style={{ marginBottom: 12 }}><span>Eklediğiniz resim ve videolar seçtiğiniz yerde, buradaki sırayla görünür: "Ana sayfanın ortası" vitrinin yerinde büyük kutular, "Sol sütun" kategorilerin altında alt alta (telefonda kategorilerin altında). İstediğiniz kadar ekleyebilirsiniz. Önerilen boyut: 460×300 veya 460×600 piksel; video sessiz başlar, ziyaretçi köşedeki düğmeyle sesi açabilir. "Açılışta göster" işaretlediğiniz reklam siteye girişte ekranın ortasında açılır (tek bir reklam seçilebilir; videoda ses açık başlatılmaya çalışılır). Reklamı yalnız açılışta göstermek için yerini "Hiçbir yerde" seçin. Reklamlar ikişerli dizilir; sayı tekse son reklam tam genişlikte durur. Her reklamın altındaki "Tıklayınca gideceği adres" kutusuna bağlantı yazarsanız reklama tıklayan oraya gider.</span></div>
       <input ref={input} type="file" accept={TYPES.join(",")} multiple hidden onChange={(e) => void add(e.target.files)} aria-label="Reklam dosyası seç" />
+      {items && <Summary items={items} />}
       <div className="radio-row" style={{ marginBottom: 8 }}>
         <label><input type="radio" name="yk-yer" checked={target === "orta"} onChange={() => setTarget("orta")} />Ana sayfanın ortası (vitrin yeri)</label>
         <label><input type="radio" name="yk-yer" checked={target === "sol"} onChange={() => setTarget("sol")} />Sol sütun (kategorilerin altı)</label>
+        <label><input type="radio" name="yk-yer" checked={target === "acilis"} onChange={() => setTarget("acilis")} />Yalnız açılış penceresi (ana sayfada görünmez)</label>
       </div>
       <button className="btn btn-or" disabled={!!busy} onClick={() => input.current?.click()}>+ Resim veya video ekle</button>
       {busy && <span className="muted" style={{ marginLeft: 10 }}>{busy}</span>}
@@ -90,9 +93,10 @@ export function AdsAdmin() {
               <div className="yk-alan">
                 <label>Başlık<input className="inp" defaultValue={a.title} aria-label={`${i + 1}. reklam başlığı`} onBlur={(e) => e.target.value !== a.title && void patch(a, { title: e.target.value })} /></label>
                 <label>Tıklayınca gideceği adres (isteğe bağlı)<input className="inp" defaultValue={a.link_url ?? ""} placeholder="www.siteniz.com veya /kategori/vasita" aria-label={`${i + 1}. reklam bağlantısı`} onBlur={(e) => e.target.value !== (a.link_url ?? "") && void patch(a, { link_url: e.target.value })} /></label>
-                <label>Nerede görünsün<select className="sel" value={a.placement ?? "sol"} aria-label={`${i + 1}. reklamın yeri`} onChange={(e) => void patch(a, { placement: e.target.value as "sol" | "orta" })}><option value="orta">Ana sayfanın ortası (vitrin yeri)</option><option value="sol">Sol sütun (kategorilerin altı)</option></select></label>
+                <label>Nerede görünsün<select className="sel" value={a.placement ?? "sol"} aria-label={`${i + 1}. reklamın yeri`} onChange={(e) => void patch(a, { placement: e.target.value as "sol" | "orta" | "yok" })}><option value="orta">Ana sayfanın ortası (vitrin yeri)</option><option value="sol">Sol sütun (kategorilerin altı)</option><option value="yok">Hiçbir yerde (ana sayfada gösterme)</option></select></label>
                 <label>Hangi cihazda<select className="sel" value={a.device ?? "all"} aria-label={`${i + 1}. reklamın cihazı`} onChange={(e) => void patch(a, { device: e.target.value as "all" | "mobile" | "desktop" })}><option value="all">Her yerde (telefon ve bilgisayar)</option><option value="mobile">Yalnız telefonda</option><option value="desktop">Yalnız bilgisayarda (web)</option></select></label>
                 <label className="chk"><input type="checkbox" checked={!!a.is_welcome} onChange={(e) => { const on = e.target.checked; setItems((xs) => xs && xs.map((x) => ({ ...x, is_welcome: x.id === a.id ? on : on ? false : x.is_welcome }))); void patch(a, { is_welcome: on }); }} aria-label={`${i + 1}. reklam açılışta göster`} />Açılışta göster (siteye girince ekranın ortasında çıkar)</label>
+                <div className={"yk-nerde" + (where(a) ? "" : " uyari")} aria-label={`${i + 1}. reklamın göründüğü yer`}>{where(a) ? `Görüneceği yer: ${where(a)}` : "Bu reklam şu an hiçbir yerde görünmüyor. Yer seçin ya da \"Açılışta göster\"i işaretleyin."}</div>
               </div>
               <div className="yk-is">
                 <button className={"sw" + (a.is_active ? " on" : "")} role="switch" aria-checked={a.is_active} aria-label={`${i + 1}. reklam yayında`} onClick={() => void patch(a, { is_active: !a.is_active })} />
@@ -106,5 +110,35 @@ export function AdsAdmin() {
         </div>
       )}
     </div></div>
+  );
+}
+
+const PLACE: Record<string, string> = { orta: "ana sayfanın ortası", sol: "sol sütun (telefonda kategorilerin altı)" };
+const DEVICE: Record<string, string> = { all: "telefon ve bilgisayar", mobile: "yalnız telefon", desktop: "yalnız bilgisayar" };
+
+// Reklamın sitede nerede çıktığını tek cümleyle anlatır; hiçbir yerde görünmüyorsa boş döner.
+function where(a: Ad) {
+  if (!a.is_active) return "kapalı (yayında değil)";
+  const parts = [PLACE[a.placement ?? "sol"], a.is_welcome ? "siteye girişte açılış penceresi" : null].filter(Boolean);
+  return parts.length ? `${parts.join(" + ")} · ${DEVICE[a.device ?? "all"]}` : "";
+}
+
+// Yerleşim özeti: her alanda telefonda ve bilgisayarda kaç reklam görünüyor; tek sayıda ise sonuncusu tam genişlikte durur.
+function Summary({ items }: { items: Ad[] }) {
+  const live = items.filter((a) => a.is_active);
+  const count = (p: string, d: "mobile" | "desktop") => live.filter((a) => a.placement === p && (a.device ?? "all") !== (d === "mobile" ? "desktop" : "mobile")).length;
+  const welcome = live.find((a) => a.is_welcome);
+  const row = (p: string, label: string) => {
+    const m = count(p, "mobile"), d = count(p, "desktop");
+    if (!m && !d) return null;
+    const odd = (n: number) => n > 1 && n % 2 === 1;
+    return <li key={p}><b>{label}:</b> telefonda {m}, bilgisayarda {d} reklam{odd(m) || (p === "orta" && odd(d)) ? " — tek sayıda olduğu için son reklam tam genişlikte gösterilir, yanında boşluk kalmaz" : ""}.</li>;
+  };
+  return (
+    <ul className="yk-ozet" aria-label="Yerleşim özeti">
+      {row("orta", "Ana sayfanın ortası")}
+      {row("sol", "Sol sütun")}
+      <li><b>Açılış penceresi:</b> {welcome ? `"${welcome.title || "başlıksız reklam"}" (${DEVICE[welcome.device ?? "all"]})` : "yok"}.</li>
+    </ul>
   );
 }

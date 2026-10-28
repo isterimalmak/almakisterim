@@ -129,7 +129,7 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   // Aynı yönetici e-postasına dakikada bir kod gidebildiği için yalnızca masaüstünde çalışır.
   test.skip(info.project.name !== "masaustu");
   // Birçok yönetim bölümünü sırayla dolaşan uzun test.
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await loginEmail(page, "yonetici@almakisterim.com");
   await page.goto("/yonetim");
   // Panel açılınca genel bakış: sayaç kartları, grafikler, son hareketler.
@@ -292,6 +292,45 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.locator(".yk-satir").last().getByRole("button", { name: "Sil" }).click();
   await expect(page.getByText("Reklam silindi.")).toBeVisible();
 
+  // Boşluksuz dizilim: ortadaki reklamlar telefonda ikişerli; sayı tekse sonuncusu tam genişlikte, kutular aynı boyda.
+  const tag = rnd();
+  let rows = (await (await page.request.get("/api/admin/tanitim")).json()).items.length as number;
+  await expect(page.locator(".yk-satir")).toHaveCount(rows);
+  for (let k = 1; k <= 3; k++) {
+    await page.getByLabel("Ana sayfanın ortası (vitrin yeri)").check();
+    await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: `orta${k}-${tag}.png`, mimeType: "image/png", buffer: PNG });
+    await expect(page.locator(".yk-satir")).toHaveCount(++rows);
+  }
+  await expect(page.getByLabel("Yerleşim özeti")).toContainText("Ana sayfanın ortası:");
+  // Yalnız açılış penceresi: ana sayfada görünmez, siteye girişte açılır.
+  await page.getByLabel("Yalnız açılış penceresi (ana sayfada görünmez)").check();
+  await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: `acilis-${tag}.png`, mimeType: "image/png", buffer: PNG });
+  await expect(page.getByText("Reklam eklendi; siteye girişte açılış penceresinde görünüyor.")).toBeVisible();
+  await expect(page.getByLabel(`${rows + 1}. reklamın göründüğü yer`)).toContainText("açılış penceresi");
+  await expect(page.getByLabel("Yerleşim özeti")).toContainText(`acilis-${tag}`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const wd = page.getByRole("dialog", { name: "Hoş geldiniz" });
+  await expect(wd.getByAltText(`acilis-${tag}`)).toBeVisible();
+  await wd.getByRole("button", { name: "Kapat" }).click();
+  await expect(page.locator(".yk-orta, .yk-list").getByAltText(`acilis-${tag}`)).toHaveCount(0);
+  const boxes = page.locator(".yk-orta .yk");
+  await expect(page.locator(".yk-orta").getByAltText(`orta3-${tag}`)).toBeVisible();
+  const total = await boxes.count();
+  const grid = (await page.locator(".yk-orta").boundingBox())!;
+  const first = (await boxes.first().boundingBox())!, second = (await boxes.nth(1).boundingBox())!, last = (await boxes.last().boundingBox())!;
+  expect(first.width).toBeLessThan(grid.width * 0.6);
+  expect(Math.abs(first.height - second.height)).toBeLessThan(2);
+  if (total % 2 === 1) { await expect(boxes.last()).toHaveClass(/tam/); expect(last.width).toBeGreaterThan(grid.width * 0.95); }
+  else await expect(page.locator(".yk-orta .yk.tam")).toHaveCount(0);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  for (let k = 0; k < 4; k++) {
+    await page.locator(".yk-satir").last().getByRole("button", { name: "Sil" }).click();
+    await expect(page.locator(".yk-satir")).toHaveCount(rows - k);
+  }
+
   // Yapay Zekâ bölümü: bağlı değilken uyarı çıkar, ayarlar kaydedilir; yönetici kendi yazısını yayınlar, blogda görünür.
   await page.getByRole("button", { name: "Yapay Zekâ" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Yapay Zekâ" })).toBeVisible();
@@ -386,8 +425,12 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByRole("button", { name: "Ana Sayfa Düzeni" }).click();
   // Her tıklamada kayıt (PUT) beklenir; düğme en üstte devre dışı kalana kadar yukarı taşınır.
   const upLatest = page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" });
-  for (let i = 0; i < 20 && (await upLatest.isEnabled()); i++)
-    await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/home-blocks") && r.request().method() === "PUT"), upLatest.click()]);
+  // Düğme en üste gelince kapanır; kapanmak üzereyken basılırsa kayıt gitmez, bu yüzden her adım kısa bekleyişle denenir.
+  for (let i = 0; i < 20 && (await upLatest.isEnabled()); i++) {
+    const saved = page.waitForResponse((r) => r.url().includes("/api/admin/home-blocks") && r.request().method() === "PUT", { timeout: 5000 }).catch(() => null);
+    await upLatest.click({ timeout: 3000 }).catch(() => {});
+    await saved;
+  }
   await expect(page.getByRole("button", { name: "Son Eklenen Talepler yukarı taşı" })).toBeDisabled();
   await page.getByRole("button", { name: /Yazı \/ duyuru/ }).click();
   await page.getByLabel("Başlık", { exact: true }).fill(`Hoş geldiniz ${htag}`);

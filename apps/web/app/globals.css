@@ -499,7 +499,12 @@ button.link{padding:0;font-size:inherit}
 .yk img,.yk video{display:block;width:100%;height:auto;max-height:420px;object-fit:cover}
 .yk-etiket{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:1px 5px;border-radius:2px}
 .yk-m{display:none}
-@media (max-width:860px){.home-left{display:none}.yk-m{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}.yk-m .yk img,.yk-m .yk video{max-height:260px}}
+@media (max-width:860px){.home-left{display:none}.yk-m{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  /* Telefonda ikişerli ızgara: kutular aynı boyda; sayı tekse son reklam tam genişlikte (yanında boşluk kalmaz). */
+  .yk-m .yk{border-radius:10px}
+  .yk-m .yk img,.yk-m .yk video{max-height:none;aspect-ratio:4/3;object-fit:cover}
+  .yk-m .yk.tam{grid-column:1/-1}
+  .yk-m .yk.tam img,.yk-m .yk.tam video{aspect-ratio:16/9}}
 
 /* ana sayfa vitrini */
 .vt{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:12px 10px}
@@ -879,7 +884,9 @@ button.link{padding:0;font-size:inherit}
 .yk-orta .yk{border-radius:10px}
 .yk-orta .yk img,.yk-orta .yk video{max-height:none;aspect-ratio:4/3}
 .yk-orta.tek .yk img,.yk-orta.tek .yk video{aspect-ratio:16/7}
-@media (max-width:560px){.yk-orta{grid-template-columns:1fr}.yk-orta.tek .yk img,.yk-orta.tek .yk video{aspect-ratio:4/3}}
+.yk-orta .yk.tam{grid-column:1/-1}
+.yk-orta .yk.tam img,.yk-orta .yk.tam video{aspect-ratio:16/7}
+@media (max-width:560px){.yk-orta{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.yk-orta .yk.tam img,.yk-orta .yk.tam video{aspect-ratio:16/9}}
 .yk-bol{display:grid;gap:10px;margin-bottom:14px}
 .yk-bol-i{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px}
 .yk-bol-i div{flex:1;min-width:0}
@@ -1395,3 +1402,8 @@ button.link{padding:0;font-size:inherit}
   .corp-map iframe{height:260px}
 }
 @media print{.corp-nav{display:none}.corp-grid{display:block}.corp-main{border:0}}
+
+/* Yönetim → Reklam Alanları: reklamın göründüğü yer ve yerleşim özeti */
+.yk-nerde{font-size:12.5px;color:var(--muted);margin-top:4px}
+.yk-nerde.uyari{color:#7A4A00;background:var(--amber-soft);padding:6px 8px;border-radius:6px}
+.yk-ozet{margin:0 0 12px;padding:10px 12px 10px 28px;background:var(--blue-soft);border-radius:8px;font-size:13px;line-height:1.6}
