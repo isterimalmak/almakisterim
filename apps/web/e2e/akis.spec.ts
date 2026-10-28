@@ -249,7 +249,7 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
     await page.getByRole("button", { name: "Reklam Alanları" }).click();
     await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/tanitim/") && r.request().method() === "PATCH"), page.getByLabel(`${n}. reklamın cihazı`).selectOption({ label: v })]);
   };
-  await device("Yalnız telefonda");
+  await device("Yalnız telefon");
   await page.goto("/");
   await page.waitForLoadState("networkidle");
   await expect(page.locator(".home-left .yk-list").getByAltText(ad)).toBeHidden();
@@ -257,7 +257,7 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.reload();
   await expect(page.locator(".yk-m").getByAltText(ad)).toBeVisible();
   await page.setViewportSize({ width: 1280, height: 800 });
-  await device("Her yerde (telefon ve bilgisayar)");
+  await device("Telefon ve bilgisayar");
   // Karşılama: "Açılışta göster" işaretlenen reklam siteye girişte ortada açılır; kapatılınca aynı oturumda tekrar çıkmaz.
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Reklam Alanları" }).click();

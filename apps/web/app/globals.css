@@ -516,14 +516,14 @@ button.link{padding:0;font-size:inherit}
 .vt-i:hover .vt-t{color:var(--blue);text-decoration:underline}
 .vt-p{font-size:12px;font-weight:700;color:var(--navy)}
 @media (max-width:520px){.vt{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 8px}}
-.yk-yon{display:flex;flex-direction:column;gap:10px;margin-top:14px}
-.yk-satir{display:grid;grid-template-columns:140px 1fr auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:4px;padding:10px}
-.yk-satir.off{opacity:.6}
-.yk-on img,.yk-on video{width:140px;height:90px;object-fit:cover;border-radius:3px;display:block;background:var(--bg)}
-.yk-alan{display:flex;flex-direction:column;gap:6px;min-width:0}
-.yk-alan label{font-size:12px;font-weight:600;display:flex;flex-direction:column;gap:3px}
-.yk-is{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-@media (max-width:640px){.yk-satir{grid-template-columns:1fr}.yk-on img,.yk-on video{width:100%;height:auto;max-height:200px}}
+.yk-yon{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.yk-satir{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:16px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}
+.yk-satir.off{background:#FAFBFC}
+.yk-satir.off .yk-on{opacity:.5}
+.yk-on img,.yk-on video{width:120px;height:84px;object-fit:cover;border-radius:6px;display:block;background:var(--bg)}
+.yk-alan{display:flex;flex-direction:column;gap:8px;min-width:0}
+.yk-is{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+@media (max-width:760px){.yk-satir{grid-template-columns:96px minmax(0,1fr)}.yk-on img,.yk-on video{width:96px;height:68px}.yk-is{grid-column:1/-1;flex-direction:row;justify-content:space-between;align-items:center}}
 
 /* uygulama görünümü (telefon): alt sekme çubuğu ve yükleme önerisi */
 .tabbar,.app-install{display:none}
@@ -654,7 +654,7 @@ button.link{padding:0;font-size:inherit}
 .krs-go{min-width:160px}
 .krs-ses.krs-ses-b{left:50%;top:50%;bottom:auto;transform:translate(-50%,-50%);width:auto;height:auto;border-radius:999px;padding:12px 20px;font-size:15px;background:rgba(0,0,0,.7);box-shadow:0 4px 16px rgba(0,0,0,.35);white-space:nowrap}
 @media (max-width:520px){.krs-x{top:-10px;right:-10px}.krs-m img,.krs-m video{max-height:62vh;max-height:62dvh}}
-.yk-alan label.chk{flex-direction:row;align-items:center;gap:6px;font-weight:600}
+.yk-alan label.chk{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:12.5px;font-weight:500}
 
 /* ===== Yönetim paneli (soldaki koyu menü + içerik) ===== */
 .ap{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:calc(100vh - 60px);background:#F4F6FA}
@@ -1409,4 +1409,42 @@ button.link{padding:0;font-size:inherit}
 /* Yönetim → Reklam Alanları: reklamın göründüğü yer ve yerleşim özeti */
 .yk-nerde{font-size:12.5px;color:var(--muted);margin-top:4px}
 .yk-nerde.uyari{color:#7A4A00;background:var(--amber-soft);padding:6px 8px;border-radius:6px}
-.yk-ozet{margin:0 0 12px;padding:10px 12px 10px 28px;background:var(--blue-soft);border-radius:8px;font-size:13px;line-height:1.6}
+
+/* Yönetim → Reklamlar: sade, kurumsal düzen */
+.rk .box-h{display:flex;align-items:center;justify-content:space-between}
+.rk-say{font-size:12.5px}
+.rk-et{font-size:11.5px;font-weight:600;letter-spacing:.02em;color:var(--muted);text-transform:uppercase}
+.rk-ozet{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.rk-kut{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#FAFBFC;min-width:0}
+.rk-kut b{font-size:22px;line-height:1.2;color:var(--navy)}
+.rk-kut b small{font-size:13px;font-weight:500;color:var(--muted)}
+.rk-kut b.rk-kut-ad{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rk-kut > small{font-size:12px}
+.rk-ekle{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px dashed #C9D2E0;border-radius:10px;background:#fff}
+.rk-ekle-sat{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.rk-ekle > small{font-size:11.5px}
+.rk-seg{display:inline-flex;flex-wrap:wrap;border:1px solid #C9D2E0;border-radius:8px;overflow:hidden}
+.rk-seg label{display:flex;align-items:center;gap:6px;padding:8px 12px;font-size:13px;cursor:pointer;color:var(--text);border-right:1px solid #C9D2E0}
+.rk-seg label:last-child{border-right:0}
+.rk-seg label:has(input:checked){background:var(--blue-soft);color:var(--navy);font-weight:700}
+.rk-seg input{accent-color:var(--navy);margin:0}
+.rk-bas{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rk-ad{flex:1 1 220px;min-width:0;border:1px solid transparent;border-radius:6px;padding:4px 6px;margin-left:-6px;font-size:15px;font-weight:700;color:var(--navy);background:transparent}
+.rk-ad:hover{border-color:var(--line)}
+.rk-ad:focus{outline:none;border-color:var(--blue);background:#fff}
+.rk-etiketler{display:flex;gap:6px;flex-wrap:wrap}
+.rk-et-k{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--blue-soft);color:#1A3F99}
+.rk-et-k.tur{background:#FFF1E8;color:#B8501A}
+.rk-et-k.gri{background:#EEF0F4;color:#5B6474}
+.rk-izgara{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:8px}
+.rk-izgara label{display:flex;flex-direction:column;gap:3px;min-width:0}
+.rk-izgara label > span{font-size:11.5px;font-weight:600;color:var(--muted)}
+.rk-izgara .inp,.rk-izgara .sel{height:34px;font-size:13px;padding-top:4px;padding-bottom:4px}
+.rk-alt{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.rk-alt .yk-nerde{margin-top:0}
+.rk-yayin{display:flex;align-items:center;gap:6px}
+.rk-yayin small{font-size:12px;color:var(--muted);min-width:44px}
+.rk-sira{display:flex;gap:4px}
+.rk-sil{color:var(--red)}
+.rk-not{font-size:12px;margin:12px 0 0}
+@media (max-width:760px){.rk-ozet{grid-template-columns:1fr}.rk-izgara{grid-template-columns:1fr}.rk-ekle-sat .btn{width:100%}.rk-seg{flex-direction:column}.rk-seg label{border-right:0;border-bottom:1px solid #C9D2E0}.rk-seg label:last-child{border-bottom:0}}
