@@ -7,8 +7,24 @@ import { LEGAL_DOCS } from "../data/legal/index.js";
 
 // Arama motorları için site haritası verisi (web/app/sitemap.ts adresleri buradan kurar).
 // Yalnız herkese açık içerik: yayındaki talepler, yeterince talebi olan kategoriler, blog, sayfalar, sözleşmeler.
+// İl sayfası (/il/istanbul/vasita) arama motorlarına ancak bu kadar açık talep varsa açılır; daha azı "zayıf içerik" sayılır.
+export const PLACE_MIN = 3;
+
+type Place = { city: string; top: string | null; sub: string | null; count: number };
+// İl bazında açık talep sayıları: il, il+kategori, il+alt kategori (gizli kategoriler hariç).
+async function places(pool: Deps["pool"]): Promise<Place[]> {
+  const { rows } = await pool.query<Place>(
+    `SELECT r.city, p.id AS top, c.id AS sub, count(*)::int AS count ${FROM}
+      WHERE r.status = 'active' AND r.expires_at > now() AND ${VISIBLE_CATEGORY_SQL} AND r.city <> ''
+      GROUP BY GROUPING SETS ((r.city), (r.city, p.id), (r.city, p.id, c.id))
+      ORDER BY count DESC, r.city`);
+  return rows;
+}
+
 export function seoRoutes(app: FastifyInstance, deps: Deps) {
   const { pool } = deps;
+  // İl sayfaları için sayılar (web/app/il); yalnız sayı, talep içeriği yok.
+  app.get("/seo/places", async () => ({ places: await places(pool), min: PLACE_MIN }));
   app.get("/seo/sitemap", async () => {
     const requests = (await pool.query<{ id: number; title: string; city: string | null; created_at: string }>(
       `SELECT r.id, r.title, r.city, r.created_at ${FROM}
@@ -25,6 +41,7 @@ export function seoRoutes(app: FastifyInstance, deps: Deps) {
     const ui = await paymentsUi(pool);
     const hidden = [...(ui.show_safe ? [] : ["guvenli-al-sozlesmesi"]), ...(ui.show_credits ? [] : ["on-bilgilendirme-formu", "mesafeli-satis-sozlesmesi"])];
     const legal = LEGAL_DOCS.map((d) => d.slug).filter((s) => !hidden.includes(s));
-    return { requests, categories, blog, pages, legal, show_safe: ui.show_safe };
+    const place = (await places(pool)).filter((x) => x.count >= PLACE_MIN);
+    return { requests, categories, places: place, blog, pages, legal, show_safe: ui.show_safe };
   });
 }

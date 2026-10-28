@@ -44,9 +44,10 @@ function AdGrid({ ads, cls, label = "Tanıtımlar" }: { ads: Ad[]; cls: string; 
 }
 
 // Sol sütundaki reklamlar: bilgisayarda kategorilerin altında alt alta, telefonda (yk-m) iki sütunlu ızgara.
-export function Ads({ cls = "" }: { cls?: string }) {
-  const [ads, setAds] = useState<Ad[]>([]);
-  useEffect(() => { void api<{ items: Ad[] }>("/tanitim").then((r) => setAds(r.items)).catch(() => {}); }, []);
+// items verilirse (ana sayfa sunucudan hazır getirir) yeniden istenmez; sayfa açılırken reklam yeri kaymaz.
+export function Ads({ cls = "", items }: { cls?: string; items?: Ad[] }) {
+  const [ads, setAds] = useState<Ad[]>(items ?? []);
+  useEffect(() => { if (!items) void api<{ items: Ad[] }>("/tanitim").then((r) => setAds(r.items)).catch(() => {}); }, [items]);
   if (!ads.length) return null;
   return <AdGrid ads={ads} cls={"yk-list " + cls} />;
 }
@@ -56,9 +57,9 @@ export function AdMedia({ a }: { a: Ad }) {
 }
 
 // Ana sayfanın ortasındaki reklam alanı (vitrin ve son talepler bölümlerinin yeri): resim ve videolar yan yana kutular hâlinde.
-export function CenterAds() {
-  const [ads, setAds] = useState<Ad[]>([]);
-  useEffect(() => { void api<{ center?: Ad[] }>("/tanitim").then((r) => setAds(r.center ?? [])).catch(() => {}); }, []);
+export function CenterAds({ items }: { items?: Ad[] }) {
+  const [ads, setAds] = useState<Ad[]>(items ?? []);
+  useEffect(() => { if (!items) void api<{ center?: Ad[] }>("/tanitim").then((r) => setAds(r.center ?? [])).catch(() => {}); }, [items]);
   if (!ads.length) return null;
   return <AdGrid ads={ads} cls="yk-orta" />;
 }

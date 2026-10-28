@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
@@ -24,7 +24,9 @@ function pageList(cur: number, total: number): number[] {
   return [1, ...(from > 2 ? [0] : []), ...Array.from({ length: to - from + 1 }, (_, i) => from + i), ...(to < total - 1 ? [0] : []), total];
 }
 
-function Listing() {
+export type ListingInitial = { qs: string; data: { total: number; items: RequestItem[] } };
+
+function Listing({ initial: first }: { initial?: ListingInitial | null }) {
   const { slug = [] } = useParams<{ slug?: string[] }>();
   const sp = useSearchParams();
   const { categories, browseCategories, count, user, toast } = useSession();
@@ -35,7 +37,9 @@ function Listing() {
   const [f, setF] = useState<F>(initial);
   const districts = useDistricts(f.city);
   const hoods = useNeighbourhoods(f.city, f.district);
-  const [data, setData] = useState<{ total: number; items: RequestItem[] } | null>(null);
+  const [data, setData] = useState<{ total: number; items: RequestItem[] } | null>(first?.data ?? null);
+  // Sunucudan hazır gelen ilk liste tekrar istenmez (sayfa hemen dolu açılır, arama motorları da görür).
+  const firstQs = useRef(first?.qs ?? null);
   const [openFilters, setOpenFilters] = useState(false);
   // Telefonda görünüm: büyük kart ya da sahibinden'deki gibi sık liste (tercih tarayıcıda hatırlanır).
   const [view, setView] = useState<"kart" | "liste">("kart");
@@ -79,6 +83,8 @@ function Listing() {
   }, [top, sub, f]);
 
   useEffect(() => {
+    if (firstQs.current === qs) { firstQs.current = null; return; }
+    firstQs.current = null;
     const h = setTimeout(() => { void api<{ total: number; items: RequestItem[] }>(`/requests?${qs}`).then(setData).catch(() => setData({ total: 0, items: [] })); }, 250);
     return () => clearTimeout(h);
   }, [qs]);
@@ -255,6 +261,8 @@ function Listing() {
 }
 
 // Talep listesi (kategori, arama, süzgeçler). Sayfanın başlık ve açıklaması app/kategori/[[...slug]]/page.tsx'te sunucuda kurulur.
-export function CategoryView() {
-  return <Suspense fallback={<div className="loading">Yükleniyor…</div>}><Listing /></Suspense>;
+// Sayfa her istekte sunucuda hazırlandığı için (force-dynamic) Suspense sarmalı gerekmez; sarmal, listeyi
+// ilk HTML'den sonraya ertelediği için sayfa açılırken kaymaya yol açıyordu.
+export function CategoryView({ initial }: { initial?: ListingInitial | null }) {
+  return <Listing initial={initial} />;
 }

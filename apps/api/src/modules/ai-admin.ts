@@ -6,20 +6,48 @@ import { aiSettings, logAiAction } from "../services/ai-guard.js";
 import { notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 
 // Hazır blog konuları: otomatik blog sırayla bunlardan henüz yazılmamış olanı seçer; yönetici kendi konusunu da yazabilir.
-export const BLOG_TOPICS = [
-  "İkinci el araba alırken nelere dikkat edilmeli?",
-  "Satılık ev ararken bütçe nasıl belirlenir?",
-  "Kiralık ev ararken sorulması gereken 10 soru",
-  "Arsa alırken imar ve tapu durumu nasıl kontrol edilir?",
-  "İkinci el telefon alırken dolandırıcılıktan korunmanın yolları",
-  "Alım talebi vermek ilan aramaktan neden daha hızlı?",
-  "Satıcılar için: talep alarmı ile müşteriye ilk ulaşan olun",
-  "Kapora dolandırıcılığına karşı güvenli alışveriş rehberi",
-  "İkinci el beyaz eşya alırken kontrol listesi",
-  "Bebek arabası ve oto koltuğu seçerken dikkat edilecekler",
-  "Ustaya iş verirken teklif nasıl karşılaştırılır?",
-  "Toptan alımda doğru tedarikçiyi bulmanın yolları",
+// Her konu bir üst kategoriye bağlıdır (boşsa genel); yazının altında o kategorinin güncel talepleri gösterilir.
+const TOPICS: [string, string | null][] = [
+  ["İkinci el araba alırken nelere dikkat edilmeli?", "vasita"],
+  ["Satılık ev ararken bütçe nasıl belirlenir?", "emlak"],
+  ["Kiralık ev ararken sorulması gereken 10 soru", "emlak"],
+  ["Arsa alırken imar ve tapu durumu nasıl kontrol edilir?", "emlak"],
+  ["İkinci el telefon alırken dolandırıcılıktan korunmanın yolları", "elektronik"],
+  ["Alım talebi vermek ilan aramaktan neden daha hızlı?", null],
+  ["Satıcılar için: talep alarmı ile müşteriye ilk ulaşan olun", null],
+  ["Kapora dolandırıcılığına karşı güvenli alışveriş rehberi", null],
+  ["İkinci el beyaz eşya alırken kontrol listesi", "ev"],
+  ["Bebek arabası ve oto koltuğu seçerken dikkat edilecekler", "bebek"],
+  ["Ustaya iş verirken teklif nasıl karşılaştırılır?", "hizmet"],
+  ["Toptan alımda doğru tedarikçiyi bulmanın yolları", "toptan"],
+  ["Ekspertiz raporu nasıl okunur? Tramer, boya ve değişen rehberi", "vasita"],
+  ["Tapu devri nasıl yapılır? Masraflar ve gerekli belgeler", "emlak"],
+  ["İkinci el laptop alırken kontrol edilmesi gerekenler", "elektronik"],
+  ["Alım talebi nasıl yazılır? Hızlı teklif almanın 7 yolu", null],
+  ["Elektrikli araç almadan önce bilinmesi gerekenler", "vasita"],
+  ["Kira sözleşmesinde dikkat edilmesi gereken maddeler", "emlak"],
+  ["IMEI kaydı nedir, telefon alırken nasıl kontrol edilir?", "elektronik"],
+  ["İkinci el mobilya alırken dikkat edilecekler", "ev"],
+  ["Evden eve nakliyat fiyatı nasıl belirlenir?", "hizmet"],
+  ["Oto yedek parçada orijinal, muadil ve çıkma farkı", "yedek"],
+  ["İkinci el motosiklet alırken kontrol listesi", "vasita"],
+  ["Ev alırken kredi mi, peşin mi? Hesaplama rehberi", "emlak"],
+  ["Yenilenmiş telefon mu, ikinci el telefon mu?", "elektronik"],
+  ["Özel ders öğretmeni seçerken nelere dikkat edilmeli?", "ders"],
+  ["İkinci el bisiklet alırken dikkat edilecekler", "spor"],
+  ["İkinci el iş makinesi ve jeneratör alırken kontrol listesi", "sanayi"],
+  ["Satıcılar için: alıcıya ilk mesajda ne yazmalı?", null],
+  ["Kiralık iş yeri ararken nelere dikkat edilmeli?", "emlak"],
+  ["İkinci el oyun konsolu alırken nelere bakılmalı?", "elektronik"],
+  ["Ticari araç alırken dikkat edilmesi gerekenler", "vasita"],
+  ["İkinci el lastik alırken nelere bakılmalı?", "yedek"],
+  ["Temizlik firması seçerken sorulacak sorular", "hizmet"],
+  ["İkinci el saat alırken orijinallik nasıl anlaşılır?", "moda"],
+  ["İkinci el bebek eşyası alırken güvenlik kontrolleri", "bebek"],
+  ["Toptan ambalaj alırken fiyat nasıl karşılaştırılır?", "toptan"],
 ];
+export const BLOG_TOPICS = TOPICS.map(([t]) => t);
+const TOPIC_TOP = new Map(TOPICS);
 
 // Türkçe başlıktan adres parçası: "Arsa alırken imar…" → "arsa-alirken-imar…"
 export function slugify(t: string) {
@@ -283,8 +311,10 @@ export function aiAdminRoutes(app: FastifyInstance, deps: Deps) {
 
   app.get("/blog/:slug", async (req) => {
     const { slug } = z.object({ slug: z.string().max(100) }).parse(req.params);
-    const r = (await pool.query("SELECT slug, title, summary, body, published_at FROM blog_posts WHERE slug = $1 AND status = 'published'", [slug])).rows[0];
+    const r = (await pool.query<{ topic: string | null }>("SELECT slug, title, summary, body, published_at, topic FROM blog_posts WHERE slug = $1 AND status = 'published'", [slug])).rows[0];
     if (!r) throw new HttpError(404, "bulunamadi", "Yazı bulunamadı.");
-    return r;
+    // İlgili kategori (yazının altında o kategorinin talepleri gösterilir).
+    const { topic, ...post } = r;
+    return { ...post, top: (topic && TOPIC_TOP.get(topic)) ?? null };
   });
 }

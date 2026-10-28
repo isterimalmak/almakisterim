@@ -3,13 +3,14 @@ import { AppShell } from "@/components/AppShell";
 import { Footer, Header } from "@/components/Header";
 import { SessionProvider } from "@/components/Session";
 import { ldJson, SITE_URL } from "@/lib/seo";
+import { siteData } from "@/lib/server-api";
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: "almakisterim.com – Ne almak istediğinizi yazın, satıcılar size ulaşsın", template: "%s · almakisterim.com" },
   description: "Türkiye'nin alım talebi sitesi: araç, ev, telefon, eşya ya da hizmet… Ne almak istediğinizi ücretsiz yazın, elinde olan satıcılar size ulaşsın. Satıcılar almak isteyen müşteriyi burada bulur.",
-  openGraph: { type: "website", locale: "tr_TR", siteName: "almakisterim.com", images: [{ url: "/logo.png" }] },
+  openGraph: { type: "website", locale: "tr_TR", siteName: "almakisterim.com", images: [{ url: "/og/site", width: 1200, height: 630 }] },
   twitter: { card: "summary_large_image" },
   applicationName: "almakisterim",
   appleWebApp: { capable: true, title: "almakisterim", statusBarStyle: "black-translucent" },
@@ -17,7 +18,8 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#13235B", viewportFit: "cover" };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const site = await siteData();
   return (
     <html lang="tr">
       <body>
@@ -27,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           { "@context": "https://schema.org", "@type": "WebSite", name: "almakisterim.com", url: SITE_URL, inLanguage: "tr-TR",
             potentialAction: { "@type": "SearchAction", target: `${SITE_URL}/kategori?q={search_term_string}`, "query-input": "required name=search_term_string" } },
         ]) }} />
-        <SessionProvider>
+        <SessionProvider site={site}>
           <Header />
           <main className="page-min">{children}</main>
           <Footer />

@@ -10,7 +10,7 @@ import { SafeSalesForRequest, SafeSellBox, useSafeInfo } from "@/components/Safe
 import { placeTxt } from "@/lib/locations";
 import { VehicleRows } from "@/components/VehicleFields";
 import { CatIcon, Labels, RequestTable } from "@/components/RequestTable";
-import { talepPath } from "@/lib/seo";
+import { ilPath, talepPath } from "@/lib/seo";
 import { useSession } from "@/components/Session";
 import { api, type Contact, type RequestDetail, type RequestItem } from "@/lib/api";
 import { attrsFor, isAny } from "@/lib/catalog";
@@ -74,7 +74,7 @@ export function RequestView({ id, initial }: { id: number; initial?: RequestData
 
   return (
     <div className="wrap rq">
-      <div className="crumb"><Link href="/">Ana Sayfa</Link> › <Link href={`/kategori/${r.top_id}`}>{r.top_name}</Link> › <Link href={`/kategori/${r.top_id}/${r.category_id}`}>{r.category_name}</Link>{r.city && <> › <span>{r.city}</span></>}</div>
+      <div className="crumb"><Link href="/">Ana Sayfa</Link> › <Link href={`/kategori/${r.top_id}`}>{r.top_name}</Link> › <Link href={`/kategori/${r.top_id}/${r.category_id}`}>{r.category_name}</Link>{r.city && <> › <Link href={ilPath(r.city, r.top_id, r.category_id)}>{r.city}</Link></>}</div>
 
       {/* Kaydırınca üstte kalan özet çubuğu */}
       <div className={"rq-stick" + (stuck ? " on" : "")} aria-hidden={!stuck}>

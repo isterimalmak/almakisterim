@@ -43,3 +43,30 @@ describe("site haritası verisi", () => {
     expect(JSON.stringify(d)).not.toMatch(/90532|buyer/);
   });
 });
+
+describe("il sayfaları", () => {
+  it("il, il+kategori ve il+alt kategori sayıları; site haritasına yalnız yeterince talebi olanlar girer", async () => {
+    await resetData(ctx.pool);
+    const buyer = await login(ctx, "05321117002", "İl Sayfası");
+    for (let i = 0; i < 3; i++) await createRequest(ctx, buyer, { title: `İzmir telefon ${i}`, city: "İzmir", district: "Karşıyaka" });
+    await createRequest(ctx, buyer, { title: "Ankara telefon", city: "Ankara", district: "Çankaya" });
+    const closed = await createRequest(ctx, buyer, { title: "Kapanan İzmir", city: "İzmir", district: "Karşıyaka" });
+    await ctx.pool.query("UPDATE requests SET status = 'closed' WHERE id = $1", [closed]);
+
+    const d = (await ctx.app.inject({ url: "/api/seo/places" })).json();
+    expect(d.min).toBe(3);
+    expect(d.places).toContainEqual({ city: "İzmir", top: null, sub: null, count: 3 });
+    expect(d.places).toContainEqual({ city: "İzmir", top: "elektronik", sub: null, count: 3 });
+    expect(d.places).toContainEqual({ city: "İzmir", top: "elektronik", sub: "telefon", count: 3 });
+    expect(d.places).toContainEqual({ city: "Ankara", top: "elektronik", sub: "telefon", count: 1 });
+
+    const s = await sitemap();
+    expect(s.places.map((p: { city: string }) => p.city)).toEqual(["İzmir", "İzmir", "İzmir"]);
+
+    // Gizlenen kategorinin talepleri il sayılarından da çıkar.
+    const admin = await login(ctx, "yonetici@almakisterim.com", "Yönetici");
+    await ctx.app.inject({ method: "PATCH", url: "/api/admin/categories/telefon", headers: { cookie: admin }, payload: { is_visible: false } });
+    expect((await ctx.app.inject({ url: "/api/seo/places" })).json().places).toEqual([]);
+    await ctx.app.inject({ method: "PATCH", url: "/api/admin/categories/telefon", headers: { cookie: admin }, payload: { is_visible: true } });
+  });
+});
