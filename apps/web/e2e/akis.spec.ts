@@ -19,7 +19,8 @@ async function loginSms(page: Page, phone: string, name: string) {
 
 // Yeni üye (ya da sözleşmesi güncellenen üye) girişten sonra Üyelik Sözleşmesi onay penceresini görür.
 async function acceptTerms(page: Page) {
-  const me = await (await page.request.get("/api/me")).json();
+  // Sunucu boşta kalan bağlantıyı kapatmışsa ilk istek "socket hang up" ile düşebilir; bir kez yeniden denenir.
+  const me = await (await page.request.get("/api/me").catch(() => page.request.get("/api/me"))).json();
   if (!me.user || me.user.terms_ok !== false) return;
   const gate = page.getByRole("dialog", { name: "Sözleşme onayı" });
   await gate.getByLabel("Üyelik Sözleşmesi'ni onaylıyorum").check();
