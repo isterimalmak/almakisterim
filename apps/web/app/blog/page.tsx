@@ -5,7 +5,7 @@ import { dateTr } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Blog | almakisterim.com",
+  title: "Blog",
   description: "Alım-satım rehberleri, güvenli alışveriş ipuçları ve almakisterim'den haberler.",
 };
 
