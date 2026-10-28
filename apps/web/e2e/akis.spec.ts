@@ -1424,3 +1424,61 @@ test("üye telefon numarasını değiştirir: önce mevcut numarayla kimlik doğ
   // Eski numaraya bilgilendirme gider.
   await expect.poll(async () => (await (await page.request.get(`${API}/api/__test/last-message?to=90${oldPhone.slice(1)}`)).json()).text).toContain("olarak değiştirildi");
 });
+
+test("arama motorları: robots.txt ve site haritası; talep sayfası kendi başlığı ve okunur adresiyle sunucuda hazırlanır; kapanan talepte benzer talepler", async ({ page, browser }, info) => {
+  test.skip(info.project.name !== "masaustu");
+  // robots.txt: üye ve yönetim sayfaları kapalı, site haritası bildirilir.
+  const robots = await (await page.request.get("/robots.txt")).text();
+  expect(robots).toContain("Disallow: /yonetim");
+  expect(robots).toContain("Disallow: /bana-ozel");
+  expect(robots).toContain("Sitemap: https://almakisterim.com/sitemap.xml");
+
+  // Alıcı talep verir (SMS onayıyla, API üzerinden).
+  const phone = `0536${rnd().slice(0, 7)}`, tag = rnd();
+  await loginSms(page, phone, "Arama Motoru");
+  const to = "90" + phone.slice(1);
+  expect((await page.request.post("/api/me/publish-code", { data: { phone } })).ok()).toBeTruthy();
+  const code = async () => (await (await page.request.get(`${API}/api/__test/last-message?to=${to}`)).json()).text.match(/\d{6}/)[0] as string;
+  // Fotoğraf zorunlu olabilir: yükleme akışıyla bir resim eklenir.
+  const up = await (await page.request.post("/api/media/uploads", { data: { content_type: "image/png", size: PNG.length } })).json();
+  await page.request.put(up.upload.url, { headers: { "content-type": "image/png" }, data: PNG });
+  expect((await page.request.post(`/api/media/${up.id}/complete`, { data: {} })).ok()).toBeTruthy();
+  const res = await page.request.post("/api/requests", { data: { media_ids: [up.id], category_id: "telefon", title: `iPhone 15 Pro almak istiyorum ${tag}`, description: "256 GB, kutulu, faturalı olsun.", budget_min: 0, budget_max: 55000, city: "İzmir", condition: "İkinci El", attrs: {}, contact_consent: true, phone, phone_code: await code() } });
+  expect(res.status(), await res.text()).toBe(201);
+  const id = (await res.json()).id as number;
+  const slug = `/talep/${id}-iphone-15-pro-almak-istiyorum-${tag}-izmir`;
+
+  // Site haritasında okunur adresiyle yer alır.
+  await expect.poll(async () => (await (await page.request.get("/sitemap.xml")).text()).includes(`https://almakisterim.com${slug}`)).toBe(true);
+
+  // Sayfa HTML'i sunucuda hazırlanır: başlık, açıklama, asıl adres ve talep metni ilk yanıtta vardır (JavaScript beklemeden).
+  const html = await (await page.request.get(`/talep/${id}`)).text();
+  expect(html).toContain(`<title>iPhone 15 Pro almak istiyorum ${tag} – İzmir · almakisterim.com</title>`);
+  expect(html).toContain(`<link rel="canonical" href="https://almakisterim.com${slug}"/>`);
+  expect(html).toMatch(/<meta name="description" content="Cep Telefonu alım talebi, İzmir\. Bütçe: 55\.000 TL\./);
+  expect(html).toContain("256 GB, kutulu, faturalı olsun.");
+  expect(html).toContain('"@type":"BreadcrumbList"');
+  expect(html).not.toContain(to);
+  // Okunur adresle de açılır.
+  await page.goto(slug);
+  await expect(page.getByRole("heading", { level: 1, name: `iPhone 15 Pro almak istiyorum ${tag}` })).toBeVisible();
+
+  // Talep kapanınca sayfa kalır ama arama sonuçlarından düşer; ziyaretçiye benzer açık talepler gösterilir.
+  expect((await page.request.post(`/api/requests/${id}/close`, { data: {} })).ok()).toBeTruthy();
+  const vctx = await browser.newContext();
+  const v = await vctx.newPage();
+  const closedHtml = await (await v.request.get(slug)).text();
+  expect(closedHtml).toContain('<meta name="robots" content="noindex, follow"/>');
+  await v.goto(slug);
+  const sim = v.getByRole("region", { name: "Benzer açık talepler" });
+  await expect(sim.getByText("Bu talep kapandı.", { exact: false })).toBeVisible();
+  await expect(sim.getByRole("link", { name: /Cep Telefonu kategorisindeki tüm talepler/ })).toHaveAttribute("href", "/kategori/elektronik/telefon");
+  await vctx.close();
+
+  // Kategori sayfası kendi başlığıyla; arama sonucu ve giriş sayfası dizine girmez.
+  const cat = await (await page.request.get("/kategori/elektronik/telefon")).text();
+  expect(cat).toContain("<title>Cep Telefonu Alım Talepleri – Cep Telefonu Almak İsteyenler · almakisterim.com</title>");
+  expect(cat).toContain('<link rel="canonical" href="https://almakisterim.com/kategori/elektronik/telefon"/>');
+  expect(await (await page.request.get("/kategori?q=iphone")).text()).toContain('<meta name="robots" content="noindex, follow"/>');
+  expect(await (await page.request.get("/giris")).text()).toContain('<meta name="robots" content="noindex, follow"/>');
+});

@@ -4,6 +4,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { Corporate } from "@/components/Corporate";
 import { Markdown } from "@/components/Markdown";
 import { serverApi } from "@/lib/server-api";
+import { snippet } from "@/lib/seo";
 
 // Kurumsal sayfalar (Hakkımızda, İletişim ve yöneticinin eklediği diğerleri): Yönetim → Alt Bilgi ve Sayfalar.
 // Sözleşme ve politika metinleri /sozlesmeler altında.
@@ -20,7 +21,7 @@ const load = async (slug: string) => (await serverApi<{ page: Page }>(`/pages/${
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const p = MOVED[(await params).slug] ? null : await load((await params).slug);
-  return { title: `${p?.title ?? "Sayfa"} | almakisterim.com` };
+  return p ? { title: p.title, description: snippet(p.body.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[#*_>]/g, " ")), alternates: { canonical: `/sayfa/${p.slug}` } } : { title: "Sayfa" };
 }
 
 // İletişim: şirket bilgileri tablosu (Yönetim → Sözleşmeler → Şirket bilgileri) ve adres haritası.

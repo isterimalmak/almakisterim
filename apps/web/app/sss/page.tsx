@@ -6,7 +6,7 @@ import { serverApi } from "@/lib/server-api";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Sık Sorulan Sorular | almakisterim.com",
+  title: "Sık Sorulan Sorular",
   description: "Talep verme, satıcıların alıcıya ulaşması, numara gizliliği, hesap ve güvenli alışveriş hakkında sık sorulan sorular.",
 };
 type Item = { group: string; q: string; a: string };

@@ -10,8 +10,8 @@ type Post = { slug: string; title: string; summary: string; body: string; publis
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const p = await serverApi<Post>(`/blog/${encodeURIComponent((await params).slug)}`);
-  if (!p) return { title: "Yazı bulunamadı | almakisterim.com" };
-  return { title: `${p.title} | almakisterim.com`, description: p.summary, openGraph: { title: p.title, description: p.summary, type: "article" } };
+  if (!p) return { title: "Yazı bulunamadı" };
+  return { title: p.title, description: p.summary, alternates: { canonical: `/blog/${p.slug}` }, openGraph: { title: p.title, description: p.summary, type: "article", url: `/blog/${p.slug}` } };
 }
 
 export default async function BlogPost({ params }: { params: Promise<{ slug: string }> }) {

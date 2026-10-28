@@ -6,7 +6,7 @@ import { serverApi } from "@/lib/server-api";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Sözleşmeler ve Kurallar | almakisterim.com",
+  title: "Sözleşmeler ve Kurallar",
   description: "Üyelik Sözleşmesi, talep verme kuralları, Güvenli Al, KVKK aydınlatma metni, çerez politikası ve diğer metinler.",
 };
 

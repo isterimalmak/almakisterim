@@ -12,7 +12,7 @@ const load = async (slug: string, v?: string) => serverApi<{ doc: LegalDoc; vers
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const d = (await load((await params).slug))?.doc;
-  return d ? { title: `${d.title} | almakisterim.com`, description: d.summary } : { title: "Metin bulunamadı | almakisterim.com" };
+  return d ? { title: d.title, description: d.summary, alternates: { canonical: `/sozlesmeler/${d.slug}` } } : { title: "Metin bulunamadı" };
 }
 
 const anchor = (i: number) => `m${i + 1}`;
