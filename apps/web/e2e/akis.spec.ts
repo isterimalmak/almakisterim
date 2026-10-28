@@ -326,9 +326,26 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Reklam Alanları" }).click();
-  for (let k = 0; k < 4; k++) {
+  // Açılış videosu: tarayıcı sesli başlatmaya izin vermezse ortada büyük "Sesi açmak için dokunun" düğmesi çıkar;
+  // videoya ilk dokunuş pencereyi kapatmaz, düğmeye basınca ses açılır.
+  await page.getByLabel("Yalnız açılış penceresi (ana sayfada görünmez)").check();
+  await page.getByLabel("Reklam dosyası seç").setInputFiles({ name: `acilis-video-${tag}.mp4`, mimeType: "video/mp4", buffer: Buffer.from("00000018667479706d703432", "hex") });
+  await expect(page.locator(".yk-satir")).toHaveCount(rows + 2);
+  await page.goto("/");
+  const wv = page.getByRole("dialog", { name: "Hoş geldiniz" });
+  const big = wv.getByRole("button", { name: "Sesi açmak için dokunun" });
+  await expect(big).toBeVisible();
+  await wv.locator("video").click({ position: { x: 8, y: 8 } });
+  await expect(wv).toBeVisible();
+  if (await big.count()) await big.click();
+  await expect(wv.locator("video")).toHaveJSProperty("muted", false);
+  await expect(wv.getByRole("button", { name: "Sesi kapat" })).toBeVisible();
+  await wv.getByRole("button", { name: "Kapat", exact: true }).click();
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Reklam Alanları" }).click();
+  for (let k = 1; k <= 5; k++) {
     await page.locator(".yk-satir").last().getByRole("button", { name: "Sil" }).click();
-    await expect(page.locator(".yk-satir")).toHaveCount(rows - k);
+    await expect(page.locator(".yk-satir")).toHaveCount(rows + 2 - k);
   }
 
   // Yapay Zekâ bölümü: bağlı değilken uyarı çıkar, ayarlar kaydedilir; yönetici kendi yazısını yayınlar, blogda görünür.
