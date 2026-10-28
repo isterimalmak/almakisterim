@@ -95,6 +95,23 @@ describe("reklam alanları", () => {
     expect((await ctx.pool.query("SELECT count(*)::int AS n FROM media")).rows[0].n).toBe(2);
   });
 
+  it("yalnız açılış penceresi: hiçbir yerde seçilen reklam ana sayfa listelerinde çıkmaz, açılışta görünür; eklerken açılışa alınınca eskisi kalkar", async () => {
+    const admin = await login(ctx, "yonetici@almakisterim.com");
+    const post = (payload: Record<string, unknown>) => ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload });
+    const old = (await post({ media_id: (await upload(admin)).id, title: "Eski açılış", placement: "orta", is_welcome: true })).json();
+    const only = (await post({ media_id: (await upload(admin)).id, title: "Yalnız açılış", placement: "yok", is_welcome: true })).json();
+    expect(only).toMatchObject({ placement: "yok", is_welcome: true });
+    const pub = (await ctx.app.inject({ url: "/api/tanitim" })).json();
+    expect(pub.welcome).toMatchObject({ id: only.id, title: "Yalnız açılış" });
+    expect([...pub.items, ...pub.center, ...pub.blok].map((x: { title: string }) => x.title)).toEqual(["Eski açılış"]);
+    const adm = (await ctx.app.inject({ url: "/api/admin/tanitim", headers: { cookie: admin } })).json().items;
+    expect(adm.find((x: { id: number }) => x.id === old.id).is_welcome).toBe(false);
+    // Bekletilen reklam: hiçbir yerde ve açılışta değil; yönetim listesinde durur, sitede görünmez.
+    await ctx.app.inject({ method: "PATCH", url: `/api/admin/tanitim/${only.id}`, headers: { cookie: admin }, payload: { is_welcome: false } });
+    expect((await ctx.app.inject({ url: "/api/tanitim" })).json().welcome).toBeNull();
+    expect((await ctx.app.inject({ url: "/api/admin/tanitim", headers: { cookie: admin } })).json().items).toHaveLength(2);
+  });
+
   it("reklam eklerken cihaz seçilir: yalnız bilgisayarda", async () => {
     const admin = await login(ctx, "yonetici@almakisterim.com");
     const r = await ctx.app.inject({ method: "POST", url: "/api/admin/tanitim", headers: { cookie: admin }, payload: { media_id: (await upload(admin)).id, title: "Yalnız web", device: "desktop" } });
