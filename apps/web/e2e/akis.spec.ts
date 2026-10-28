@@ -1288,6 +1288,8 @@ test("sözleşmeler: yeni üye onay penceresini görür, onaylamadan kapatamaz; 
 
 test("yönetici alt bilgiyi, sayfaları, sözleşme metnini, şirket bilgilerini ve üye bilgilerini düzenler", async ({ page, browser }, info) => {
   test.skip(info.project.name !== "masaustu");
+  // Birçok yönetim bölümünü sırayla dolaşan uzun test.
+  test.setTimeout(150_000);
   await loginEmail(page, "yonetici@almakisterim.com");
   await page.goto("/yonetim");
   await page.getByRole("button", { name: "Alt Bilgi ve Sayfalar" }).click();
@@ -1377,7 +1379,7 @@ test("yönetici alt bilgiyi, sayfaları, sözleşme metnini, şirket bilgilerini
   await mctx.close();
   await page.goto("/yonetim#kul");
   await page.getByPlaceholder("Ad, e-posta veya telefon").fill("90" + oldPhone.slice(1));
-  await page.getByRole("main").getByRole("button", { name: "Ara", exact: true }).click();
+  await Promise.all([page.waitForResponse((r) => r.url().includes("/api/admin/users?q=90")), page.getByRole("main").getByRole("button", { name: "Ara", exact: true }).click()]);
   await page.getByRole("button", { name: "Düzenlenecek Üye bilgilerini düzenle" }).click();
   const ed = page.getByRole("region", { name: "Üye bilgilerini düzenle" });
   await expect(ed.getByLabel("Cep telefonu")).toHaveValue(oldPhone.replace(/^0(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4"));

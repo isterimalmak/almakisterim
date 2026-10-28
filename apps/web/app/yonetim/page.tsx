@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Thumbs } from "@/components/Media";
 import { useSession } from "@/components/Session";
@@ -70,7 +70,13 @@ export default function Admin() {
   }, []);
   useEffect(() => { if (user?.role === "admin") void load().catch((e) => toast(e.message)); }, [user, load, toast]);
 
-  const searchUsers = async () => setUsers((await api<{ items: UserRow[] }>(`/admin/users?q=${encodeURIComponent(q)}`)).items);
+  // Geç gelen eski yanıt (ör. sayfa açılışındaki boş arama) son aramanın sonucunun üstüne yazmasın.
+  const userSearch = useRef(0);
+  const searchUsers = async () => {
+    const n = ++userSearch.current;
+    const r = await api<{ items: UserRow[] }>(`/admin/users?q=${encodeURIComponent(q)}`);
+    if (n === userSearch.current) setUsers(r.items);
+  };
   useEffect(() => { if (tab === "kul" && !users.length && user?.role === "admin") void searchUsers().catch(() => {}); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready) return <div className="loading">Yükleniyor…</div>;
