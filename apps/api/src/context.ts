@@ -9,6 +9,7 @@ import type { PhotoSource } from "./services/pexels.js";
 import type { MediaStorage } from "./services/storage.js";
 import type { Integrations } from "./services/integrations.js";
 import type { PaymentProvider } from "./services/payments.js";
+import type { PushTransport } from "./services/push.js";
 
 export type Deps = {
   config: Config;
@@ -24,6 +25,8 @@ export type Deps = {
   integrations?: Integrations;
   // Güvenli Al ödemeleri; verilmezse yapılandırmadan kurulur (anahtar yoksa geliştirmede deneme ödemesi).
   payments?: PaymentProvider;
+  // Telefon uygulaması bildirimleri; verilmezse Expo (testte bellekte tutulur).
+  push?: PushTransport;
 };
 
 export type SessionUser = {

@@ -149,7 +149,25 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await page.getByLabel("Bildirim metni *").fill(`Test duyurusu ${rnd()}`);
   page.once("dialog", (d) => void d.accept());
   await page.getByRole("button", { name: "Bildirimi gönder" }).click();
-  await expect(page.getByText(/üyeye bildirim gönderildi/)).toBeVisible();
+  // Test veritabanında binlerce üye olduğu için kayıt birkaç saniye sürebilir.
+  await expect(page.getByText(/üyeye bildirim gönderildi/)).toBeVisible({ timeout: 15_000 });
+  // Telefon uygulaması bildirimi: yönetici telefonunu bağlar (uygulamanın yaptığı kayıt), önce kendine dener, sonra herkese gönderir.
+  const myPhone = `ExponentPushToken[e2e-${rnd()}]`;
+  expect((await page.request.post("/api/me/push-token", { data: { token: myPhone, platform: "android" } })).ok()).toBeTruthy();
+  const pushBox = page.getByRole("region", { name: "Telefon uygulaması bildirimi" });
+  const pushTitle = `Duyuru ${rnd()}`;
+  await pushBox.getByLabel("Başlık *").fill(pushTitle);
+  await pushBox.getByLabel("Telefon bildirimi metni *").fill("Bu hafta vasıta kategorisinde yeni alıcılar var.");
+  await pushBox.getByLabel("Dokununca açılacak sayfa (isteğe bağlı)").fill("/kategori/vasita");
+  await expect(pushBox.locator(".push-onizle")).toContainText(pushTitle);
+  await pushBox.getByRole("button", { name: "Kendime dene" }).click();
+  await expect(page.getByText("Deneme bildirimi telefonunuza gönderildi.")).toBeVisible();
+  await expect.poll(async () => (await (await page.request.get(`${API}/api/__test/last-push?token=${encodeURIComponent(myPhone)}`)).json()).push)
+    .toMatchObject({ title: pushTitle, body: "Bu hafta vasıta kategorisinde yeni alıcılar var.", data: { link: "/kategori/vasita" } });
+  page.once("dialog", (d) => void d.accept());
+  await pushBox.getByRole("button", { name: "Telefonlara gönder" }).click();
+  await expect(page.getByText(/üyeye gönderildi \(\d+ telefona ulaştı/)).toBeVisible();
+  await expect(pushBox.getByRole("table", { name: "Gönderilen telefon bildirimleri" })).toContainText(pushTitle);
   // Entegrasyonlar: hangi hizmet bağlı görünür, anahtar görünmez.
   await page.getByRole("button", { name: "Entegrasyonlar" }).click();
   await expect(page.locator(".integ-card.on", { hasText: "Fotoğraf ve video deposu" })).toBeVisible();
@@ -1448,6 +1466,13 @@ test("arama motorları: robots.txt ve site haritası; talep sayfası kendi başl
   expect(robots).toContain("Disallow: /yonetim");
   expect(robots).toContain("Disallow: /bana-ozel");
   expect(robots).toContain("Sitemap: https://almakisterim.com/sitemap.xml");
+  // llms.txt: yapay zekâ arama motorları için sitenin özeti ve önemli sayfaları.
+  const llms = await page.request.get("/llms.txt");
+  expect(llms.headers()["content-type"]).toContain("text/plain");
+  const llmsText = await llms.text();
+  expect(llmsText).toMatch(/^# almakisterim\.com\n/);
+  expect(llmsText).toContain("(https://almakisterim.com/talep-ver)");
+  expect(llmsText).toContain("[Elektronik alım talepleri](https://almakisterim.com/kategori/elektronik)");
 
   // Alıcı talep verir (SMS onayıyla, API üzerinden).
   const phone = `0536${rnd().slice(0, 7)}`, tag = rnd();

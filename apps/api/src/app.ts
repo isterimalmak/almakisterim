@@ -4,6 +4,8 @@ import { safeRoutes } from "./modules/safe.js";
 import { legalRoutes } from "./modules/legal.js";
 import { siteRoutes } from "./modules/site.js";
 import { seoRoutes } from "./modules/seo.js";
+import { pushAdminRoutes } from "./modules/push-admin.js";
+import { ExpoPush, MemoryPush, setPushTransport } from "./services/push.js";
 import { homeBlockRoutes } from "./modules/home-blocks.js";
 import { mailStudioRoutes } from "./modules/mailstudio.js";
 import { createPayments } from "./services/payments.js";
@@ -49,6 +51,8 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     await deps.integrations!.refresh(true).catch(() => {});
   }
   if (!deps.payments) deps = { ...deps, payments: createPayments(deps.config) };
+  if (!deps.push) deps = { ...deps, push: deps.config.NODE_ENV === "test" ? new MemoryPush() : new ExpoPush() };
+  setPushTransport(deps.push!);
   // Gönderilen e-postalar sayılır; Resend açıkken ücretsiz plan sınırı korunur (giriş kodları her zaman önceliklidir).
   { const cfg = deps.config; deps = { ...deps, mailer: metered(deps.mailer, deps.pool, () => mailProvider(cfg) === "resend") }; }
   const app = Fastify({
@@ -114,12 +118,16 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     legalRoutes(api, deps);
     siteRoutes(api, deps);
     seoRoutes(api, deps);
+    pushAdminRoutes(api, deps);
     homeBlockRoutes(api, deps);
     mailStudioRoutes(api, deps);
     // Yalnızca otomatik uçtan uca testlerde: gönderilmiş sayılan son mesajı okur. Üretimde hiç kaydedilmez.
     if (deps.config.NODE_ENV === "test" && deps.sms instanceof MemoryOutbox) {
       const outbox = deps.sms;
       api.get("/__test/last-message", async (req) => ({ text: outbox.last(String((req.query as { to?: string }).to ?? ""))?.text ?? null }));
+      // Uçtan uca testler: bu cihaz adresine giden son telefon bildirimi.
+      const push = deps.push;
+      if (push instanceof MemoryPush) api.get("/__test/last-push", async (req) => ({ push: push.last(String((req.query as { token?: string }).token ?? "")) ?? null }));
     }
   }, { prefix: "/api" });
 

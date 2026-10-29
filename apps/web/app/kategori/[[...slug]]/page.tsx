@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CategoryView, type ListingInitial } from "@/components/CategoryView";
 import type { RequestItem } from "@/lib/api";
 import { fmt } from "@/lib/format";
-import { ilPath, ldJson, locative, OG_BASE, ogImage, SITE_URL } from "@/lib/seo";
+import { alimTalepleri, ilPath, ldJson, locative, OG_BASE, ogImage, SITE_URL } from "@/lib/seo";
 import { serverApi, siteData } from "@/lib/server-api";
 
 // Kategori sayfaları: her kategori ve alt kategori kendi başlığı ve açıklamasıyla arama motorlarında yer alır.
@@ -33,7 +33,7 @@ export async function generateMetadata({ params, searchParams }: P): Promise<Met
 
   const name = s?.name ?? t?.name;
   const count = s?.active_count ?? t?.active_count ?? total;
-  const title = name ? `${name} Alım Talepleri – ${name} Almak İsteyenler` : "Tüm Alım Talepleri – Almak İsteyen Alıcılar";
+  const title = name ? `${alimTalepleri(name, true)} – ${name} Almak İsteyenler` : "Tüm Alım Talepleri – Almak İsteyen Alıcılar";
   const what = name ? `${name} almak isteyen` : "Araç, emlak, elektronik, eşya ve hizmet almak isteyen";
   const description = `${what} alıcıların güncel talepleri${count ? ` (${fmt(count)} açık talep)` : ""}. Elinizde uygun ürün varsa alıcıya doğrudan ulaşın; yeni talepler için alarm kurun. almakisterim.com`;
   return {

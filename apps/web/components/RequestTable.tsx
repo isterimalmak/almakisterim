@@ -38,7 +38,7 @@ export function RequestTable({ items, empty = "Bu kriterlere uygun talep bulunam
           <tr key={r.id} className={"row" + (r.is_urgent ? " urgent" : "")} onClick={() => router.push(talepPath(r))}>
             <td>
               <div className="ti">
-                {r.cover_url ? <img className="ti-ic ti-img" src={r.cover_url} alt="" loading="lazy" /> : <CatIcon top={r.top_id} />}
+                {r.cover_url ? <img className="ti-ic ti-img" src={r.cover_url} alt={r.title} loading="lazy" /> : <CatIcon top={r.top_id} />}
                 <div>
                   <Link href={talepPath(r)} className="ti-t" onClick={(e) => e.stopPropagation()}>{r.title}</Link>
                   <div className="ti-s">{[r.category_name, attrLine(r.top_id, r.condition, r.attrs, r.category_id)].filter(Boolean).join(" · ")}</div>
@@ -63,7 +63,7 @@ export function VitrinCard({ r }: { r: RequestItem }) {
   const icon = categories.find((c) => c.id === r.top_id)?.icon ?? "box";
   return (
     <Link className="vc" href={talepPath(r)}>
-      <div className="vc-img" style={{ background: t.c, color: t.fc }}>{r.cover_url ? <img src={r.cover_url} alt="" loading="lazy" /> : <Icon name={icon} sw={1.5} />}<span className="vc-tag"><Labels r={r} /></span></div>
+      <div className="vc-img" style={{ background: t.c, color: t.fc }}>{r.cover_url ? <img src={r.cover_url} alt={r.title} loading="lazy" /> : <Icon name={icon} sw={1.5} />}<span className="vc-tag"><Labels r={r} /></span></div>
       <div className="vc-b">
         <div className="vc-t">{r.title}</div>
         <div className="vc-p">{fmt(r.budget_max)} TL&apos;ye kadar</div>
@@ -81,7 +81,7 @@ export function VitrinTile({ r }: { r: RequestItem }) {
   return (
     <Link className="vt-i" href={talepPath(r)} title={r.title}>
       <span className="vt-img" style={{ background: t.c, color: t.fc }}>
-        {r.cover_url ? <img src={r.cover_url} alt="" loading="lazy" /> : <Icon name={icon} size={34} sw={1.4} />}
+        {r.cover_url ? <img src={r.cover_url} alt={r.title} loading="lazy" /> : <Icon name={icon} size={34} sw={1.4} />}
         {r.is_featured && <span className="vt-star" aria-label="Öne çıkan">★</span>}
       </span>
       {/* Telefonda resmin altında renkli şerit (Trendyol'daki "Tükeniyor!" gibi) */}

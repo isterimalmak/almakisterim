@@ -102,7 +102,10 @@
     },
     "extra": {
       "apiUrl": "https://almakisterim.com",
-      "eas": {}
-    }
+      "eas": {
+        "projectId": "2005621c-fc64-4782-af98-53986c5da65a"
+      }
+    },
+    "owner": "almakisterim"
   }
 }

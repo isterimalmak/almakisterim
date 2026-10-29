@@ -31,7 +31,7 @@ export function Header() {
     <>
       <header className="hdr">
         <div className="wrap hdr-in">
-          <Link href="/" className="logo" aria-label={`${siteName} ana sayfa`}><img className="logo-mark" src="/logo.png" alt="" width={36} height={36} /><span className="logo-txt">{nameMain}{nameExt && <span>{nameExt}</span>}</span></Link>
+          <Link href="/" className="logo" aria-label={`${siteName} ana sayfa`}><img className="logo-mark" src="/logo.png" alt="almakisterim logosu" width={36} height={36} /><span className="logo-txt">{nameMain}{nameExt && <span>{nameExt}</span>}</span></Link>
           <SearchForm />
           <div className="hdr-right">
             {user ? (
@@ -49,7 +49,7 @@ export function Header() {
           </div>
         </div>
         {/* Telefonda tek satır: logo arama kutusunun başında, adı yazmaz (hesap ve bildirimler alt menüde). */}
-        <div className="mob-search"><Link href="/" className="logo" aria-label={`${siteName} ana sayfa`}><img className="logo-mark" src="/logo.png" alt="" width={40} height={40} /></Link><SearchForm compact />
+        <div className="mob-search"><Link href="/" className="logo" aria-label={`${siteName} ana sayfa`}><img className="logo-mark" src="/logo.png" alt="almakisterim logosu" width={40} height={40} /></Link><SearchForm compact />
           <Link href={user ? "/bana-ozel?s=bildirim" : "/giris"} className="mh-ic" aria-label="Bildirimler"><Icon name="bell" size={25} sw={1.8} />{!!user?.unread_notifications && <span className="badge">{user.unread_notifications}</span>}</Link>
         </div>
       </header>

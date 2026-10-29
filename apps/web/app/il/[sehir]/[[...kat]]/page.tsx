@@ -5,7 +5,7 @@ import { RequestTable } from "@/components/RequestTable";
 import type { RequestItem } from "@/lib/api";
 import { CITIES } from "@/lib/catalog";
 import { fmt } from "@/lib/format";
-import { ilPath, ldJson, locative, OG_BASE, ogImage, SITE_URL, slugify } from "@/lib/seo";
+import { alimTalepleri, ilPath, ldJson, locative, OG_BASE, ogImage, SITE_URL, slugify } from "@/lib/seo";
 import { serverApi, siteData } from "@/lib/server-api";
 
 // İl sayfaları: "İstanbul'da Vasıta Alım Talepleri" gibi il + kategori aramaları için sunucuda hazırlanan liste.
@@ -32,8 +32,8 @@ async function resolve(sehir: string, kat: string[] = []) {
 }
 
 const names = (city: string, name?: string) => ({
-  h1: `${locative(city)} ${name ? `${name} ` : ""}Alım Talepleri`,
-  title: name ? `${locative(city)} ${name} Alım Talepleri – ${name} Almak İsteyenler` : `${locative(city)} Alım Talepleri – ${city} Alıcıları`,
+  h1: `${locative(city)} ${name ? alimTalepleri(name, true) : "Alım Talepleri"}`,
+  title: name ? `${locative(city)} ${alimTalepleri(name, true)} – ${name} Almak İsteyenler` : `${locative(city)} Alım Talepleri – ${city} Alıcıları`,
 });
 
 export async function generateMetadata({ params }: P): Promise<Metadata> {

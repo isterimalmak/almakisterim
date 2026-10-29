@@ -1,6 +1,7 @@
 import { generateKeyPairSync, sign } from "node:crypto";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRequest, makeApp, resetData, type TestCtx } from "./helpers.js";
+import { ExpoPush } from "../src/services/push.js";
 
 let ctx: TestCtx;
 beforeEach(async () => {
@@ -51,25 +52,32 @@ describe("telefon uygulaması", () => {
     const id = await createRequest(ctx, `ak_session=${buyer}`);
     const seller = await appLogin("05321112244", "Can Yıldız");
 
+    ctx.push.gone.add("ExponentPushToken[eski]");
+    // Satıcı numarayı açınca alıcıya bildirim düşer.
+    expect((await ctx.app.inject({ method: "POST", url: `/api/requests/${id}/unlock`, headers: as(seller) })).statusCode).toBeLessThan(300);
+    expect(ctx.push.sent.map((m) => m.to).sort()).toEqual(["ExponentPushToken[alici1]", "ExponentPushToken[eski]"]);
+    expect(ctx.push.sent[0]).toMatchObject({ title: "almakisterim", data: { link: `/talep/${id}` } });
+    expect(ctx.push.sent[0]!.body).toContain("talebiniz");
+    // Silinmiş cihazın adresi kaldırılır.
+    expect((await ctx.pool.query("SELECT token FROM push_tokens")).rows.map((r) => r.token)).toEqual(["ExponentPushToken[alici1]"]);
+  });
+
+  it("Expo'ya gönderim: 100'erli paketler; silinmiş cihaz ve ağ hatası ayırt edilir", async () => {
     const sent: { url: string; body: { to: string; title: string; body: string; data: { link: string } }[] }[] = [];
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
       const body = JSON.parse(String(init.body));
       sent.push({ url, body });
       return Response.json({ data: body.map((m: { to: string }) => (m.to.includes("eski") ? { status: "error", details: { error: "DeviceNotRegistered" } } : { status: "ok" })) });
     });
-    // Satıcı numarayı açınca alıcıya bildirim düşer.
-    expect((await ctx.app.inject({ method: "POST", url: `/api/requests/${id}/unlock`, headers: as(seller) })).statusCode).toBeLessThan(300);
-    expect(sent).toHaveLength(1);
+    const msgs = Array.from({ length: 150 }, (_, i) => ({ to: i === 120 ? "ExponentPushToken[eski]" : `ExponentPushToken[t${i}]`, title: "almakisterim", body: "Deneme", sound: "default" as const, data: { link: "/" } }));
+    const res = await new ExpoPush().send(msgs);
+    expect(sent.map((x) => x.body.length)).toEqual([100, 50]);
     expect(sent[0]!.url).toBe("https://exp.host/--/api/v2/push/send");
-    expect(sent[0]!.body.map((m) => m.to).sort()).toEqual(["ExponentPushToken[alici1]", "ExponentPushToken[eski]"]);
-    expect(sent[0]!.body[0]).toMatchObject({ title: "almakisterim", data: { link: `/talep/${id}` } });
-    expect(sent[0]!.body[0]!.body).toContain("talebiniz");
-    expect((await ctx.pool.query("SELECT token FROM push_tokens")).rows.map((r) => r.token)).toEqual(["ExponentPushToken[alici1]"]);
-
-    // Bildirim servisi çökse de akış bozulmaz.
+    expect(res.filter((r) => r === "ok")).toHaveLength(149);
+    expect(res[120]).toBe("gone");
+    // Bildirim servisine ulaşılamazsa hata sayılır ama akış bozulmaz.
     vi.stubGlobal("fetch", async () => { throw new Error("ağ yok"); });
-    await ctx.app.inject({ method: "POST", url: `/api/requests/${id}/messages`, headers: as(seller), payload: { body: "Merhaba, ürün elimde." } });
-    expect((await ctx.pool.query("SELECT count(*)::int AS n FROM messages")).rows[0].n).toBe(1);
+    expect(await new ExpoPush().send(msgs.slice(0, 2))).toEqual(["error", "error"]);
   });
 
   it("Google ile giriş: telefonun tarayıcısında yapılır, uygulamaya tek kullanımlık bilet döner", async () => {

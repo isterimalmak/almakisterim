@@ -8,8 +8,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: "almakisterim.com – Ne almak istediğinizi yazın, satıcılar size ulaşsın", template: "%s · almakisterim.com" },
-  description: "Türkiye'nin alım talebi sitesi: araç, ev, telefon, eşya ya da hizmet… Ne almak istediğinizi ücretsiz yazın, elinde olan satıcılar size ulaşsın. Satıcılar almak isteyen müşteriyi burada bulur.",
+  // Arama sonuçlarında kesilmesin: başlık en fazla ~60, açıklama ~160 karakter.
+  title: { default: "almakisterim – Alım talebi verin, satıcılar size ulaşsın", template: "%s · almakisterim.com" },
+  description: "Ne almak istediğinizi ücretsiz yazın: araç, ev, telefon, eşya ya da hizmet. Elinde olan satıcılar size ulaşsın. Türkiye'nin alım talebi sitesi.",
   openGraph: { type: "website", locale: "tr_TR", siteName: "almakisterim.com", images: [{ url: "/og/site", width: 1200, height: 630 }] },
   twitter: { card: "summary_large_image" },
   applicationName: "almakisterim",
@@ -25,7 +26,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         {/* Arama motorları için şirket ve site bilgisi; site içi arama Google sonuçlarında kutu olarak görünebilir. */}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson([
-          { "@context": "https://schema.org", "@type": "Organization", name: "almakisterim.com", url: SITE_URL, logo: `${SITE_URL}/logo.png` },
+          { "@context": "https://schema.org", "@type": "Organization", name: "almakisterim.com", url: SITE_URL, logo: `${SITE_URL}/logo.png`,
+            contactPoint: { "@type": "ContactPoint", contactType: "customer support", email: "destek@almakisterim.com", availableLanguage: "Turkish" } },
           { "@context": "https://schema.org", "@type": "WebSite", name: "almakisterim.com", url: SITE_URL, inLanguage: "tr-TR",
             potentialAction: { "@type": "SearchAction", target: `${SITE_URL}/kategori?q={search_term_string}`, "query-input": "required name=search_term_string" } },
         ]) }} />
