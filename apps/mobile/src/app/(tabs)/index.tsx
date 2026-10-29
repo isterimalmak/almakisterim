@@ -26,7 +26,7 @@ function TopBar() {
   const search = () => router.push({ pathname: "/talepler", params: q.trim() ? { q: q.trim() } : {} });
   const unread = user?.unread_notifications ?? 0;
   return (
-    <View style={{ backgroundColor: C.card, paddingTop: insets.top + 8, paddingBottom: 10, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10, borderBottomWidth: 1, borderBottomColor: C.line }}>
+    <View style={{ backgroundColor: C.card, paddingTop: insets.top + 14, paddingBottom: 12, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10, borderBottomWidth: 1, borderBottomColor: C.line }}>
       <Image source={require("../../../assets/icon.png")} style={{ width: 40, height: 40, borderRadius: 10 }} accessibilityLabel="almakisterim" />
       <View style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: "#F1F2F5", borderRadius: R.pill, paddingHorizontal: 12, gap: 8 }}>
         <Icon name="search" size={18} color={C.orange} sw={2.2} />
@@ -116,7 +116,7 @@ export default function Home() {
       <Welcome ad={ads?.welcome} />
       <TopBar />
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await Promise.all([loadSite(), loadLists()]); setRefreshing(false); }} />}
-        contentContainerStyle={{ paddingTop: 10, paddingBottom: 30 }}>
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 30 }}>
         {shown.map((b) => <View key={b.id}>{b.type === "builtin" ? builtin(b.id) : <CustomBlock b={b} ads={ads?.blok ?? []} />}</View>)}
       </ScrollView>
     </View>
