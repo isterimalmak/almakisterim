@@ -41,3 +41,9 @@ Bir kerelik kurulum (sahibi yapar, anahtarlar depoya konmaz):
   Firebase → Proje ayarları → Hizmet hesapları → *Yeni özel anahtar oluştur* ile inen dosya expo.dev → Credentials → Android →
   *FCM V1 service account key*'e yüklenir. Sonra Android derlemesi yeniden alınır.
 - **iPhone:** Apple Developer hesabı onaylanınca ilk iOS derlemesinde EAS bildirim anahtarını (APNs) kendisi oluşturur.
+
+## Anlık güncelleme (Expo Updates)
+
+Ekran ve yazı değişiklikleri GitHub > Actions > "Uygulamayı anlık güncelle" ile mağaza incelemesi beklemeden telefonlara gider
+(uygulama bir sonraki açılışta yükler). Yalnız aynı sürüm numaralı derlemelere gider (`app.json` → `version`, runtimeVersion: appVersion).
+Yeni yerel bileşen (ör. expo-video) eklendiğinde önce yeni mağaza derlemesi alınır.

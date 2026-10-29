@@ -106,6 +106,14 @@
         "projectId": "2005621c-fc64-4782-af98-53986c5da65a"
       }
     },
-    "owner": "almakisterim"
+    "owner": "almakisterim",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2005621c-fc64-4782-af98-53986c5da65a",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }
