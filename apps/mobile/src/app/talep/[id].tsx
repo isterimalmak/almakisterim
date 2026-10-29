@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Dimensions, FlatList, Linking, Pressable, RefreshControl, ScrollView, Share, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/Sheet";
 import { Box, Btn, Err, Skeleton } from "@/components/ui";
@@ -22,6 +23,7 @@ const phoneTr = (p: string) => p.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$
 const val = (v: unknown) => (Array.isArray(v) ? v.filter((x) => !isAny(x)).join(", ") : typeof v === "object" && v ? Object.values(v).filter((x) => !isAny(x)).join(" – ") : String(v));
 
 export default function Talep() {
+  const bottom = useSafeAreaInsets().bottom;
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSession();
   const [d, setD] = useState<{ request: Req; contact: Contact | null } | null>(null);
@@ -86,7 +88,7 @@ export default function Talep() {
           <Pressable accessibilityRole="button" accessibilityLabel={r.is_favorite ? "Favorilerden çıkar" : "Favorilere ekle"} onPress={fav}><Icon name="heart" size={23} color={r.is_favorite ? C.red : C.navy} fill={r.is_favorite ? C.red : "none"} /></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Paylaş" onPress={() => void Share.share({ message: `${r.title} – ${API_URL}/talep/${r.id}` })}><Icon name="share" size={22} color={C.navy} /></Pressable>
         </View>) }} />
-      <ScrollView refreshControl={<RefreshControl refreshing={false} onRefresh={load} />} contentContainerStyle={{ paddingBottom: 110 }}>
+      <ScrollView refreshControl={<RefreshControl refreshing={false} onRefresh={load} />} contentContainerStyle={{ paddingBottom: 110 + bottom }}>
         {media.length ? (
           <FlatList horizontal pagingEnabled data={media} keyExtractor={(m) => m.id} showsHorizontalScrollIndicator={false}
             renderItem={({ item, index }) => (
@@ -173,7 +175,7 @@ export default function Talep() {
           : sheet?.kind === "numara" ? [{ value: "ulasilamiyor", label: "Numaraya ulaşılamıyor" }, { value: "yanlis_numara", label: "Yanlış numara" }, { value: "sahte_talep", label: "Sahte talep" }]
           : [{ value: "rahatsiz_etti", label: "Beni rahatsız etti (numaram bu satıcıdan gizlensin)" }]}
         onSubmit={(v, n) => { if (sheet) void report(sheet.kind, "unlockId" in sheet ? sheet.unlockId : null, v, n); }} />
-      <View style={[{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 12, paddingBottom: 22, backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, flexDirection: "row", gap: 8 }, SH.lg]}>
+      <View style={[{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 12, paddingBottom: 22 + bottom, backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, flexDirection: "row", gap: 8 }, SH.lg]}>
         {r.is_owner ? (
           r.status === "active" ? <Btn style={{ flex: 1 }} kind="wh" title="Talebi kapat" onPress={close} /> : <Text style={{ flex: 1, textAlign: "center", color: C.muted, padding: 12 }}>Bu sizin talebiniz.</Text>
         ) : r.status !== "active" ? <Text style={{ flex: 1, textAlign: "center", color: C.muted, padding: 12 }}>Bu talep artık yayında değil.</Text> : (

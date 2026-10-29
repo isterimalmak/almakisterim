@@ -1,6 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Tabs } from "expo-router";
 import { Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/Icon";
 import { tap } from "@/components/ui";
 import { useSession } from "@/lib/session";
@@ -23,11 +24,13 @@ function TalepVerButton(p: { onPress?: (e: never) => void; accessibilityState?: 
 
 export default function TabsLayout() {
   const { user } = useSession();
+  // Android'in alt gezinme tuşları (geri, ana ekran) menünün üstüne binmesin: alttaki boşluk kadar yükselt.
+  const bottom = useSafeAreaInsets().bottom;
   return (
     <Tabs screenListeners={{ tabPress: () => tap() }} screenOptions={{
       headerStyle: { backgroundColor: C.card }, headerTintColor: C.navy, headerTitleStyle: { fontWeight: "800", color: C.navy, fontSize: 19 }, headerShadowVisible: false,
       tabBarActiveTintColor: C.orange, tabBarInactiveTintColor: "#8A919C", tabBarLabelStyle: { fontSize: 11, fontWeight: "700", lineHeight: 15 },
-      tabBarStyle: { backgroundColor: C.card, borderTopColor: C.line, height: 70, paddingTop: 6, paddingBottom: 12 },
+      tabBarStyle: { backgroundColor: C.card, borderTopColor: C.line, height: 70 + bottom, paddingTop: 6, paddingBottom: 12 + bottom },
       tabBarBadgeStyle: { backgroundColor: C.orange, fontSize: 10, fontWeight: "800" }, sceneStyle: { backgroundColor: C.bg },
     }}>
       {/* Ana sayfanın kendi üst çubuğu var (logo, arama, bildirimler; sitedeki gibi beyaz). */}

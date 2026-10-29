@@ -63,10 +63,13 @@ export function Hero({ T, examples }: { T: (k: string) => string; examples: stri
 
 /* ---------------- Kategori kutucukları ---------------- */
 export function CatTiles({ cats, browse, count, urgentTotal }: { cats: Category[]; browse: boolean; count: (n?: number) => number | null; urgentTotal: number }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityLabel="Kategoriler" contentContainerStyle={{ paddingHorizontal: 12, gap: 12, paddingVertical: 4, marginBottom: 10 }}>
+  // Az kategori varsa (4 ve altı) satıra eşit yayılır; sağ taraf boş kalmasın. Fazlaysa yana kayar.
+  const few = cats.length + (urgentTotal > 0 ? 1 : 0) <= 4;
+  const tile = few ? { flex: 1, alignItems: "center" as const, gap: 6 } : { width: 76, alignItems: "center" as const, gap: 6 };
+  const items = (
+    <>
       {urgentTotal > 0 && (
-        <Pressable accessibilityRole="link" accessibilityLabel="Acil Talepler" onPress={() => router.push({ pathname: "/talepler", params: { urgent: "1" } })} style={{ width: 76, alignItems: "center", gap: 6 }}>
+        <Pressable accessibilityRole="link" accessibilityLabel="Acil Talepler" onPress={() => router.push({ pathname: "/talepler", params: { urgent: "1" } })} style={tile}>
           <View style={{ width: 70, height: 70, borderRadius: 18, borderWidth: 2.5, borderColor: C.red, alignItems: "center", justifyContent: "center" }}>
             <View style={{ width: 50, height: 50, borderRadius: 12, backgroundColor: C.red, alignItems: "center", justifyContent: "center" }}><Icon name="bolt" size={24} color="#fff" sw={2.2} /></View>
           </View>
@@ -78,7 +81,7 @@ export function CatTiles({ cats, browse, count, urgentTotal }: { cats: Category[
         const n = count(c.active_count);
         return (
           <Pressable key={c.id} accessibilityRole="link" accessibilityLabel={c.name}
-            onPress={() => (browse ? router.push({ pathname: "/talepler", params: { top: c.id } }) : router.push("/talep-ver"))} style={{ width: 76, alignItems: "center", gap: 6 }}>
+            onPress={() => (browse ? router.push({ pathname: "/talepler", params: { top: c.id } }) : router.push("/talep-ver"))} style={tile}>
             <View style={{ width: 70, height: 70, borderRadius: 18, borderWidth: 2.5, borderColor: t.fc, alignItems: "center", justifyContent: "center" }}>
               <View style={{ width: 50, height: 50, borderRadius: 12, backgroundColor: t.c, alignItems: "center", justifyContent: "center" }}><Icon name={c.icon} size={24} color={t.fc} /></View>
               {n !== null && <Text style={{ position: "absolute", bottom: -8, backgroundColor: t.fc, color: "#fff", fontSize: 10, fontWeight: "800", paddingHorizontal: 6, paddingVertical: 1, borderRadius: R.pill, overflow: "hidden" }}>{n} talep</Text>}
@@ -87,7 +90,12 @@ export function CatTiles({ cats, browse, count, urgentTotal }: { cats: Category[
           </Pressable>
         );
       })}
-    </ScrollView>
+    </>
+  );
+  return few ? (
+    <View accessibilityLabel="Kategoriler" style={{ flexDirection: "row", paddingHorizontal: 12, gap: 12, paddingVertical: 4, marginBottom: 14 }}>{items}</View>
+  ) : (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityLabel="Kategoriler" contentContainerStyle={{ paddingHorizontal: 12, gap: 12, paddingVertical: 4, marginBottom: 14 }}>{items}</ScrollView>
   );
 }
 

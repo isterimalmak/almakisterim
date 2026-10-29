@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Empty, Err, Loading, s } from "@/components/ui";
 import { api } from "@/lib/api";
 import { ago } from "@/lib/format";
@@ -12,6 +13,7 @@ type Data = { can_write?: boolean; messages?: Msg[]; threads?: Thread[] };
 
 /** Bir talep üzerindeki konuşma. Alıcı birden fazla satıcıyla konuşabilir; satıcı yalnızca alıcıyla. */
 export default function Mesaj() {
+  const bottom = useSafeAreaInsets().bottom;
   const { id, satici } = useLocalSearchParams<{ id: string; satici?: string }>();
   const [d, setD] = useState<Data | null>(null);
   const [seller, setSeller] = useState<string | undefined>(satici);
@@ -56,7 +58,7 @@ export default function Mesaj() {
           </View>)} />
       {err ? <View style={{ paddingHorizontal: 12 }}><Err text={err} /></View> : null}
       {canWrite ? (
-        <View style={{ flexDirection: "row", gap: 8, padding: 10, paddingBottom: 20, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line }}>
+        <View style={{ flexDirection: "row", gap: 8, padding: 10, paddingBottom: 20 + bottom, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line }}>
           <TextInput accessibilityLabel="Mesajınız" placeholder="Mesajınızı yazın" value={text} onChangeText={setText} multiline maxLength={2000} style={[s.inp, { flex: 1, maxHeight: 120 }]} />
           <Pressable accessibilityRole="button" accessibilityLabel="Gönder" disabled={busy || !text.trim()} onPress={send}
             style={{ backgroundColor: C.orange, borderRadius: R.md, paddingHorizontal: 16, justifyContent: "center", opacity: busy || !text.trim() ? 0.5 : 1 }}>
