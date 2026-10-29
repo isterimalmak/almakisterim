@@ -1,0 +1,68 @@
+# Telefon uygulamasına anlık güncelleme (Expo Updates): ekran ve yazı değişiklikleri mağaza incelemesi beklemeden
+# kullanıcıların telefonuna gider; uygulama bir sonraki açılışta yeni hâli yükler.
+# Yalnız aynı sürüm numaralı (app.json → version) mağaza derlemelerine gider; yeni yerel bileşen eklendiyse önce
+# "Android (Google Play)" derlemesi gerekir. Elle başlatılır: GitHub > Actions > "Uygulamayı anlık güncelle" > Run workflow (main).
+name: Uygulamayı anlık güncelle
+
+on:
+  workflow_dispatch:
+    inputs:
+      onay:
+        description: "Onaylamak için CANLIYA AL yazın"
+        required: true
+      mesaj:
+        description: "Güncellemenin kısa açıklaması"
+        required: false
+        default: "Uygulama güncellemesi"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_API_URL: https://almakisterim.com
+    steps:
+      - name: Onay ve yetki kontrolü
+        working-directory: .
+        env:
+          ONAY: ${{ inputs.onay }}
+          KIM: ${{ github.triggering_actor }}
+          DAL: ${{ github.ref }}
+        run: |
+          [[ "$KIM" == "isterimalmak" || "$KIM" == "coskungulerlokalusta" ]] || { echo "::error::Bu hesap güncelleme başlatamaz: $KIM"; exit 1; }
+          [[ "$DAL" == "refs/heads/main" ]] || { echo "::error::Güncelleme yalnızca main dalından yapılır."; exit 1; }
+          [[ "$ONAY" == "CANLIYA AL" ]] || { echo "::error::Onay kutusuna CANLIYA AL yazılmadı."; exit 1; }
+          [ -n "$EXPO_TOKEN" ] || { echo "::error::EXPO_TOKEN tanımlı değil."; exit 1; }
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bağımlılıklar ve tip denetimi
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: Güncellemeyi yayınla
+        env:
+          MESAJ: ${{ inputs.mesaj }}
+        run: |
+          npx --yes eas-cli@25 update --branch production --message "$MESAJ" --non-interactive --json > update.json
+          node -e "
+            const u = require('./update.json');
+            const out = ['### Uygulama güncellemesi yayında ✅', '- Açıklama: ' + process.env.MESAJ, '- Platformlar: ' + u.map((x) => x.platform).join(', ')].join('\n');
+            require('fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY, out + '\n');
+            console.log(out);
+          "
