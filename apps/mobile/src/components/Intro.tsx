@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
 import { Dimensions, FlatList, Modal, Pressable, Text, View } from "react-native";
 import { getItem, setItem } from "@/lib/store";
@@ -23,7 +24,7 @@ export function Intro() {
   const next = () => { if (i >= SLIDES.length - 1) return done(); list.current?.scrollToIndex({ index: i + 1 }); setI(i + 1); };
   return (
     <Modal visible={open} animationType="fade" onRequestClose={done}>
-      <View style={{ flex: 1, backgroundColor: C.navy, paddingTop: 50, paddingBottom: 30 }}>
+      <LinearGradient colors={["#1E3A8A", "#13235B", "#0B1638"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, paddingTop: 50, paddingBottom: 30 }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Tanıtımı geç" onPress={done} style={{ alignSelf: "flex-end", padding: 16 }}>
           <Text style={{ color: "#C9D0E4", fontWeight: "700" }}>Geç</Text>
         </Pressable>
@@ -43,7 +44,7 @@ export function Intro() {
         <View style={{ paddingHorizontal: 24 }}>
           <Btn title={i >= SLIDES.length - 1 ? "Başlayalım" : "Devam"} onPress={next} />
         </View>
-      </View>
+      </LinearGradient>
     </Modal>
   );
 }
