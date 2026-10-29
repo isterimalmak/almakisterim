@@ -3,11 +3,12 @@ import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { Btn, Err, Field } from "@/components/ui";
+import { Image } from "expo-image";
+import { Btn, Err, Field, tap } from "@/components/ui";
 import { api, API_URL } from "@/lib/api";
 import { openWeb } from "@/lib/links";
 import { useSession } from "@/lib/session";
-import { C } from "@/lib/theme";
+import { C, R, SH } from "@/lib/theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -60,14 +61,18 @@ export default function Giris() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: 18, gap: 14 }} keyboardShouldPersistTaps="handled">
-        <Text style={{ fontSize: 22, fontWeight: "800", color: C.navy }}>almakisterim'e hoş geldiniz</Text>
-        <Text style={{ color: C.muted }}>Telefon numaranıza ya da e-postanıza gelen kodla giriş yapın; hesabınız yoksa otomatik açılır.</Text>
-        <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: 8 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
+        <View style={{ alignItems: "center", gap: 10, marginTop: 6, marginBottom: 4 }}>
+          <View style={[{ borderRadius: 20 }, SH.md]}><Image source={require("../../assets/icon.png")} style={{ width: 72, height: 72, borderRadius: 20 }} accessibilityLabel="almakisterim" /></View>
+          <Text style={{ fontSize: 23, fontWeight: "900", color: C.navy, textAlign: "center" }}>almakisterim'e hoş geldiniz</Text>
+          <Text style={{ color: C.muted, textAlign: "center", lineHeight: 20 }}>Telefon numaranıza ya da e-postanıza gelen kodla giriş yapın; hesabınız yoksa otomatik açılır.</Text>
+        </View>
+        {/* Tek parça seçim: seçili olan beyaz kart olarak öne çıkar. */}
+        <View accessibilityRole="tablist" style={{ flexDirection: "row", backgroundColor: "#E9ECF2", borderRadius: R.pill, padding: 4 }}>
           {(["sms", "email"] as const).map((c) => (
-            <Pressable key={c} accessibilityRole="tab" accessibilityState={{ selected: channel === c }} onPress={() => { setChannel(c); setSent(false); setTarget(""); }}
-              style={{ flex: 1, padding: 12, borderRadius: 999, alignItems: "center", backgroundColor: channel === c ? C.navy : C.card, borderWidth: 1, borderColor: C.line }}>
-              <Text style={{ fontWeight: "700", color: channel === c ? "#fff" : C.navy }}>{c === "sms" ? "Telefon" : "E-posta"}</Text>
+            <Pressable key={c} accessibilityRole="tab" accessibilityState={{ selected: channel === c }} onPress={() => { tap(); setChannel(c); setSent(false); setTarget(""); }}
+              style={[{ flex: 1, paddingVertical: 11, borderRadius: R.pill, alignItems: "center", backgroundColor: channel === c ? C.card : "transparent" }, channel === c ? SH.sm : {}]}>
+              <Text style={{ fontWeight: "800", color: channel === c ? C.navy : C.muted }}>{c === "sms" ? "Telefon" : "E-posta"}</Text>
             </Pressable>
           ))}
         </View>

@@ -24,8 +24,9 @@ export default function Root() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SessionProvider>
-          <StatusBar style="light" />
-          <Stack screenOptions={{ headerStyle: { backgroundColor: C.navy }, headerTintColor: "#fff", headerTitleStyle: { fontWeight: "700" }, contentStyle: { backgroundColor: C.bg }, headerBackTitle: "Geri" }}>
+          {/* Beyaz üst çubuk (sitedeki gibi): koyu durum çubuğu yazıları, lacivert başlık. */}
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerStyle: { backgroundColor: C.card }, headerTintColor: C.navy, headerTitleStyle: { fontWeight: "800", color: C.navy }, headerShadowVisible: false, contentStyle: { backgroundColor: C.bg }, headerBackTitle: "Geri" }}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="talep/[id]" options={{ title: "Talep" }} />
             <Stack.Screen name="mesaj/[id]" options={{ title: "Mesajlar" }} />

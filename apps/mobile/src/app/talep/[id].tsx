@@ -4,17 +4,19 @@ import { useCallback, useEffect, useState } from "react";
 import { Dimensions, FlatList, Linking, Pressable, RefreshControl, ScrollView, Share, Text, View } from "react-native";
 import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/Sheet";
-import { Box, Btn, Err, Loading } from "@/components/ui";
+import { Box, Btn, Err, Skeleton } from "@/components/ui";
+import { theme } from "@/lib/home";
 import { abs, api, API_URL, ApiError } from "@/lib/api";
 import { attrsFor } from "@/lib/catalog";
 import { confirm } from "@/lib/confirm";
 import { ago, dateTr, isAny, place, price } from "@/lib/format";
 import { isVehicleSub, vehicleRows, type VehicleAttrs } from "@/lib/vehicles";
 import { useSession } from "@/lib/session";
-import { C, R } from "@/lib/theme";
+import { C, R, SH } from "@/lib/theme";
 import type { Contact, Req } from "@/lib/types";
 
 const W = Dimensions.get("window").width;
+const CAT_ICON: Record<string, string> = { vasita: "car", emlak: "home", elektronik: "phone", ev: "sofa", yedek: "gear", hizmet: "wrench", ders: "book", sanayi: "crane", moda: "shirt", bebek: "stroller", spor: "bike", toptan: "box" };
 const LABELS: Record<string, string> = { marka: "Marka", model: "Model", yil: "Yıl", yakit: "Yakıt", vites: "Vites", km: "Kilometre", oda: "Oda sayısı", m2: "m²", hafiza: "Hafıza", renk: "Renk", isitma: "Isıtma", esya: "Eşyalı", imar: "İmar durumu", tapu: "Tapu" };
 const phoneTr = (p: string) => p.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4");
 const val = (v: unknown) => (Array.isArray(v) ? v.filter((x) => !isAny(x)).join(", ") : typeof v === "object" && v ? Object.values(v).filter((x) => !isAny(x)).join(" – ") : String(v));
@@ -36,7 +38,7 @@ export default function Talep() {
   useEffect(() => { void load(); }, [load, user?.id]);
 
   if (err && !d) return <View style={{ padding: 20 }}><Err text={err} /></View>;
-  if (!d) return <Loading />;
+  if (!d) return <Skeleton rows={3} />;
   const r = d.request;
   const media = (r.media ?? []).filter((m) => m.kind === "image");
   // Alan adları kategorinin tanımından (oda sayısı, m², ısıtma…).
@@ -81,8 +83,8 @@ export default function Talep() {
     <>
       <Stack.Screen options={{ title: `#${r.id}`, headerRight: () => (
         <View style={{ flexDirection: "row", gap: 16 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel={r.is_favorite ? "Favorilerden çıkar" : "Favorilere ekle"} onPress={fav}><Icon name="heart" size={22} color="#fff" fill={r.is_favorite ? "#fff" : "none"} /></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Paylaş" onPress={() => void Share.share({ message: `${r.title} – ${API_URL}/talep/${r.id}` })}><Icon name="share" size={22} color="#fff" /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={r.is_favorite ? "Favorilerden çıkar" : "Favorilere ekle"} onPress={fav}><Icon name="heart" size={23} color={r.is_favorite ? C.red : C.navy} fill={r.is_favorite ? C.red : "none"} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Paylaş" onPress={() => void Share.share({ message: `${r.title} – ${API_URL}/talep/${r.id}` })}><Icon name="share" size={22} color={C.navy} /></Pressable>
         </View>) }} />
       <ScrollView refreshControl={<RefreshControl refreshing={false} onRefresh={load} />} contentContainerStyle={{ paddingBottom: 110 }}>
         {media.length ? (
@@ -91,17 +93,31 @@ export default function Talep() {
               <View><Image source={{ uri: abs(item.url) }} style={{ width: W, height: W * 0.75, backgroundColor: "#000" }} contentFit="contain" accessibilityLabel={`Fotoğraf ${index + 1}`} />
                 <Text style={{ position: "absolute", right: 10, bottom: 10, color: "#fff", backgroundColor: "rgba(0,0,0,.55)", paddingHorizontal: 8, borderRadius: 10 }}>{index + 1}/{media.length}</Text></View>
             )} />
-        ) : null}
-        <View style={{ padding: 14, gap: 12 }}>
+        ) : (
+          <View style={{ height: 150, backgroundColor: theme(r.top_id).c, alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <View style={{ width: 66, height: 66, borderRadius: 20, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}><Icon name={CAT_ICON[r.top_id] ?? "box"} size={34} color={theme(r.top_id).fc} /></View>
+            <Text style={{ color: theme(r.top_id).fc, fontWeight: "800" }}>{r.top_name}</Text>
+          </View>
+        )}
+        <View style={{ padding: 14, gap: 12, marginTop: -14, backgroundColor: C.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
               {r.is_urgent ? <Text style={{ backgroundColor: C.red, color: "#fff", fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>ACİL</Text> : null}
               {r.is_corporate ? <Text style={{ backgroundColor: C.navy, color: "#fff", fontSize: 11, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>KURUMSAL</Text> : null}
               <Text style={{ color: C.muted, fontSize: 12 }}>{r.top_name} › {r.category_name}</Text>
             </View>
-            <Text accessibilityRole="header" style={{ fontSize: 20, fontWeight: "800", color: C.navy }}>{r.title}</Text>
-            <Text style={{ fontSize: 24, fontWeight: "800", color: C.orange }}>{price(r.budget_max)}</Text>
-            <Text style={{ color: C.muted }}>{place(r)} · {ago(r.created_at)}</Text>
+            <Text accessibilityRole="header" style={{ fontSize: 21, fontWeight: "900", color: C.navy, lineHeight: 27 }}>{r.title}</Text>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
+              <Text style={{ fontSize: 26, fontWeight: "900", color: C.orange }}>{price(r.budget_max)}</Text>
+              <Text style={{ color: C.muted, fontSize: 12, fontWeight: "700" }}>bütçe</Text>
+            </View>
+            {/* Konum, tarih ve teklif sayısı küçük etiketler hâlinde */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {[["pin", place(r)], ["clock", ago(r.created_at)], ["chat", `${r.offer_count} teklif`]].filter(([, t]) => t).map(([ic, t]) => (
+                <View key={ic} style={[{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.card, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: C.line }]}>
+                  <Icon name={ic!} size={13} color={C.muted} /><Text style={{ color: C.text, fontSize: 12, fontWeight: "600" }}>{t}</Text>
+                </View>))}
+            </View>
             {r.status !== "active" ? <Text style={{ color: C.red, fontWeight: "700" }}>{r.status === "pending_review" ? "İnceleniyor" : "Bu talep kapandı"}</Text> : null}
           </View>
           <Box title="Talep bilgileri">
@@ -157,7 +173,7 @@ export default function Talep() {
           : sheet?.kind === "numara" ? [{ value: "ulasilamiyor", label: "Numaraya ulaşılamıyor" }, { value: "yanlis_numara", label: "Yanlış numara" }, { value: "sahte_talep", label: "Sahte talep" }]
           : [{ value: "rahatsiz_etti", label: "Beni rahatsız etti (numaram bu satıcıdan gizlensin)" }]}
         onSubmit={(v, n) => { if (sheet) void report(sheet.kind, "unlockId" in sheet ? sheet.unlockId : null, v, n); }} />
-      <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 12, paddingBottom: 22, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.line, flexDirection: "row", gap: 8 }}>
+      <View style={[{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 12, paddingBottom: 22, backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, flexDirection: "row", gap: 8 }, SH.lg]}>
         {r.is_owner ? (
           r.status === "active" ? <Btn style={{ flex: 1 }} kind="wh" title="Talebi kapat" onPress={close} /> : <Text style={{ flex: 1, textAlign: "center", color: C.muted, padding: 12 }}>Bu sizin talebiniz.</Text>
         ) : r.status !== "active" ? <Text style={{ flex: 1, textAlign: "center", color: C.muted, padding: 12 }}>Bu talep artık yayında değil.</Text> : (

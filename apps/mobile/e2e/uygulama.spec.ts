@@ -45,7 +45,7 @@ async function login(page: Page, phone: string, name: string) {
   await acceptTerms(page);
 }
 
-test("ana sayfa: arama, kategoriler ve Son Eklenen Talepler; kategoriye dokununca talepler listelenir", async ({ page }) => {
+test("ana sayfa: sitedeki gibi üst çubuk, talep kutusu, kategoriler ve Son Eklenen Talepler; talep kutusu Talep Ver'e götürür", async ({ page }) => {
   await page.goto("/");
   // İlk açılışta tanıtım: Devam → Devam → Başlayalım; bir daha gösterilmez.
   await expect(page.getByText("Almak istediğini yaz")).toBeVisible();
@@ -53,15 +53,27 @@ test("ana sayfa: arama, kategoriler ve Son Eklenen Talepler; kategoriye dokununc
   await expect(page.getByText("Satıcılar sana ulaşsın")).toBeVisible();
   await page.getByRole("button", { name: "Devam" }).click();
   await page.getByRole("button", { name: "Başlayalım" }).click();
-  await expect(page.getByText("Neyi arıyorsunuz?")).toBeVisible();
+  // Sitedeki talep kutusu (Yönetim → Ana Sayfa Düzeni'ndeki yazılarla; burada varsayılanlar).
+  await expect(page.getByRole("heading", { name: "Ne almak istiyorsunuz?" })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Neyi arıyorsunuz?")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ne almak istiyorsunuz?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Tanıtımı geç" })).toHaveCount(0);
+  await expect(page.getByLabel("Talep ara")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Bildirimler" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Vasıta" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Son Eklenen Talepler" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nasıl çalışır?" })).toBeVisible();
+  // Talep kutusuna yazılan metin Talep Ver'e taşınır.
+  await page.getByLabel("Ne almak istiyorsunuz?").fill("iPhone 15 almak istiyorum");
+  await page.getByRole("button", { name: "Talep Oluştur" }).click();
+  await expect(page).toHaveURL(/talep-ver\?metin=iPhone/);
+  // Girişsiz ziyaretçiden önce giriş istenir; yazdığı metin giriş sonrası kutuda olur.
+  await expect(page.getByText("Ücretsiz talep verin")).toBeVisible();
+  await page.goto("/");
   await page.getByRole("link", { name: "Vasıta" }).click();
   await expect(page).toHaveURL(/talepler\?top=vasita/);
-  await expect(page.getByText(/\d+ talep/)).toBeVisible();
+  // Ana sayfadaki kategori kutucuklarında da "N talep" yazar; görünen listedeki sayı aranır.
+  await expect(page.getByText(/\d+ talep/).locator("visible=true").first()).toBeVisible();
   await expect(page.locator("[aria-label]").filter({ hasText: "TL" }).first()).toBeVisible();
 });
 

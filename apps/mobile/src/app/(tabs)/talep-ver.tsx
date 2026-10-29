@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { Icon } from "@/components/Icon";
@@ -22,7 +22,10 @@ const MAX_PHOTOS = 8;
 export default function TalepVer() {
   const { user, refresh } = useSession();
   const cats = useCats();
-  const [raw, setRaw] = useState("");
+  // Ana sayfadaki talep kutusuna yazılan metin buraya gelir (?metin=…).
+  const params = useLocalSearchParams<{ metin?: string }>();
+  const [raw, setRaw] = useState(params.metin ?? "");
+  useEffect(() => { if (params.metin) setRaw(params.metin); }, [params.metin]);
   const [sub, setSub] = useState("");
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -115,11 +118,20 @@ export default function TalepVer() {
   });
 
   if (!user) return (
-    <View style={{ padding: 20, gap: 14 }}>
-      <Text style={{ fontSize: 20, fontWeight: "800", color: C.navy }}>Ücretsiz talep verin</Text>
-      <Text style={{ color: C.muted }}>Almak istediğinizi yazın; elinde o ürün olan satıcılar size ulaşsın. Talep vermek için giriş yapın.</Text>
+    <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+      <View style={{ alignItems: "center", gap: 10, paddingVertical: 10 }}>
+        <View style={{ width: 84, height: 84, borderRadius: 26, backgroundColor: C.soft, alignItems: "center", justifyContent: "center" }}><Icon name="plus" size={40} color={C.orange} sw={2.4} /></View>
+        <Text style={{ fontSize: 23, fontWeight: "900", color: C.navy, textAlign: "center" }}>Ücretsiz talep verin</Text>
+        <Text style={{ color: C.muted, textAlign: "center", lineHeight: 20 }}>Almak istediğinizi yazın; elinde o ürün olan satıcılar size ulaşsın. Talep vermek için giriş yapın.</Text>
+      </View>
+      {raw ? <Box title="Yazdığınız"><Text style={{ color: C.text }}>{raw}</Text><Text style={{ color: C.muted, fontSize: 12 }}>Giriş yaptıktan sonra bu metinle devam edersiniz.</Text></Box> : null}
+      {[["chat", "Tek cümleyle yazın", "Yapay zekâ formu sizin için doldurur."], ["bell", "Satıcılar size ulaşsın", "Elinde ürün olan satıcılar arar ya da mesaj atar."], ["shield", "Numaranız güvende", "Yalnız sınırlı sayıda satıcı görür, istediğiniz an gizlersiniz."]].map(([ic, t, d]) => (
+        <View key={t} style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+          <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: C.navySoft, alignItems: "center", justifyContent: "center" }}><Icon name={ic!} size={20} color={C.navy} /></View>
+          <View style={{ flex: 1 }}><Text style={{ fontWeight: "800", color: C.text }}>{t}</Text><Text style={{ color: C.muted, fontSize: 13 }}>{d}</Text></View>
+        </View>))}
       <Btn title="Giriş yap / Üye ol" onPress={() => router.push("/giris")} />
-    </View>
+    </ScrollView>
   );
 
   return (
