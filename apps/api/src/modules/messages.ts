@@ -87,7 +87,7 @@ export function messageRoutes(app: FastifyInstance, deps: Deps) {
     const link = `/talep/${id}#mesajlar`;
     // E-posta: aynı konuşma için saatte en fazla bir tane (art arda yazışmada gelen kutusu dolmasın); üye kapattıysa gitmez.
     const recent = (await pool.query("SELECT 1 FROM notifications WHERE user_id = $1 AND link = $2 AND created_at > now() - interval '1 hour'", [to, link])).rowCount;
-    await notify(pool, to, `"${r.title}" talebi için yeni mesajınız var.`, link);
+    await notify(pool, to, `"${r.title}" talebi için yeni mesajınız var.`, link, "message");
     if (!recent) {
       const u = (await pool.query<{ email: string | null; mail_prefs: MailPrefs }>("SELECT email, mail_prefs FROM users WHERE id = $1", [to])).rows[0];
       if (u?.email && wantsMail(u.mail_prefs, "message"))

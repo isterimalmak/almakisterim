@@ -49,3 +49,7 @@ export const ogImage = (...parts: (string | number | null | undefined)[]) =>
   [{ url: `/og/${parts.filter((x) => x !== null && x !== undefined && x !== "").map((x) => encodeURIComponent(String(x))).join("/")}`, width: 1200, height: 630 }];
 // Alt sayfaların openGraph alanı kök ayarın yerine geçer; site adı ve dil her sayfada tekrar verilir.
 export const OG_BASE = { siteName: "almakisterim.com", locale: "tr_TR" } as const;
+
+// "Vasıta alım talepleri"; adında zaten "Alım" geçen kategoride tekrar yazılmaz ("Toptan & Kurumsal Alım talepleri").
+export const alimTalepleri = (name: string, title = false) =>
+  /alım$/i.test(name.trim()) ? `${name} ${title ? "Talepleri" : "talepleri"}` : `${name} ${title ? "Alım Talepleri" : "alım talepleri"}`;

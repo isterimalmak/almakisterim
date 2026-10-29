@@ -5,6 +5,7 @@ import { tx } from "../db.js";
 import { HttpError, maskContacts, idParam } from "../lib/util.js";
 import { attachMedia, imageUrls, MediaIds } from "./media.js";
 import { notifyUser, type MailPrefs } from "./notifications.js";
+import { notify } from "./contacts.js";
 
 const OfferBody = z.object({
   price: z.number().int().min(1).max(2_000_000_000),
@@ -47,9 +48,11 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
       const offerId = ins.rows[0]!.id;
       await attachMedia(c, user.id, b.media_ids, { offer_id: offerId });
       const buyer = (await c.query<{ email: string | null; phone: string | null; mail_prefs: MailPrefs }>("SELECT email, phone, mail_prefs FROM users WHERE id = $1", [row.buyer_id])).rows[0]!;
-      return { offerId, buyer, title: row.title };
+      return { offerId, buyer, buyerId: row.buyer_id, title: row.title };
     });
 
+    // Site içi bildirim ve telefon uygulamasına anlık bildirim; SMS/e-posta ayrıca.
+    void notify(pool, result.buyerId, `"${result.title}" talebinize yeni bir teklif geldi.`, `/talep/${requestId}`, "offer").catch(() => {});
     void notifyUser(deps, result.buyer, "Talebinize yeni teklif geldi",
       `almakisterim: "${result.title}" talebinize yeni bir teklif geldi. ${config.APP_URL}/talep/${requestId}`, "offer").catch(() => {});
     reply.code(201);
@@ -69,8 +72,9 @@ export function offerRoutes(app: FastifyInstance, deps: Deps) {
       await c.query("UPDATE offers SET status = CASE WHEN id = $1 THEN 'accepted' ELSE 'rejected' END WHERE request_id = $2 AND status = 'active'", [offerId, row.request_id]);
       await c.query("UPDATE requests SET status = 'closed', accepted_offer_id = $1 WHERE id = $2", [offerId, row.request_id]);
       const seller = (await c.query<{ email: string | null; phone: string | null; mail_prefs: MailPrefs }>("SELECT email, phone, mail_prefs FROM users WHERE id = $1", [row.seller_id])).rows[0]!;
-      return { seller, title: row.title, requestId: row.request_id };
+      return { seller, sellerId: row.seller_id, title: row.title, requestId: row.request_id };
     });
+    void notify(pool, out.sellerId, `"${out.title}" talebi için verdiğiniz teklif kabul edildi.`, `/talep/${out.requestId}`, "accepted").catch(() => {});
     void notifyUser(deps, out.seller, "Teklifiniz kabul edildi",
       `almakisterim: "${out.title}" talebi için verdiğiniz teklif kabul edildi. ${config.APP_URL}/talep/${out.requestId}`, "accepted").catch(() => {});
     return { ok: true };

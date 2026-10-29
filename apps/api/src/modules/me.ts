@@ -12,6 +12,7 @@ import { aiSettings, logAiAction } from "../services/ai-guard.js";
 import { ALARM_SELECT, alarmQuery, cleanAlarmFilters, type AlarmRow } from "./alarms.js";
 import { FROM, listFilters } from "./requests.js";
 import { MAIL_KINDS, wantsMail, type MailPrefs } from "./notifications.js";
+import { PUSH_KINDS, wantsPush, type PushPrefs } from "../services/push.js";
 
 export function meRoutes(app: FastifyInstance, deps: Deps) {
   const { pool } = deps;
@@ -22,9 +23,12 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
     const unread = (await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND read_at IS NULL", [req.user.id])).rows[0]!.n;
     const unreadMsg = await unreadMessages(pool, req.user.id);
     // Kampanya e-postası izni (E-posta Stüdyosu)
-    const u = (await pool.query<{ marketing: boolean; mail_prefs: MailPrefs }>("SELECT marketing_at IS NOT NULL AS marketing, mail_prefs FROM users WHERE id = $1", [req.user.id])).rows[0]!;
+    const u = (await pool.query<{ marketing: boolean; mail_prefs: MailPrefs; push_prefs: PushPrefs; devices: number }>(
+      "SELECT marketing_at IS NOT NULL AS marketing, mail_prefs, push_prefs, (SELECT count(*)::int FROM push_tokens WHERE user_id = users.id) AS devices FROM users WHERE id = $1", [req.user.id])).rows[0]!;
     const mail_prefs = Object.fromEntries(MAIL_KINDS.map((k) => [k, wantsMail(u.mail_prefs, k)]));
-    return { user: { ...req.user, marketing: u.marketing, mail_prefs, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg,
+    // Telefon bildirimleri: hangi türler açık ve bu hesapla bildirim alan kaç cihaz var.
+    const push_prefs = Object.fromEntries(PUSH_KINDS.map((k) => [k, wantsPush(u.push_prefs, k)]));
+    return { user: { ...req.user, marketing: u.marketing, mail_prefs, push_prefs, push_devices: u.devices, free_unlocks_left: Math.max(0, s.free - used), unlock_price: s.launch ? 0 : s.price, launch_mode: s.launch, unread_notifications: unread, unread_messages: unreadMsg,
       // Üyelik Sözleşmesi'nin yürürlükteki sürümü onaylanmadıysa site ve uygulama onay penceresi gösterir.
       terms_ok: await termsAccepted(pool, req.user.id) } };
   });
@@ -32,7 +36,8 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
   app.patch("/me", async (req) => {
     const user = requireUser(req);
     const b = z.object({ name: z.string().trim().min(2).max(80).optional(), is_corporate: z.boolean().optional(), marketing: z.boolean().optional(),
-      mail_prefs: z.object({ offer: z.boolean(), accepted: z.boolean(), message: z.boolean() }).partial().strict().optional() }).parse(req.body);
+      mail_prefs: z.object({ offer: z.boolean(), accepted: z.boolean(), message: z.boolean() }).partial().strict().optional(),
+      push_prefs: z.object(Object.fromEntries(PUSH_KINDS.map((k) => [k, z.boolean()])) as Record<(typeof PUSH_KINDS)[number], z.ZodBoolean>).partial().strict().optional() }).parse(req.body);
     if (b.name && b.name !== user.name && (await aiSettings(pool)).names) {
       const r = await deps.ai.checkName(b.name);
       if (r.verdict === "block") {
@@ -48,6 +53,7 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
       await recordConsent(pool, req, user.id, ["ticari-elektronik-ileti-onayi"], "hesap", b.marketing);
     }
     if (b.mail_prefs) await pool.query("UPDATE users SET mail_prefs = mail_prefs || $2::jsonb WHERE id = $1", [user.id, JSON.stringify(b.mail_prefs)]);
+    if (b.push_prefs) await pool.query("UPDATE users SET push_prefs = push_prefs || $2::jsonb WHERE id = $1", [user.id, JSON.stringify(b.push_prefs)]);
     return { ok: true };
   });
 
@@ -67,7 +73,7 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
       await c.query("DELETE FROM mail_sends WHERE user_id = $1 AND status = 'queued'", [user.id]);
       await c.query("DELETE FROM auth_codes WHERE target = ANY($1::text[])", [[u.email, u.phone].filter(Boolean)]);
       await c.query(`UPDATE users SET email = NULL, phone = NULL, google_sub = NULL, apple_sub = NULL, name = 'Silinmiş üye', iban = NULL, iban_name = NULL,
-                       marketing_at = NULL, mail_prefs = '{}'::jsonb, deleted_at = now() WHERE id = $1`, [user.id]);
+                       marketing_at = NULL, mail_prefs = '{}'::jsonb, push_prefs = '{}'::jsonb, deleted_at = now() WHERE id = $1`, [user.id]);
       return u.email;
     });
     reply.clearCookie(SESSION_COOKIE, { path: "/" });

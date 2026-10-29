@@ -14,6 +14,16 @@ if (Platform.OS !== "web") {
 let current: string | null = null;
 export const pushToken = () => current;
 
+export type PushPermission = "granted" | "denied" | "undetermined" | "unsupported";
+/** Telefonun bildirim izni (web'de ve öykünücüde bildirim yok). */
+export async function pushPermission(): Promise<PushPermission> {
+  if (Platform.OS === "web" || !Device.isDevice) return "unsupported";
+  try {
+    const p = await Notifications.getPermissionsAsync();
+    return p.status === "granted" ? "granted" : p.canAskAgain === false || p.status === "denied" ? "denied" : "undetermined";
+  } catch { return "unsupported"; }
+}
+
 /** Bildirim izni ister, Expo bildirim adresini alır ve sunucuya kaydeder. İzin verilmezse sessizce geçer. */
 export async function registerPush() {
   if (Platform.OS === "web" || !Device.isDevice) return;

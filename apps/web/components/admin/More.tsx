@@ -23,7 +23,7 @@ export function NotifyAdmin() {
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
   return (
-    <div className="ap-box"><div className="ap-box-h"><h2>Bildirim Gönder</h2></div><div className="ap-box-b">
+    <div className="ap-box" style={{ marginTop: 14 }}><div className="ap-box-h"><h2>Site İçi Bildirim (zil)</h2></div><div className="ap-box-b">
       <div className="note n-info" style={{ marginBottom: 12 }}><span>Bildirim üyelerin sitedeki zil simgesine düşer. SMS ve e-posta gönderilmez.</span></div>
       <div className="form-grid" style={{ maxWidth: 620 }}>
         <div className="fg full"><label htmlFor="n-text">Bildirim metni *</label><textarea className="txa" id="n-text" rows={3} maxLength={300} value={text} onChange={(e) => setText(e.target.value)} placeholder="Örn. Bu hafta vasıta kategorisinde 120 yeni alıcı var!" /><span className="hint">{text.length}/300</span></div>

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Markdown } from "@/components/Markdown";
 import { serverApi, siteData } from "@/lib/server-api";
 import { dateTr } from "@/lib/format";
-import { ldJson, OG_BASE, ogImage, SITE_URL, talepPath } from "@/lib/seo";
+import { alimTalepleri, ldJson, OG_BASE, ogImage, SITE_URL, talepPath } from "@/lib/seo";
 import type { RequestItem } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +55,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
       </article>
       {top && !!rel?.items.length && (
         <section className="box blog-rel" aria-label="İlgili alım talepleri">
-          <div className="box-h"><h2>Güncel {top.name} alım talepleri</h2><Link className="link" href={`/kategori/${top.id}`}>Tümü ›</Link></div>
+          <div className="box-h"><h2>Güncel {alimTalepleri(top.name)}</h2><Link className="link" href={`/kategori/${top.id}`}>Tümü ›</Link></div>
           <ul className="box-b">
             {rel.items.map((r) => <li key={r.id}><Link href={talepPath(r)}>{r.title}</Link> <span className="muted">· {r.city}</span></li>)}
           </ul>

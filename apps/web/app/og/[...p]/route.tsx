@@ -4,7 +4,7 @@ import { ImageResponse } from "next/og";
 
 import { CITIES } from "@/lib/catalog";
 import { budgetTxt, fmt } from "@/lib/format";
-import { locative, slugify } from "@/lib/seo";
+import { alimTalepleri, locative, slugify } from "@/lib/seo";
 import { serverApi, siteData } from "@/lib/server-api";
 
 // Paylaşım resimleri (WhatsApp, Facebook, X önizlemesi), 1200×630:
@@ -50,7 +50,7 @@ async function card(p: string[]): Promise<Card> {
     const pl = await serverApi<{ places: Place[] }>("/seo/places");
     const n = pl?.places.find((x) => x.city === city && x.top === (t?.id ?? null) && x.sub === (s?.id ?? null))?.count ?? 0;
     const name = (s ?? t)?.name;
-    return { badge: city.toLocaleUpperCase("tr"), title: `${locative(city)} ${name ? `${name} ` : ""}alım talepleri`, big: n ? `${fmt(n)} açık talep` : undefined, foot: "Satıcılar alıcıya doğrudan ulaşır" };
+    return { badge: city.toLocaleUpperCase("tr"), title: `${locative(city)} ${name ? alimTalepleri(name) : "alım talepleri"}`, big: n ? `${fmt(n)} açık talep` : undefined, foot: "Satıcılar alıcıya doğrudan ulaşır" };
   }
   if (kind === "blog" && a) {
     const post = await serverApi<{ title: string; summary: string }>(`/blog/${encodeURIComponent(a)}`);

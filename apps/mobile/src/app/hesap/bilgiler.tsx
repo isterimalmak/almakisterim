@@ -1,32 +1,45 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, Switch, Text, View } from "react-native";
+import { Linking, ScrollView, Switch, Text, View } from "react-native";
 import { Box, Btn, Err, Field } from "@/components/ui";
 import { api } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { openWeb } from "@/lib/links";
+import { pushPermission, registerPush, type PushPermission } from "@/lib/push";
+import type { PushPrefs } from "@/lib/types";
 import { useSession } from "@/lib/session";
 import { C } from "@/lib/theme";
 
 const PREFS: ["offer" | "accepted" | "message", string][] = [["offer", "Talebime yeni teklif geldiğinde"], ["accepted", "Teklifim kabul edildiğinde"], ["message", "Yeni mesaj geldiğinde"]];
+
+// Telefon bildirimleri: hangi durumlarda telefona anlık bildirim gelsin (sunucudaki PUSH_KINDS ile aynı).
+const PUSH: [keyof PushPrefs, string][] = [
+  ["offer", "Talebime yeni teklif geldiğinde"], ["accepted", "Teklifim kabul edildiğinde"], ["message", "Yeni mesaj geldiğinde"],
+  ["alarm", "Alarmıma uyan yeni talep geldiğinde"], ["request", "Talebimle ilgili gelişmeler (yayına çıktı, satıcı ilgilendi, süresi doluyor)"],
+  ["news", "almakisterim duyuruları ve fırsatlar"],
+];
+const ALL_ON: PushPrefs = { offer: true, accepted: true, message: true, alarm: true, request: true, news: true };
 
 export default function Bilgiler() {
   const { user, ready, refresh, signOut } = useSession();
   const [name, setName] = useState(user?.name ?? "");
   const [marketing, setMarketing] = useState(!!user?.marketing);
   const [prefs, setPrefs] = useState(user?.mail_prefs ?? { offer: true, accepted: true, message: true });
+  const [push, setPush] = useState<PushPrefs>(user?.push_prefs ?? ALL_ON);
+  const [perm, setPerm] = useState<PushPermission>("unsupported");
+  useEffect(() => { void pushPermission().then(setPerm); }, []);
   const [del, setDel] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [ok, setOk] = useState("");
   // Bilgiler oturum yüklenince forma gelir (sayfa doğrudan açıldıysa ilk anda henüz boştur).
-  useEffect(() => { if (!user) return; setName(user.name); setMarketing(!!user.marketing); if (user.mail_prefs) setPrefs(user.mail_prefs); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!user) return; setName(user.name); setMarketing(!!user.marketing); if (user.mail_prefs) setPrefs(user.mail_prefs); if (user.push_prefs) setPush(user.push_prefs); }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Oturum yüklenince girişsizse (ya da hesap silinince) geri dönülür.
   useEffect(() => { if (ready && !user) router.canGoBack() ? router.back() : router.replace("/hesap"); }, [ready, user]);
   if (!user) return null;
   const save = async () => {
     setBusy("kaydet"); setErr(""); setOk("");
-    try { await api("/me", { method: "PATCH", body: { ...(name.trim() ? { name: name.trim() } : {}), marketing, mail_prefs: prefs } }); await refresh(); setOk("Bilgileriniz kaydedildi."); }
+    try { await api("/me", { method: "PATCH", body: { ...(name.trim() ? { name: name.trim() } : {}), marketing, mail_prefs: prefs, push_prefs: push } }); await refresh(); setOk("Bilgileriniz kaydedildi."); }
     catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
   };
   // Hesap silme (Google Play / App Store zorunluluğu): sitedeki ile aynı; kutuya SİL yazılır.
@@ -53,7 +66,26 @@ export default function Bilgiler() {
           <Text style={{ flex: 1, color: C.text }}>Kampanya ve fırsat e-postaları</Text>
           <Switch accessibilityLabel="Kampanya ve fırsat e-postaları" value={marketing} onValueChange={setMarketing} />
         </View>
-        <Text style={{ color: C.muted, fontSize: 12 }}>Telefona gelen anlık bildirimleri telefonunuzun ayarlarından kapatabilirsiniz.</Text>
+      </Box>
+      <Box title="Telefon bildirimleri">
+        {perm === "denied" ? (
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: C.text, fontSize: 13 }}>Telefonunuzda almakisterim bildirimleri kapalı. Açmak için telefon ayarlarında almakisterim → Bildirimler'e girip izin verin.</Text>
+            <Btn title="Telefon ayarlarını aç" kind="wh" onPress={() => void Linking.openSettings()} />
+          </View>
+        ) : perm === "undetermined" ? (
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: C.text, fontSize: 13 }}>Yeni teklif ve mesajları hemen görmek için bildirimlere izin verin.</Text>
+            <Btn title="Bildirimlere izin ver" kind="navy" onPress={() => void registerPush().then(pushPermission).then(setPerm).then(refresh)} />
+          </View>
+        ) : perm === "unsupported" ? (
+          <Text style={{ color: C.muted, fontSize: 12 }}>Anlık bildirimler telefon uygulamasında gelir. Seçimleriniz hesabınıza kaydedilir.</Text>
+        ) : null}
+        {PUSH.map(([k, l]) => (
+          <View key={k} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <Text style={{ flex: 1, color: C.text }}>{l}</Text>
+            <Switch accessibilityLabel={`Telefon bildirimi: ${l}`} value={push[k]} onValueChange={(v) => setPush((p) => ({ ...p, [k]: v }))} />
+          </View>))}
       </Box>
       {err ? <Err text={err} /> : null}
       {ok ? <Text accessibilityRole="alert" style={{ color: C.green, fontWeight: "700" }}>{ok}</Text> : null}

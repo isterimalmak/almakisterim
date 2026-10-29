@@ -3,7 +3,7 @@ import Link from "next/link";
 import { HomeView, type HomeList, type Tanitim } from "@/components/HomeView";
 
 import { fmt } from "@/lib/format";
-import { ilPath, locative } from "@/lib/seo";
+import { alimTalepleri, ilPath, locative } from "@/lib/seo";
 import { serverApi, siteData } from "@/lib/server-api";
 
 // Ana sayfa sunucuda hazırlanır: son talepler, sitenin ne olduğu ve kategori/il bağlantıları sayfanın kendisinde gelir.
@@ -38,7 +38,7 @@ export default async function Home() {
             {tops.length > 0 && (<>
               <h3>Kategoriler</h3>
               <ul className="ha-links">
-                {tops.map((t) => <li key={t.id}><Link href={`/kategori/${t.id}`}>{t.name} alım talepleri</Link></li>)}
+                {tops.map((t) => <li key={t.id}><Link href={`/kategori/${t.id}`}>{alimTalepleri(t.name)}</Link></li>)}
                 {subs.map((s) => <li key={s.id}><Link href={`/kategori/${s.top}/${s.id}`}>{s.name} almak isteyenler</Link> <span className="muted">({fmt(s.active_count)})</span></li>)}
               </ul>
             </>)}

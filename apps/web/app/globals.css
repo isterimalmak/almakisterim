@@ -1466,3 +1466,8 @@ button.link{padding:0;font-size:inherit}
 .blog-rel{margin:14px 0}
 .blog-rel ul{list-style:none;margin:0;display:flex;flex-direction:column;gap:7px;font-size:13.5px}
 .blog-rel a{color:var(--blue)}
+/* Yönetim → Bildirim Gönder: telefon bildirimi önizlemesi */
+.push-onizle{display:flex;gap:10px;align-items:flex-start;max-width:420px;margin-top:12px;padding:10px 12px;border-radius:14px;background:#F2F3F5;border:1px solid var(--line);box-shadow:0 2px 8px rgba(16,27,45,.08)}
+.push-onizle b{font-size:13.5px;color:#101B2D}
+.push-onizle p{margin:2px 0 0;font-size:13px;color:#3A4250}
+.push-ic{flex:none;width:34px;height:34px;border-radius:8px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px}

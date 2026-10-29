@@ -8,8 +8,9 @@ import { HeuristicAi, type AiService } from "../src/services/ai.js";
 import { disabledGoogle, type GoogleAuth } from "../src/services/google.js";
 import { MemoryOutbox } from "../src/services/notify.js";
 import { MemoryStorage, type MediaStorage } from "../src/services/storage.js";
+import { MemoryPush } from "../src/services/push.js";
 
-export type TestCtx = { app: FastifyInstance; pool: Pool; outbox: MemoryOutbox; storage: MediaStorage; config: Config };
+export type TestCtx = { app: FastifyInstance; pool: Pool; outbox: MemoryOutbox; push: MemoryPush; storage: MediaStorage; config: Config };
 
 export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; storage?: MediaStorage; photos?: PhotoSource; env?: Record<string, string> } = {}): Promise<TestCtx> {
   const config = loadConfig({
@@ -23,12 +24,13 @@ export async function makeApp(over: { ai?: AiService; google?: GoogleAuth; stora
   const pool = createPool(config.DATABASE_URL);
   const outbox = new MemoryOutbox();
   const storage = over.storage ?? new MemoryStorage();
-  const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle, storage, photos: over.photos });
-  return { app, pool, outbox, storage, config };
+  const push = new MemoryPush();
+  const app = await buildApp({ config, pool, ai: over.ai ?? new HeuristicAi(), mailer: outbox, sms: outbox, google: over.google ?? disabledGoogle, storage, photos: over.photos, push });
+  return { app, pool, outbox, push, storage, config };
 }
 
 export async function resetData(pool: Pool) {
-  await pool.query(`TRUNCATE user_edits, phone_changes, push_tokens, auth_tickets, mail_usage, mail_sends, mail_rules, mail_templates, safe_sale_events, safe_sales, integration_settings, blog_posts, ai_actions, ai_usage, stock_images, messages, ads, notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
+  await pool.query(`TRUNCATE push_campaigns, user_edits, phone_changes, push_tokens, auth_tickets, mail_usage, mail_sends, mail_rules, mail_templates, safe_sale_events, safe_sales, integration_settings, blog_posts, ai_actions, ai_usage, stock_images, messages, ads, notifications, contact_reports, contact_unlocks, media, favorites, reports, alarms, credit_ledger, offers, requests, sessions, auth_codes, users RESTART IDENTITY CASCADE`);
   await pool.query(`ALTER TABLE requests ALTER COLUMN id RESTART WITH 1048200`);
   await pool.query(`UPDATE categories SET is_visible = true`);
   // Yönetimden düzenlenen içerik: sözleşme sürümleri (users ile birlikte boşalır), alt bilgi, şirket bilgileri.

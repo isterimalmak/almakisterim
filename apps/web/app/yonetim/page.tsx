@@ -10,6 +10,7 @@ import { StockAdmin } from "@/components/StockAdmin";
 import { Dashboard } from "@/components/admin/Dashboard";
 import { RequestsAdmin } from "@/components/admin/RequestsAdmin";
 import { CreditsAdmin, IntegrationsAdmin, NotifyAdmin } from "@/components/admin/More";
+import { PushAdmin } from "@/components/admin/PushAdmin";
 import { AiAdmin } from "@/components/admin/AiAdmin";
 import { SafeAdmin } from "@/components/admin/SafeAdmin";
 import { HomeLayoutAdmin } from "@/components/admin/HomeLayoutAdmin";
@@ -33,7 +34,7 @@ const TITLES: Record<Section, [string, string]> = {
   num: ["Numaralar ve Şikâyetler", "Açılan numaralar, kredi iadeleri"], kat: ["Kategoriler", "Sitede görünen kategoriler"],
   rek: ["Reklam Alanları", "Ana sayfadaki resim ve videolar, açılış karşılaması"], gor: ["Hazır Görseller", "Talep verirken seçilen örnek görseller"],
   ayar: ["Ayarlar", "Ücretler, sınırlar ve site seçenekleri"], kredi: ["Kredi Hareketleri", "Kazanılan ve harcanan krediler"],
-  bil: ["Bildirim Gönder", "Üyelere site içi duyuru"], ent: ["Entegrasyonlar", "Bağlı dış hizmetler"],
+  bil: ["Bildirim Gönder", "Telefon uygulamasına ve site içine (zil) duyuru"], ent: ["Entegrasyonlar", "Bağlı dış hizmetler"],
   yz: ["Yapay Zekâ", "Otomatik denetim, düzeltme, e-postalar ve blog"],
   duz: ["Ana Sayfa Düzeni", "Bölümlerin sırası; gizle / göster"],
   soz: ["Sözleşmeler", "Metinleri düzenleme, şirket bilgileri ve üyelerin onay geçmişi"],
@@ -138,7 +139,7 @@ export default function Admin() {
       {tab === "pano" && <Dashboard go={setTab} />}
       {tab === "talep" && <RequestsAdmin />}
       {tab === "kredi" && <CreditsAdmin />}
-      {tab === "bil" && <NotifyAdmin />}
+      {tab === "bil" && <><PushAdmin /><NotifyAdmin /></>}
       {tab === "ent" && <IntegrationsAdmin />}
       {tab === "soz" && <LegalAdmin />}
       {tab === "alt" && <SiteAdmin />}

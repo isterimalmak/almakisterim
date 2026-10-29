@@ -8,6 +8,7 @@ import { RequestTable } from "@/components/RequestTable";
 import { useSession } from "@/components/Session";
 import { api, type RequestItem } from "@/lib/api";
 import { fmt } from "@/lib/format";
+import { alimTalepleri } from "@/lib/seo";
 import { attrsFor, CITIES, condsFor, NUM_SHORT, optionsFor, pickAttrs, sellerNum } from "@/lib/catalog";
 import { useDistricts, useNeighbourhoods } from "@/lib/locations";
 import { useVehicleCatalog, variantsOf } from "@/lib/vehicles";
@@ -97,7 +98,7 @@ function Listing({ initial: first }: { initial?: ListingInitial | null }) {
 
   const set = (patch: Partial<F>) => setF((x) => ({ ...x, page: 1, ...patch }));
   const toggle = (arr: string[], v: string) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
-  const title = s ? `${s.name} Alım Talepleri` : t ? `${t.name} Alım Talepleri` : f.q ? `"${f.q}" için talepler` : "Tüm Alım Talepleri";
+  const title = s ? alimTalepleri(s.name, true) : t ? alimTalepleri(t.name, true) : f.q ? `"${f.q}" için talepler` : "Tüm Alım Talepleri";
   const pages = data ? Math.max(1, Math.ceil(data.total / PER)) : 1;
   const go = (n: number) => { setF((x) => ({ ...x, page: n })); window.scrollTo(0, 0); };
   const selAttrs = t ? attrsFor(t.id, s?.id).filter((a) => a.t === "sel") : [];

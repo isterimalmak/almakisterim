@@ -29,7 +29,7 @@ export async function notifyAlarmMatches(deps: Deps, requestId: number) {
   const text = `almakisterim: alarmınıza uyan yeni talep: "${r.title}" (bütçe ${r.budget_max.toLocaleString("tr-TR")} TL). ${config.APP_URL}/talep/${requestId}`;
   for (const m of rows) {
     // Site içi bildirim her zaman; SMS/e-posta bağlıysa ayrıca.
-    await notify(pool, m.id, `Alarmınıza uyan yeni talep: "${r.title}"`, `/talep/${requestId}`).catch(() => {});
+    await notify(pool, m.id, `Alarmınıza uyan yeni talep: "${r.title}"`, `/talep/${requestId}`, "alarm").catch(() => {});
     await notifyUser(deps, m, "Size uygun yeni bir talep var", text).catch(() => {});
   }
 }
@@ -63,7 +63,7 @@ export async function requestStatusEmail(deps: Deps, requestId: number, opt: { b
   if (!r) return;
   const url = `${deps.config.APP_URL}/talep/${requestId}`;
   const bell = async (text: string, link: string) => {
-    if (opt.bell !== false) await notify(deps.pool, r.buyer_id, text, link).catch(() => {});
+    if (opt.bell !== false) await notify(deps.pool, r.buyer_id, text, link, "request").catch(() => {});
   };
   if (r.status === "active") {
     // E-posta Stüdyosu: "Talep yayına girince" görevleri (talep verilirken, yönetici onaylayınca, yapay zekâ yeniden denetleyince)
@@ -86,7 +86,7 @@ export async function expiryReminders(deps: Deps) {
       WHERE status = 'active' AND expiry_reminded_at IS NULL AND expires_at > now() AND expires_at < now() + interval '2 days'
       RETURNING id, buyer_id, title`);
   for (const r of rows) {
-    await notify(deps.pool, r.buyer_id, `"${r.title}" talebinizin süresi 2 gün içinde doluyor.`, `/talep/${r.id}`).catch(() => {});
+    await notify(deps.pool, r.buyer_id, `"${r.title}" talebinizin süresi 2 gün içinde doluyor.`, `/talep/${r.id}`, "request").catch(() => {});
     await autoMail(deps, r.buyer_id, "Talebinizin süresi dolmak üzere",
       `"${r.title}" talebinizin yayın süresi 2 gün içinde doluyor. Hâlâ arıyorsanız süresi dolunca aynı talebi yeniden verebilirsiniz; aradığınızı bulduysanız talebi kapatabilirsiniz.\n\n${deps.config.APP_URL}/talep/${r.id}`).catch(() => false);
   }

@@ -106,17 +106,28 @@ test("alıcı uygulamadan giriş yapar, tek cümleyle talep verir, fotoğraf ekl
   await expect(page.getByText("Merhaba, kutulu PS5 elimde.")).toBeVisible();
 });
 
-test("üye uygulamadan bildirim tercihlerini kaydeder ve hesabını SİL yazarak siler", async ({ page }) => {
+test("üye uygulamadan e-posta ve telefon bildirimi tercihlerini kaydeder ve hesabını SİL yazarak siler", async ({ page }) => {
   await login(page, `0539${rnd().slice(0, 7)}`, "Silinecek Uygulama");
   await page.goto("/hesap/bilgiler");
-  const sw = page.getByRole("switch", { name: "Yeni mesaj geldiğinde" });
+  const sw = page.getByRole("switch", { name: "Yeni mesaj geldiğinde", exact: true });
   await expect(sw).toBeChecked();
   await sw.click({ force: true });
   await expect(sw).not.toBeChecked();
+  // Telefon bildirimleri: duyurular kapatılır; diğerleri açık kalır.
+  await expect(page.getByText("Anlık bildirimler telefon uygulamasında gelir.", { exact: false })).toBeVisible();
+  const news = page.getByRole("switch", { name: "Telefon bildirimi: almakisterim duyuruları ve fırsatlar" });
+  await expect(news).toBeChecked();
+  await news.click({ force: true });
+  await expect(news).not.toBeChecked();
   const saved = page.waitForResponse((r) => r.url().endsWith("/api/me") && r.request().method() === "PATCH");
   await page.getByRole("button", { name: "Kaydet" }).click();
   const sr = await saved;
   expect(sr.ok(), await sr.text()).toBeTruthy();
+  expect(sr.request().postDataJSON()).toMatchObject({ mail_prefs: { message: false }, push_prefs: { news: false, offer: true } });
+  // Sayfa yeniden açılınca kayıtlı seçim gelir.
+  await page.reload();
+  await expect(page.getByRole("switch", { name: "Telefon bildirimi: almakisterim duyuruları ve fırsatlar" })).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: "Telefon bildirimi: Yeni mesaj geldiğinde" })).toBeChecked();
   await page.getByLabel("Onaylamak için büyük harflerle SİL yazın").fill("SİL");
   page.on("dialog", (d) => d.accept());
   const gone = page.waitForResponse((r) => r.url().endsWith("/api/me") && r.request().method() === "DELETE");

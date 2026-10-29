@@ -3,7 +3,9 @@ export type User = {
   id: string; name: string; email: string | null; phone: string | null; role: "user" | "admin"; is_corporate: boolean; credits: number;
   free_unlocks_left: number; unlock_price: number; unread_notifications: number; unread_messages?: number; marketing?: boolean; terms_ok?: boolean;
   mail_prefs?: { offer: boolean; accepted: boolean; message: boolean };
+  push_prefs?: PushPrefs; push_devices?: number;
 };
+export type PushPrefs = { offer: boolean; accepted: boolean; message: boolean; alarm: boolean; request: boolean; news: boolean };
 export type Category = { id: string; parent_id: string | null; name: string; icon: string; sort: number; active_count: number; subs?: Category[] };
 export type Req = {
   id: number; title: string; description: string; category_id: string; category_name: string; top_id: string; top_name: string;

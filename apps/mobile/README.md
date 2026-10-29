@@ -28,3 +28,16 @@ Mağaza adımları ve metinleri: [docs/MAGAZA.md](../../docs/MAGAZA.md)
 - Uygulamada **kredi satılmaz**: dijital ürün yalnız mağazanın kendi ödeme sistemiyle (Apple / Google) satılabilir; siteye ödeme bağlantısı da verilmez. Kredi bakiyesi ve aylık ücretsiz haklar görünür.
 - Güvenli Al fiziksel ürün olduğundan bu kurala girmez; sitedeki sayfası uygulamadan tek kullanımlık girişle açılır.
 - Kullanıcı içeriği: talep şikâyeti, satıcı şikâyeti ("rahatsız etti" → numara o satıcıdan gizlenir), numarayı gizleme ve hesap silme uygulamada var.
+
+## Anlık bildirimler
+
+Bildirimler Expo Push ile gider (sunucu: `apps/api/src/services/push.ts`). Uygulama girişte izin ister ve cihazı kaydeder;
+yeni teklif, teklif kabulü, mesaj, alarm ve talep gelişmeleri telefona düşer. Üye türleri Hesap Bilgileri → Telefon bildirimleri'nden kapatabilir.
+Yönetici duyuruları Yönetim → Bildirim Gönder → Telefon Uygulaması Bildirimi'nden gönderir (önce "Kendime dene").
+
+Bir kerelik kurulum (sahibi yapar, anahtarlar depoya konmaz):
+- **Android:** Firebase konsolunda proje → Android uygulaması `com.almakisterim.app` → `google-services.json` indirilir ve
+  expo.dev → almakisterim → Environment variables → *Add* → tür **File**, ad `GOOGLE_SERVICES_JSON`, ortam *production*.
+  Firebase → Proje ayarları → Hizmet hesapları → *Yeni özel anahtar oluştur* ile inen dosya expo.dev → Credentials → Android →
+  *FCM V1 service account key*'e yüklenir. Sonra Android derlemesi yeniden alınır.
+- **iPhone:** Apple Developer hesabı onaylanınca ilk iOS derlemesinde EAS bildirim anahtarını (APNs) kendisi oluşturur.

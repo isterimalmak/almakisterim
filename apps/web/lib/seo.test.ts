@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ilPath, locative, slugify, snippet, talepId, talepPath } from "./seo";
+import { alimTalepleri, ilPath, locative, slugify, snippet, talepId, talepPath } from "./seo";
 
 describe("arama motoru adresleri", () => {
   it("Türkçe harfler sadeleşir, işaretler tireye döner", () => {
@@ -28,5 +28,11 @@ describe("arama motoru adresleri", () => {
     expect(ilPath("Şanlıurfa")).toBe("/il/sanliurfa");
     expect(ilPath("İstanbul", "vasita", "otomobil")).toBe("/il/istanbul/vasita/otomobil");
     expect(ilPath("İzmir", null, "x")).toBe("/il/izmir");
+  });
+  it("adında Alım geçen kategoride kelime tekrarlanmaz", () => {
+    expect(alimTalepleri("Vasıta")).toBe("Vasıta alım talepleri");
+    expect(alimTalepleri("Toptan & Kurumsal Alım")).toBe("Toptan & Kurumsal Alım talepleri");
+    expect(alimTalepleri("Toptan & Kurumsal Alım", true)).toBe("Toptan & Kurumsal Alım Talepleri");
+    expect(alimTalepleri("Cep Telefonu", true)).toBe("Cep Telefonu Alım Talepleri");
   });
 });
