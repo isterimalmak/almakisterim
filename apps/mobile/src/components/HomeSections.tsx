@@ -225,7 +225,8 @@ export function CustomBlock({ b, ads }: { b: Exclude<HomeBlock, { type: "builtin
     );
   }
   // Afiş: yöneticinin seçtiği görseller.
-  const items = b.ad_ids.map((id) => ads.find((a) => a.id === id)).filter((a): a is Ad => !!a);
+  // "Yalnız bilgisayar" görseller telefonda gösterilmez ve ızgarada yer tutmaz.
+  const items = b.ad_ids.map((id) => ads.find((a) => a.id === id)).filter((a): a is Ad => !!a && a.device !== "desktop");
   if (!items.length) return null;
   return (
     <View>

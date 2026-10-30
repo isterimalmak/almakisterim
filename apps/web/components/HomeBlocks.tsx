@@ -5,7 +5,7 @@ import { useSession } from "./Session";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, type Ad, type RequestItem } from "@/lib/api";
 import { MQ_PX, SPEEDS, type HomeBlock } from "@/lib/home";
-import { AdMedia, adDevice } from "./Ads";
+import { AdGrid } from "./Ads";
 import { VitrinTile } from "./RequestTable";
 
 // Yöneticinin ana sayfaya eklediği bölümler: yazı/duyuru, afiş (resim/video) ve kayan yazı bandı.
@@ -87,13 +87,8 @@ export function CustomBlock({ b, ads }: { b: Exclude<HomeBlock, { type: "builtin
     const secs = Math.max(10, Math.round((6 * (b.text.length * 10.5 + 66)) / (MQ_PX[b.speed ?? 2] ?? 45)));
     return <Go href={b.href} className="hb-mq" label={b.text}><span className="hb-mq-in" style={{ background: b.bg, color: b.fg }}><span className="hb-mq-track" style={{ animationDuration: `${secs}s` }}>{row}{row}</span></span></Go>;
   }
-  // Afiş: tek görsel geniş, birden fazlası yan yana kutular.
+  // Afiş: tek görsel geniş, birden fazlası ikişerli kutular; sayı tekse son görsel tam genişlikte (boşluk kalmaz).
   const items = b.ad_ids.map((id) => ads.find((a) => a.id === id)).filter((a): a is Ad => !!a);
   if (!items.length) return null;
-  return (
-    <section className={"hb-banner" + (items.length === 1 ? " tek" : "")} aria-label={b.title || "Afiş"}>
-      {b.title && <h2 className="hb-banner-h">{b.title}</h2>}
-      <div className="hb-banner-g">{items.map((a) => <Go key={a.id} href={a.link_url} className={"yk" + adDevice(a)}>{<AdMedia a={a} />}</Go>)}</div>
-    </section>
-  );
+  return <AdGrid ads={items} cls="hb-banner" label={b.title || "Afiş"} title={b.title} />;
 }
