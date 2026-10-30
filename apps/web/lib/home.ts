@@ -24,13 +24,15 @@ export type Show = "all" | "mobile" | "desktop";
 export type HomeBlock =
   | { type: "builtin"; id: BuiltinId; hidden: boolean; show?: Show; texts?: Record<string, string> }
   | { type: "text"; id: string; hidden: boolean; show?: Show; title: string; text: string; cta: string; href: string | null; tone: Tone; align: "sol" | "orta" }
-  | { type: "marquee"; id: string; hidden: boolean; show?: Show; text: string; bg: string; fg: string; href: string | null }
+  | { type: "marquee"; id: string; hidden: boolean; show?: Show; text: string; bg: string; fg: string; href: string | null; speed?: number }
   | { type: "banner"; id: string; hidden: boolean; show?: Show; title: string; ad_ids: number[] }
   | { type: "showcase"; id: string; hidden: boolean; show?: Show; title: string; request_ids: number[]; speed: number }
   | { type: "catvitrin"; id: string; hidden: boolean; show?: Show; title: string; top: string; limit: number; include_ids: number[]; exclude_ids: number[] };
 // Silinemeyen hazır kategori vitrinleri (gizlenebilir).
 export const FIXED_IDS = ["vasita_vitrin", "emlak_vitrin"];
 // Kayan vitrin hızı: 1 çok yavaş … 5 çok hızlı; bir kartın ekrandan geçme süresi (saniye).
+// Kayan yazı bandının saniyedeki kayma (piksel) değeri; yazı ne kadar uzun olursa olsun aynı hızda okunur.
+export const MQ_PX: Record<number, number> = { 1: 30, 2: 45, 3: 65, 4: 90, 5: 125 };
 export const SPEEDS: [number, string, number][] = [[1, "Çok yavaş", 7], [2, "Yavaş", 5], [3, "Orta", 3.5], [4, "Hızlı", 2.4], [5, "Çok hızlı", 1.5]];
 export const SHOW_TXT: Record<Show, string> = { all: "Her yerde", mobile: "Telefonda", desktop: "Bilgisayarda" };
 

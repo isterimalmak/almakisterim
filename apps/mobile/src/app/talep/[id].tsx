@@ -5,22 +5,40 @@ import { Dimensions, FlatList, Linking, Pressable, RefreshControl, ScrollView, S
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/Sheet";
-import { Box, Btn, Err, Skeleton } from "@/components/ui";
+import { Box, Btn, Err, ReqCard, Skeleton } from "@/components/ui";
 import { theme } from "@/lib/home";
 import { abs, api, API_URL, ApiError } from "@/lib/api";
 import { attrsFor } from "@/lib/catalog";
 import { confirm } from "@/lib/confirm";
+import { openWebAuthed } from "@/lib/links";
 import { ago, dateTr, isAny, place, price } from "@/lib/format";
 import { isVehicleSub, vehicleRows, type VehicleAttrs } from "@/lib/vehicles";
 import { useSession } from "@/lib/session";
 import { C, R, SH } from "@/lib/theme";
-import type { Contact, Req } from "@/lib/types";
+import type { Contact, Page, Req } from "@/lib/types";
 
 const W = Dimensions.get("window").width;
 const CAT_ICON: Record<string, string> = { vasita: "car", emlak: "home", elektronik: "phone", ev: "sofa", yedek: "gear", hizmet: "wrench", ders: "book", sanayi: "crane", moda: "shirt", bebek: "stroller", spor: "bike", toptan: "box" };
 const LABELS: Record<string, string> = { marka: "Marka", model: "Model", yil: "Yıl", yakit: "Yakıt", vites: "Vites", km: "Kilometre", oda: "Oda sayısı", m2: "m²", hafiza: "Hafıza", renk: "Renk", isitma: "Isıtma", esya: "Eşyalı", imar: "İmar durumu", tapu: "Tapu" };
 const phoneTr = (p: string) => p.replace(/^90(\d{3})(\d{3})(\d{2})(\d{2})$/, "0$1 $2 $3 $4");
 const val = (v: unknown) => (Array.isArray(v) ? v.filter((x) => !isAny(x)).join(", ") : typeof v === "object" && v ? Object.values(v).filter((x) => !isAny(x)).join(" – ") : String(v));
+
+// Kapanan talep: sayfa kaldırılmaz; aynı kategorideki (önce aynı ildeki) açık talepler gösterilir (sitedeki gibi).
+function Similar({ r }: { r: Req }) {
+  const [items, setItems] = useState<Req[] | null>(null);
+  useEffect(() => {
+    const get = (city?: string) => api<Page<Req>>(`/requests?${new URLSearchParams({ sub: r.category_id, per: "6", ...(city ? { city } : {}) })}`).then((x) => x.items);
+    void get(r.city).then(async (xs) => (xs.length ? xs : get())).then((xs) => setItems(xs.filter((x) => x.id !== r.id))).catch(() => setItems([]));
+  }, [r.id, r.category_id, r.city]);
+  return (
+    <View accessibilityLabel="Benzer açık talepler" style={{ gap: 8 }}>
+      <Box><Text style={{ color: C.text }}><Text style={{ fontWeight: "800" }}>Bu talep kapandı.</Text> Alıcı artık teklif almıyor. Aşağıda {r.category_name} kategorisindeki açık talepleri görebilirsiniz.</Text></Box>
+      {items === null ? <Skeleton rows={2} /> : items.length ? items.map((x) => <ReqCard key={x.id} r={x} />)
+        : <Text style={{ color: C.muted }}>Şu an bu kategoride açık talep yok.</Text>}
+      <Text accessibilityRole="link" style={{ color: C.orange, fontWeight: "700" }} onPress={() => router.push({ pathname: "/talepler", params: { top: r.top_id, sub: r.category_id } })}>{r.category_name} kategorisindeki tüm talepler ›</Text>
+    </View>
+  );
+}
 
 export default function Talep() {
   const bottom = useSafeAreaInsets().bottom;
@@ -32,6 +50,9 @@ export default function Talep() {
   const [phone, setPhone] = useState<string | null>(null);
   const [ok, setOk] = useState("");
   // Açık şikâyet penceresi: talep, satıcı (numara sorunu) ya da alıcının rahatsız eden satıcıyı bildirmesi
+  // Güvenli Al açık mı ve hangi ana kategorilerde (sitedeki satış kutusuyla aynı koşul).
+  const [safe, setSafe] = useState<{ enabled: boolean; tops: string[] } | null>(null);
+  useEffect(() => { void api<{ enabled: boolean; tops: string[] }>("/safe/info").then(setSafe).catch(() => setSafe(null)); }, [user?.id]);
   const [sheet, setSheet] = useState<null | { kind: "talep" } | { kind: "numara"; unlockId: number } | { kind: "rahatsiz"; unlockId: number }>(null);
   const load = useCallback(async () => {
     try { const x = await api<{ request: Req; contact: Contact | null }>(`/requests/${id}`); setD(x); setPhone(x.contact?.phone ?? null); }
@@ -74,6 +95,13 @@ export default function Talep() {
   const setHidden = async (hidden: boolean) => {
     if (hidden && !(await confirm("Numaranızı gizle", "Numaranız hiçbir satıcıya gösterilmeyecek ve yeni satıcılar sizi arayamayacak.", "Gizle", true))) return;
     try { await api(`/requests/${r.id}/contact`, { body: { hidden } }); await load(); } catch (e) { setErr((e as Error).message); }
+  };
+  // Benzer talepler için alarm: bu talebin kategorisi ve ili (sitedeki düğmeyle aynı).
+  const alarm = async () => {
+    if (!user) return needLogin();
+    setErr(""); setOk("");
+    try { await api("/me/alarms", { body: { category_id: r.category_id, ...(r.city ? { city: r.city } : {}), min_budget: 0 } }); setOk(`Alarm kuruldu: ${r.category_name}${r.city ? `, ${r.city}` : ""}. Benzer talep gelince size haber vereceğiz.`); }
+    catch (e) { setErr((e as Error).message); }
   };
   const c = d.contact;
   const close = async () => {
@@ -157,15 +185,27 @@ export default function Talep() {
               </View>
               <Text style={{ color: C.muted, fontSize: 12 }}>Numarayı yalnızca bu talep için kullanın. Alıcıyı rahatsız eden satıcıların hesabı kapatılır.</Text>
             </Box>
+          ) : null}
+          {!r.is_owner && c?.unlocked && !c.blocked && r.status === "active" && safe?.enabled && safe.tops?.includes(r.top_id) ? (
+            <View accessibilityLabel="Güvenli Al" style={{ flexDirection: "row", gap: 12, alignItems: "center", padding: 14, borderRadius: R.lg, backgroundColor: "#E8F4F7", borderWidth: 1, borderColor: "#BFE0E8" }}>
+              <Icon name="shield" size={26} color="#0F6B85" />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={{ fontWeight: "800", color: "#0F4C5C" }}>Alıcıyla anlaştınız mı? Güvenli Al ile satın.</Text>
+                <Text style={{ color: C.text, fontSize: 12 }}>Alıcı kartla öder, para bizde bekler; ürünü teslim alıp onaylayınca hesabınıza geçer.</Text>
+                <Text accessibilityRole="button" style={{ color: "#0F6B85", fontWeight: "800", marginTop: 2 }} onPress={() => void openWebAuthed(`/talep/${r.id}`)}>Güvenli Al ile sat ›</Text>
+              </View>
+            </View>
           ) : !r.is_owner && c && r.status === "active" && !phone ? (
             <Text style={{ color: C.muted, fontSize: 12 }}>
               Numarayı en fazla {c.limit || "sınırsız"} satıcı görebilir{c.slots_left != null ? `; ${c.slots_left} hak kaldı` : ""}. Ücret: {c.price ? `${c.price} kredi` : "ücretsiz"}{user ? ` · Bu ay kalan ücretsiz hakkınız: ${user.free_unlocks_left}` : ""}.
             </Text>
           ) : null}
           <Box title="Alıcı"><Text style={{ fontWeight: "700" }}>{r.buyer_name}{r.is_corporate ? " · Kurumsal" : ""}</Text><Text style={{ color: C.muted, fontSize: 12 }}>Ürünü görmeden kapora veya ödeme göndermeyin; şüpheli durumda bize bildirin.</Text></Box>
-          {!r.is_owner ? <Text accessibilityRole="button" style={{ color: C.muted, textAlign: "center", textDecorationLine: "underline" }} onPress={() => setSheet({ kind: "talep" })}>Talebi şikâyet et</Text> : null}
+          {!r.is_owner ? <Btn kind="wh" icon="bell" title="Benzer talepler için alarm kur" onPress={() => void alarm()} /> : null}
           {ok ? <Text accessibilityRole="alert" style={{ color: C.green, fontWeight: "700" }}>{ok}</Text> : null}
           {err ? <Err text={err} /> : null}
+          {r.status !== "active" && r.status !== "pending_review" && !r.is_owner ? <Similar r={r} /> : null}
+          {!r.is_owner ? <Text accessibilityRole="button" style={{ color: C.muted, textAlign: "center", textDecorationLine: "underline" }} onPress={() => setSheet({ kind: "talep" })}>Talebi şikâyet et</Text> : null}
         </View>
       </ScrollView>
       <Sheet visible={!!sheet} onClose={() => setSheet(null)}
