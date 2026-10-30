@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, type Ad } from "@/lib/api";
+import { isWide } from "@/lib/ad-layout";
 
 // Reklam yalnız telefonda ya da yalnız bilgisayarda görünsün (Yönetim → Reklam Alanları → Hangi cihazda).
 export const adDevice = (a: Ad) => (a.device === "mobile" ? " ad-m" : a.device === "desktop" ? " ad-d" : "");
@@ -32,13 +33,14 @@ function AdBox({ a, wide }: { a: Ad; wide?: boolean }) {
 }
 
 // Izgarada ikişerli dizilir; sayı tekse son reklam tam genişlikte durur, böylece yanında boşluk kalmaz.
-function AdGrid({ ads, cls, label = "Tanıtımlar" }: { ads: Ad[]; cls: string; label?: string }) {
+// Sayım bu cihazda görünenlere göre yapılır. Başlık (afiş bölümlerinde) yalnız görünen reklam varsa çizilir.
+export function AdGrid({ ads, cls, label = "Tanıtımlar", title }: { ads: Ad[]; cls: string; label?: string; title?: string }) {
   const shown = useForDevice(ads);
   if (!shown.length) return null;
-  const odd = shown.length % 2 === 1;
   return (
     <section className={cls + (shown.length === 1 ? " tek" : "")} aria-label={label}>
-      {shown.map((a, i) => <AdBox key={a.id} a={a} wide={odd && i === shown.length - 1} />)}
+      {title && <h2 className="hb-banner-h">{title}</h2>}
+      {shown.map((a, i) => <AdBox key={a.id} a={a} wide={isWide(i, shown.length)} />)}
     </section>
   );
 }

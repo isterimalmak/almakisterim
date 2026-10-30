@@ -932,14 +932,13 @@ button.link{padding:0;font-size:inherit}
 @keyframes hbmq{to{transform:translateX(-50%)}}
 @media (prefers-reduced-motion:reduce){.hb-mq-track{animation:none}}
 /* Afiş */
-.hb-banner{margin-bottom:14px}
-.hb-banner-h{font-size:16px;color:var(--navy);margin:0 0 8px}
-.hb-banner-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.hb-banner.tek .hb-banner-g{grid-template-columns:1fr}
+.hb-banner{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.hb-banner-h{grid-column:1/-1;font-size:16px;color:var(--navy);margin:0 0 -4px}
 .hb-banner .yk{border-radius:10px}
 .hb-banner .yk img,.hb-banner .yk video{max-height:none;aspect-ratio:4/3}
-.hb-banner.tek .yk img,.hb-banner.tek .yk video{aspect-ratio:16/7}
-@media (max-width:560px){.hb-banner.tek .yk img,.hb-banner.tek .yk video{aspect-ratio:4/3}}
+.hb-banner .yk.tam{grid-column:1/-1}
+.hb-banner .yk.tam img,.hb-banner .yk.tam video{aspect-ratio:16/7}
+@media (max-width:560px){.hb-banner .yk.tam img,.hb-banner .yk.tam video{aspect-ratio:16/9}}
 .hl-list li{flex-direction:column;align-items:stretch}
 .hl-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .hl-list li.custom{border-color:#F6C9AC}
