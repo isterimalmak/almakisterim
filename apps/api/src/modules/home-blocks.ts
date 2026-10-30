@@ -26,7 +26,7 @@ const Block = z.discriminatedUnion("type", [
     text: z.string().trim().max(1000).default(""), cta: z.string().trim().max(40).default(""), href: Href,
     tone: z.enum(["acik", "lacivert", "turuncu", "yesil"]).default("acik"), align: z.enum(["sol", "orta"]).default("orta"), show: Show }),
   z.object({ type: z.literal("marquee"), id: Id, hidden: z.boolean().default(false), text: z.string().trim().min(1, "Kayan yazı boş olamaz.").max(160),
-    bg: Color.default("#F26B1D"), fg: Color.default("#FFFFFF"), href: Href, show: Show }),
+    bg: Color.default("#F26B1D"), fg: Color.default("#FFFFFF"), href: Href, speed: z.number().int().min(1).max(5).default(2), show: Show }),
   z.object({ type: z.literal("banner"), id: Id, hidden: z.boolean().default(false), title: z.string().trim().max(120).default(""),
     ad_ids: z.array(z.number().int()).max(8).default([]), show: Show }),
   // Kategori vitrini ("Vasıta Talepleri", "Emlak Talepleri"): kategorinin talepleri kendiliğinden gelir;

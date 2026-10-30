@@ -147,10 +147,12 @@ function Marquee({ b }: { b: Extract<HomeBlock, { type: "marquee" }> }) {
   useEffect(() => {
     if (!w) return;
     x.setValue(0);
-    const anim = Animated.loop(Animated.timing(x, { toValue: -w, duration: w * 22, easing: Easing.linear, useNativeDriver: true }));
+    // Sitedeki gibi: yazı uzunluğundan bağımsız, seçilen hızda (saniyede piksel) kayar.
+    const pxs = ({ 1: 30, 2: 45, 3: 65, 4: 90, 5: 125 } as Record<number, number>)[b.speed ?? 2] ?? 45;
+    const anim = Animated.loop(Animated.timing(x, { toValue: -w, duration: (w / pxs) * 1000, easing: Easing.linear, useNativeDriver: true }));
     anim.start();
     return () => anim.stop();
-  }, [w, x]);
+  }, [w, x, b.speed]);
   const row = (onLayout?: (e: LayoutChangeEvent) => void) => (
     <View onLayout={onLayout} style={{ flexDirection: "row" }}>
       {Array.from({ length: 4 }, (_, i) => <Text key={i} style={{ color: b.fg, fontSize: 18, fontWeight: "800", paddingRight: 28 }}>{b.text}   •</Text>)}

@@ -60,6 +60,11 @@ describe("ana sayfa bölümleri", () => {
     expect(saved.slice(0, 5).map((x: { id: string }) => x.id)).toEqual(["safe", "yazi_1", "bant_1", "afis_1", "hero"]);
     expect(saved).toHaveLength(16);
     expect(saved[1]).toMatchObject({ title: "Hoş geldiniz", tone: "turuncu", align: "orta", hidden: false });
+    // Kayan yazının hızı seçilmemişse "Yavaş" (2); 1–5 dışı reddedilir.
+    expect(saved[2]).toMatchObject({ type: "marquee", speed: 2 });
+    expect((await put([{ type: "marquee", id: "bant_2", text: "Hızlı bant", speed: 4 }])).statusCode).toBe(200);
+    expect((await cats()).home_blocks[0]).toMatchObject({ id: "bant_2", speed: 4 });
+    expect((await put([{ type: "marquee", id: "bant_2", text: "Hızlı bant", speed: 9 }])).statusCode).toBe(400);
     expect(saved[4].hidden).toBe(true);
     // Afiş görseli yönetimdeki reklam listesinde görünmez, herkese açık listede "blok" olarak döner.
     expect((await ctx.app.inject({ url: "/api/admin/tanitim", headers: { cookie: admin } })).json().items).toHaveLength(0);

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSession } from "./Session";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, type Ad, type RequestItem } from "@/lib/api";
-import { SPEEDS, type HomeBlock } from "@/lib/home";
+import { MQ_PX, SPEEDS, type HomeBlock } from "@/lib/home";
 import { AdGrid } from "./Ads";
 import { VitrinTile } from "./RequestTable";
 
@@ -83,7 +83,9 @@ export function CustomBlock({ b, ads }: { b: Exclude<HomeBlock, { type: "builtin
   }
   if (b.type === "marquee") {
     const row = <span>{Array.from({ length: 6 }, (_, i) => <b key={i}>{b.text}<i>•</i></b>)}</span>;
-    return <Go href={b.href} className="hb-mq" label={b.text}><span className="hb-mq-in" style={{ background: b.bg, color: b.fg }}><span className="hb-mq-track">{row}{row}</span></span></Go>;
+    // Süre yazının uzunluğuna göre: bir satır (6 kopya, harf başına ~10,5 px + ayraç) seçilen hızda kayar.
+    const secs = Math.max(10, Math.round((6 * (b.text.length * 10.5 + 66)) / (MQ_PX[b.speed ?? 2] ?? 45)));
+    return <Go href={b.href} className="hb-mq" label={b.text}><span className="hb-mq-in" style={{ background: b.bg, color: b.fg }}><span className="hb-mq-track" style={{ animationDuration: `${secs}s` }}>{row}{row}</span></span></Go>;
   }
   // Afiş: tek görsel geniş, birden fazlası ikişerli kutular; sayı tekse son görsel tam genişlikte (boşluk kalmaz).
   const items = b.ad_ids.map((id) => ads.find((a) => a.id === id)).filter((a): a is Ad => !!a);

@@ -17,7 +17,7 @@ const ADD: { type: Custom["type"]; icon: string; name: string; desc: string; mak
   { type: "banner", icon: "🖼", name: "Afiş (resim / video)", desc: "Tek geniş görsel ya da yan yana kutular", make: () => ({ type: "banner", id: newId("afis"), hidden: false, title: "", ad_ids: [] }) },
   { type: "catvitrin", icon: "🗂", name: "Kategori vitrini", desc: "Seçtiğiniz kategorinin talepleri kendiliğinden gelir; elle ekleyip çıkarırsınız", make: () => ({ type: "catvitrin", id: newId("katvit"), hidden: false, title: "Elektronik Talepleri", top: "elektronik", limit: 12, include_ids: [], exclude_ids: [] }) },
   { type: "showcase", icon: "🛍", name: "Kayan vitrin", desc: "Seçtiğiniz talepler tek satırda sağdan sola akar", make: () => ({ type: "showcase", id: newId("vitrin"), hidden: false, title: "Öne Çıkan Talepler", request_ids: [], speed: 2 }) },
-  { type: "marquee", icon: "〰️", name: "Kayan yazı bandı", desc: "\"Ücretsiz talep ver • …\" diye akan şerit", make: () => ({ type: "marquee", id: newId("bant"), hidden: false, text: "Almak istediğinizi yazın, satıcılar size gelsin", bg: "#F26B1D", fg: "#FFFFFF", href: "/talep-ver" }) },
+  { type: "marquee", icon: "〰️", name: "Kayan yazı bandı", desc: "\"Ücretsiz talep ver • …\" diye akan şerit", make: () => ({ type: "marquee", id: newId("bant"), hidden: false, text: "Almak istediğinizi yazın, satıcılar size gelsin", bg: "#F26B1D", fg: "#FFFFFF", href: "/talep-ver", speed: 2 }) },
 ];
 
 // Yönetim → Ana Sayfa Düzeni (Marka Bahçem vitrinindeki gibi): bölümler oklarla sıralanır, gizlenir; yazı, afiş ve kayan yazı eklenir.
@@ -161,6 +161,10 @@ function Editor({ b, ads, onSave, onAds }: { b: Custom; ads: Ad[]; onSave: (b: H
       <div className="fg full"><label htmlFor={`m-${d.id}`}>Kayan yazı</label><input id={`m-${d.id}`} className="inp" maxLength={160} value={d.text} onChange={(e) => set({ text: e.target.value })} /></div>
       <div className="fg"><label htmlFor={`bg-${d.id}`}>Zemin rengi</label><input id={`bg-${d.id}`} type="color" className="inp" value={d.bg} onChange={(e) => set({ bg: e.target.value.toUpperCase() })} /></div>
       <div className="fg"><label htmlFor={`fg-${d.id}`}>Yazı rengi</label><input id={`fg-${d.id}`} type="color" className="inp" value={d.fg} onChange={(e) => set({ fg: e.target.value.toUpperCase() })} /></div>
+      <div className="fg full"><label>Kayma hızı</label>
+        <div className="seg" role="group" aria-label="Kayma hızı">{SPEEDS.map(([n, l]) => (
+          <button key={n} type="button" className={(d.speed ?? 2) === n ? "on" : ""} aria-pressed={(d.speed ?? 2) === n} onClick={() => set({ speed: n })}>{l}</button>
+        ))}</div></div>
       <div className="fg full"><label htmlFor={`mh-${d.id}`}>Tıklayınca gideceği adres (isteğe bağlı)</label><input id={`mh-${d.id}`} className="inp" value={d.href ?? ""} onChange={(e) => set({ href: href(e.target.value) })} placeholder="/talep-ver" /></div>
       <div className="fg full"><button type="button" className="btn btn-or" onClick={() => onSave(d)}>Kaydet</button></div>
     </div>
