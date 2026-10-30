@@ -1,9 +1,10 @@
 import { router, useFocusEffect } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { ScrollView, Text, View } from "react-native";
 import { Icon } from "@/components/Icon";
 import { Btn, Press } from "@/components/ui";
+import { api } from "@/lib/api";
 import { openWeb, openWebAuthed } from "@/lib/links";
 import { useSession } from "@/lib/session";
 import { usePaymentsUi } from "@/lib/useCats";
@@ -14,7 +15,16 @@ type Row = { icon: string; title: string; go: () => void; badge?: number; tone?:
 export default function Hesap() {
   const { user, signOut, refresh } = useSession();
   const ui = usePaymentsUi();
-  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  // Özet (sitedeki Bana Özel → Özet gibi): açık taleplerim, okunmamış mesajlar, alarmlarıma uyan talepler.
+  const [sum, setSum] = useState<{ open: number; matches: number } | null>(null);
+  useFocusEffect(useCallback(() => {
+    void refresh();
+    if (!user) return;
+    void Promise.all([
+      api<{ items: { status?: string }[] }>("/me/requests").then((x) => x.items.filter((r) => r.status === "active").length).catch(() => 0),
+      api<{ items: unknown[] }>("/me/matches").then((x) => x.items.length).catch(() => 0),
+    ]).then(([open, matches]) => setSum({ open, matches }));
+  }, [refresh, user?.id]));
   const info: Row[] = [
     { icon: "book", title: "Sık Sorulan Sorular", go: () => void openWeb("/sss") },
     { icon: "shield", title: "Güvenli alışveriş ipuçları", go: () => void openWeb("/sozlesmeler/guvenli-alisveris") },
@@ -62,6 +72,11 @@ export default function Hesap() {
           {ui.show_credits ? <Stat n={user.credits} l="kredi" /> : null}
         </View>
       </LinearGradient>
+      <View accessibilityLabel="Özet" style={{ flexDirection: "row", gap: 10 }}>
+        <Tile n={sum?.open} l="Açık talebim" icon="list" tone="#1F54C9" go={() => router.push("/hesap/taleplerim")} />
+        <Tile n={user.unread_messages ?? 0} l="Okunmamış mesaj" icon="chat" tone={C.orange} go={() => router.push("/mesajlar")} />
+        <Tile n={sum?.matches} l="Size uygun talep" icon="search" tone="#7C3AED" go={() => router.push("/hesap/uygun")} />
+      </View>
       <List rows={rows} />
       <List rows={info} />
       <Btn title="Çıkış yap" kind="wh" onPress={() => void signOut()} />
@@ -77,6 +92,16 @@ function Stat({ n, l }: { n: number; l: string }) {
       <Text style={{ color: "#fff", fontSize: 22, fontWeight: "900" }}>{n}</Text>
       <Text style={{ color: "#C9D0E4", fontSize: 12 }}>{l}</Text>
     </View>
+  );
+}
+
+function Tile({ n, l, icon, tone, go }: { n: number | undefined; l: string; icon: string; tone: string; go: () => void }) {
+  return (
+    <Press accessibilityRole="button" accessibilityLabel={`${l}: ${n ?? "…"}`} onPress={go} style={[{ flex: 1, backgroundColor: C.card, borderRadius: R.lg, borderWidth: 1, borderColor: C.line, padding: 12, gap: 4 }, SH.sm]}>
+      <Icon name={icon} size={18} color={tone} />
+      <Text style={{ fontSize: 22, fontWeight: "900", color: C.navy }}>{n ?? "…"}</Text>
+      <Text style={{ fontSize: 12, color: C.muted, fontWeight: "600" }} numberOfLines={2}>{l}</Text>
+    </Press>
   );
 }
 

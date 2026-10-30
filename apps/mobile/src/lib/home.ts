@@ -11,7 +11,7 @@ export type Tone = "acik" | "lacivert" | "turuncu" | "yesil";
 export type HomeBlock =
   | { type: "builtin"; id: BuiltinId; hidden: boolean; show?: Show; texts?: Record<string, string> }
   | { type: "text"; id: string; hidden: boolean; show?: Show; title: string; text: string; cta: string; href: string | null; tone: Tone; align: "sol" | "orta" }
-  | { type: "marquee"; id: string; hidden: boolean; show?: Show; text: string; bg: string; fg: string; href: string | null }
+  | { type: "marquee"; id: string; hidden: boolean; show?: Show; text: string; bg: string; fg: string; href: string | null; speed?: number }
   | { type: "banner"; id: string; hidden: boolean; show?: Show; title: string; ad_ids: number[] }
   | { type: "showcase"; id: string; hidden: boolean; show?: Show; title: string; request_ids: number[]; speed: number }
   | { type: "catvitrin"; id: string; hidden: boolean; show?: Show; title: string; top: string; limit: number; include_ids: number[]; exclude_ids: number[] };

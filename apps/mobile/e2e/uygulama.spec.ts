@@ -116,6 +116,65 @@ test("alıcı uygulamadan giriş yapar, tek cümleyle talep verir, fotoğraf ekl
   // Alıcı Mesajlar sekmesinde satıcının mesajını görür.
   await page.goto("/mesajlar");
   await expect(page.getByText("Merhaba, kutulu PS5 elimde.")).toBeVisible();
+
+  // Alıcı talebi kapatır; ziyaretçi kapalı talepte aynı kategorideki açık talepleri görür (sitedeki gibi).
+  await page.goto(new URL(url).pathname);
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Talebi kapat" }).click();
+  await expect(page.getByText("Bu talep kapandı").first()).toBeVisible();
+  const vctx = await browser.newContext({ baseURL: "http://localhost:8090" });
+  const visitor = await vctx.newPage();
+  await visitor.goto(new URL(url).pathname);
+  await expect(visitor.getByLabel("Benzer açık talepler")).toBeVisible();
+  await expect(visitor.getByText("Alıcı artık teklif almıyor.", { exact: false })).toBeVisible();
+  await expect(visitor.getByRole("link", { name: /kategorisindeki tüm talepler/ })).toBeVisible();
+  await vctx.close();
+});
+
+test("satıcı talepleri il ve bütçeye göre süzer, aramayı alarm olarak kaydeder; talep sayfasından benzer talepler için alarm kurar; Hesabım'da özeti görür", async ({ page }) => {
+  await login(page, `0539${rnd().slice(0, 7)}`, "Süzgeç Satıcı");
+  await page.goto("/talepler");
+  // Kategori seçilmeden arama kaydedilemez.
+  await page.getByRole("button", { name: "Aramayı kaydet" }).click();
+  await expect(page.getByText("Aramayı kaydetmek için önce bir kategori seçin.")).toBeVisible();
+  await page.getByRole("button", { name: "Filtrele" }).click();
+  await choose(page, "İl", "Ankara");
+  await page.getByLabel("En az bütçe (TL)").fill("20000");
+  await page.getByLabel("En çok bütçe (TL)").fill("10000");
+  await expect(page.getByText("En az bütçe, en çok bütçeden büyük olamaz.")).toBeVisible();
+  await page.getByLabel("En çok bütçe (TL)").fill("5000000");
+  await page.getByRole("button", { name: "Kurumsal", exact: true }).click();
+  const listed = page.waitForResponse((r) => r.url().includes("/api/requests?") && r.url().includes("city=Ankara") && r.url().includes("bmin=20000") && r.url().includes("buyer=kurumsal"));
+  await page.getByRole("button", { name: "Sonuçları göster" }).click();
+  expect((await listed).ok()).toBeTruthy();
+  await expect(page.getByRole("button", { name: "Filtrele, 3 süzgeç seçili" })).toBeVisible();
+  // Etiketten tek süzgeç kaldırılır.
+  await page.getByRole("button", { name: "Kurumsal alıcılar süzgecini kaldır" }).click();
+  await expect(page.getByRole("button", { name: "Filtrele, 2 süzgeç seçili" })).toBeVisible();
+  await page.getByRole("button", { name: "Vasıta" }).first().click();
+  const saved = page.waitForResponse((r) => r.url().endsWith("/api/me/alarms") && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Aramayı kaydet" }).click();
+  const sr = await saved;
+  expect(sr.ok(), await sr.text()).toBeTruthy();
+  expect(sr.request().postDataJSON()).toMatchObject({ category_id: "vasita", city: "Ankara", filters: { bmin: "20000", bmax: "5000000" } });
+  await expect(page.getByText(/Arama kaydedildi: Vasıta, Ankara/)).toBeVisible();
+
+  // Talep sayfasından benzer talepler için alarm.
+  const r = (await (await page.request.get(`${API}/api/requests?per=1`)).json()).items[0];
+  await page.goto(`/talep/${r.id}`);
+  const al = page.waitForResponse((x) => x.url().endsWith("/api/me/alarms") && x.request().method() === "POST");
+  await page.getByRole("button", { name: "Benzer talepler için alarm kur" }).click();
+  expect((await al).ok()).toBeTruthy();
+  await expect(page.getByText(/Alarm kuruldu:/)).toBeVisible();
+  await page.goto("/hesap/alarmlar");
+  await expect(page.getByText(/Ankara · 20\.000 – 5\.000\.000 TL/)).toBeVisible();
+
+  // Hesabım özeti: açık talep, okunmamış mesaj ve uygun talep sayıları; dokununca ilgili ekran açılır.
+  await page.goto("/hesap");
+  await expect(page.getByRole("button", { name: /^Açık talebim: \d+$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Okunmamış mesaj: \d+$/ })).toBeVisible();
+  await page.getByRole("button", { name: /^Size uygun talep: \d+$/ }).click();
+  await expect(page).toHaveURL(/hesap\/uygun/);
 });
 
 test("üye uygulamadan e-posta ve telefon bildirimi tercihlerini kaydeder ve hesabını SİL yazarak siler", async ({ page }) => {

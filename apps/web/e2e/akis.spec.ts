@@ -482,6 +482,8 @@ test("yönetici bir kategoriyi gizler ve sitede kaybolur", async ({ page }, info
   await expect(page.getByRole("heading", { name: `Hoş geldiniz ${htag}` })).toBeVisible();
   await expect(page.locator(".hb-text").getByRole("link", { name: "Ücretsiz talep ver" })).toHaveAttribute("href", "/talep-ver");
   await expect(page.locator(".hb-mq").first()).toBeVisible();
+  // Kayan yazı uzunluğuna göre yavaş kayar (varsayılan hız "Yavaş": 47 harf → 75 saniyede bir tur).
+  await expect(page.locator(".hb-mq-track").first()).toHaveCSS("animation-duration", "75s");
   const [latestY, heroY] = await Promise.all([page.getByRole("heading", { name: "Son Eklenen Talepler" }).boundingBox(), page.getByRole("heading", { name: "Ne almak istiyorsunuz?" }).boundingBox()]);
   expect(latestY!.y).toBeLessThan(heroY!.y);
   // Temizlik: eklenen bölümler silinir, hazır bölümler ilk sıraya döner.
