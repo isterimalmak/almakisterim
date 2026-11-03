@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Deps } from "../context.js";
 import { listCategories, VISIBLE_CATEGORY_SQL } from "./categories.js";
-import { FROM } from "./requests.js";
+import { FROM, listFilters } from "./requests.js";
 import { paymentsUi } from "./site.js";
 import { LEGAL_DOCS } from "../data/legal/index.js";
 
@@ -25,6 +25,24 @@ export function seoRoutes(app: FastifyInstance, deps: Deps) {
   const { pool } = deps;
   // İl sayfaları için sayılar (web/app/il); yalnız sayı, talep içeriği yok.
   app.get("/seo/places", async () => ({ places: await places(pool), min: PLACE_MIN }));
+  // Arama sayfaları (/nakit-araba-alanlar, /alicilar/arac/volkswagen/passat…) için talep listesiyle aynı süzgeçlerle özet:
+  // açık talep sayısı, bütçeler, en çok aranan iller ve bugüne kadarki (kapanan ve süresi dolanlar dahil) talep sayısı.
+  // Yalnız sayı döner; talep içeriği ya da alıcı bilgisi yok.
+  app.get("/seo/stats", async (req) => {
+    const { where, params } = listFilters(req.query as Record<string, unknown>);
+    const w = where.join(" AND ");
+    const [agg, cities] = await Promise.all([
+      pool.query<{ count: number; avg: number | null; max: number | null }>(
+        `SELECT count(*)::int AS count, round(avg(r.budget_max))::bigint AS avg, max(r.budget_max)::bigint AS max ${FROM} WHERE ${w}`, params),
+      pool.query<{ city: string; count: number }>(
+        `SELECT r.city, count(*)::int AS count ${FROM} WHERE ${w} AND r.city <> '' GROUP BY r.city ORDER BY count DESC, r.city LIMIT 10`, params),
+    ]);
+    // Bugüne kadarki talepler: açık olma koşulu (ilk iki süzgeç) yerine yayımlanmış her talep.
+    const ever = await pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count ${FROM} WHERE r.status IN ('active','closed','expired') AND ${where.slice(2).join(" AND ")}`, params);
+    const a = agg.rows[0]!;
+    return { count: a.count, avg_budget: a.avg === null ? null : Number(a.avg), max_budget: a.max === null ? null : Number(a.max), cities: cities.rows, ever: ever.rows[0]!.count };
+  });
   app.get("/seo/sitemap", async () => {
     const requests = (await pool.query<{ id: number; title: string; city: string | null; created_at: string }>(
       `SELECT r.id, r.title, r.city, r.created_at ${FROM}

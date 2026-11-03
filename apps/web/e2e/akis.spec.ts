@@ -1580,3 +1580,52 @@ test("paylaşım resimleri: talep, il ve kategori sayfası kendi resmini bildiri
     expect((await r.body()).length).toBeGreaterThan(5000);
   }
 });
+
+test("arama sayfaları: nakit araba alanlar ve il hâlleri, sahibinden satılık ev, marka/model alıcı sayfaları sunucuda hazırlanır ve site haritasında", async ({ page }, info) => {
+  test.skip(info.project.name !== "masaustu");
+  const phone = `0536${rnd().slice(0, 7)}`;
+  await loginSms(page, phone, "Arama Sayfası");
+  const id = await apiRequest(page, phone, { category_id: "otomobil", title: "Passat arıyorum", description: "Dizel, otomatik olsun.", budget_min: 0, budget_max: 1250000, city: "Kars", district: "", condition: "İkinci El", attrs: { araclar: [{ marka: "Volkswagen", model: "Passat" }] } });
+
+  // Konu sayfası: kendi başlığı, kanonik adres, soru-cevap verisi ve canlı talepler ilk yanıtta.
+  const hub = await (await page.request.get("/nakit-araba-alanlar")).text();
+  expect(hub).toContain("<title>Nakit Araba Alanlar – Arabanızı Peşin Parayla Hemen Satın | almakisterim.com</title>");
+  expect(hub).toContain('<link rel="canonical" href="https://almakisterim.com/nakit-araba-alanlar"/>');
+  expect(hub).toContain('"@type":"FAQPage"');
+  expect(hub).toContain(`href="/talep/${id}-`);
+  expect(hub).not.toContain('content="noindex');
+  // İl hâli: talebi olan il ve büyük iller dizine girer; talebi olmayan küçük il girmez. Bilinmeyen adres 404.
+  const kars = await (await page.request.get("/nakit-araba-alanlar/kars")).text();
+  expect(kars).toContain("Kars&#x27;ta Nakit Araba Alanlar");
+  expect(kars).toContain(`href="/talep/${id}-`);
+  expect(kars).not.toContain('content="noindex');
+  expect(await (await page.request.get("/nakit-araba-alanlar/istanbul")).text()).not.toContain('content="noindex');
+  expect(await (await page.request.get("/nakit-araba-alanlar/bayburt")).text()).toContain('<meta name="robots" content="noindex, follow"/>');
+  expect((await page.request.get("/nakit-araba-alanlar/atlantis")).status()).toBe(404);
+  expect((await page.request.get("/boyle-bir-sayfa-yok")).status()).toBe(404);
+
+  // Marka ve model alıcı sayfaları katalogdan; katalogda olmayan marka 404.
+  const model = await (await page.request.get("/alicilar/arac/volkswagen/passat")).text();
+  expect(model).toContain("<title>Volkswagen Passat Alıcıları – Volkswagen Passat Satmak İsteyenler İçin Alım Talepleri | almakisterim.com</title>");
+  expect(model).toContain(`href="/talep/${id}-`);
+  expect((await page.request.get("/alicilar/arac/uydurma-marka")).status()).toBe(404);
+  await page.goto("/alicilar/arac/volkswagen");
+  await expect(page.getByRole("heading", { level: 1, name: "Volkswagen Alıcıları" })).toBeVisible();
+  await page.getByRole("link", { name: "Volkswagen Passat", exact: true }).click();
+  await expect(page).toHaveURL(/\/alicilar\/arac\/volkswagen\/passat$/);
+  await expect(page.getByText(/Şu an \d+ alıcı Volkswagen Passat arıyor/)).toBeVisible();
+
+  // Alıcı sayfası: "Ücretsiz talep ver" talep formunu kategori ve hazır cümleyle açar.
+  await page.goto("/sahibinden-satilik-ev");
+  await expect(page.getByRole("heading", { level: 1, name: "Sahibinden Satılık Ev" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Rakamlarla" })).toBeVisible();
+  await page.locator(".lp-hero").getByRole("link", { name: "Ücretsiz talep ver" }).click();
+  await expect(page).toHaveURL(/\/talep-ver\?kategori=satilik&metin=Sahibinden/);
+
+  // Her sayfanın alt bilgisinde çok aranan sayfalar; site haritasında konu, il ve marka/model sayfaları.
+  await page.goto("/");
+  await expect(page.getByRole("navigation", { name: "Çok aranan sayfalar" }).getByRole("link", { name: "Nakit Araba Alanlar" })).toHaveAttribute("href", "/nakit-araba-alanlar");
+  const map = await (await page.request.get("/sitemap.xml")).text();
+  for (const p of ["/nakit-araba-alanlar", "/nakit-araba-alanlar/kars", "/nakit-araba-alanlar/istanbul", "/sahibinden-satilik-ev", "/alicilar/arac/volkswagen/passat", "/alicilar/telefon/apple"]) expect(map).toContain(`<loc>https://almakisterim.com${p}</loc>`);
+  expect(map).not.toContain("<loc>https://almakisterim.com/nakit-araba-alanlar/bayburt</loc>");
+});

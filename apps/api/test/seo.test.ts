@@ -70,3 +70,24 @@ describe("il sayfaları", () => {
     await ctx.app.inject({ method: "PATCH", url: "/api/admin/categories/telefon", headers: { cookie: admin }, payload: { is_visible: true } });
   });
 });
+
+describe("arama sayfası özetleri (/seo/stats)", () => {
+  it("talep listesiyle aynı süzgeçlerle sayı, bütçe, iller ve bugüne kadarki talep sayısını verir; alıcı bilgisi dönmez", async () => {
+    await resetData(ctx.pool);
+    const buyer = await login(ctx, "05321117101", "Özet Alıcı");
+    const car = { category_id: "otomobil", condition: "İkinci El", district: "" };
+    await createRequest(ctx, buyer, { ...car, title: "Passat arıyorum", budget_min: 0, budget_max: 1_000_000, city: "İzmir", attrs: { araclar: [{ marka: "Volkswagen", model: "Passat" }] } });
+    await createRequest(ctx, buyer, { ...car, title: "Passat dizel arıyorum", budget_min: 0, budget_max: 1_400_000, city: "İzmir", attrs: { araclar: [{ marka: "Volkswagen", model: "Passat" }] } });
+    const closed = await createRequest(ctx, buyer, { ...car, title: "Golf arıyorum", budget_min: 0, budget_max: 900_000, city: "Ankara", attrs: { araclar: [{ marka: "Volkswagen", model: "Golf" }] } });
+    await ctx.pool.query("UPDATE requests SET status = 'closed' WHERE id = $1", [closed]);
+    const stats = async (q: string) => (await ctx.app.inject({ url: `/api/seo/stats?${q}` })).json();
+
+    const passat = await stats("top=vasita&arac_marka=Volkswagen&arac_model=Passat");
+    expect(passat).toEqual({ count: 2, avg_budget: 1_200_000, max_budget: 1_400_000, cities: [{ city: "İzmir", count: 2 }], ever: 2 });
+    // Kapanan talep açık sayıya girmez ama "bugüne kadar" sayısına girer.
+    const vw = await stats("top=vasita&arac_marka=Volkswagen");
+    expect(vw).toMatchObject({ count: 2, ever: 3 });
+    expect(await stats("top=vasita&city=Ankara")).toMatchObject({ count: 0, avg_budget: null, max_budget: null, cities: [], ever: 1 });
+    expect(JSON.stringify(vw)).not.toContain("Özet Alıcı");
+  });
+});
