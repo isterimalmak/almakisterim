@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { initials } from "@/lib/format";
 import { withYear } from "@/lib/footer";
+import { LANDINGS } from "@/lib/landing";
 import { Icon } from "./Icon";
 import { useSession } from "./Session";
 
@@ -77,6 +78,12 @@ export function Footer() {
         <div className="ft">
           {footer.columns.map((c) => <div key={c.title}><b>{c.title}</b>{c.links.map(link)}</div>)}
         </div>
+        {/* Çok aranan sayfalar: arama motorları bu sayfaları her sayfadan bulsun. */}
+        <nav className="ft-pop" aria-label="Çok aranan sayfalar">
+          <b>Çok arananlar</b>
+          {LANDINGS.map((l) => <Link key={l.slug} href={`/${l.slug}`}>{l.h1}</Link>)}
+          <Link href="/alicilar">Marka ve modele göre alıcılar</Link>
+        </nav>
         <div className="ft-bottom"><span>{withYear(footer.bottom_left)}</span><span>{footer.bottom_right}</span></div>
       </div>
     </footer>
