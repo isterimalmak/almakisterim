@@ -18,7 +18,10 @@ type Data = {
 };
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [d, veh] = await Promise.all([serverApi<Data>("/seo/sitemap"), serverApi<{ cars: Record<string, string[]> }>("/catalog/vehicles")]);
+  const [d, veh, pl] = await Promise.all([
+    serverApi<Data>("/seo/sitemap"), serverApi<{ cars: Record<string, string[]> }>("/catalog/vehicles"),
+    serverApi<{ places: NonNullable<Data["places"]> }>("/seo/places"),
+  ]);
   const u = (path: string) => `${SITE_URL}${path}`;
   const fixed: MetadataRoute.Sitemap = [
     { url: u("/"), changeFrequency: "hourly", priority: 1 },
@@ -30,7 +33,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
   // Arama sayfaları (/nakit-araba-alanlar…) ve il hâlleri: büyük iller her zaman, diğer iller o kategoride açık talep varsa.
   const hubs: MetadataRoute.Sitemap = LANDINGS.flatMap((l) => {
-    const withReq = (d?.places ?? []).filter((p) => p.top === l.top && (l.sub ? p.sub === l.sub : !p.sub)).map((p) => p.city);
+    // Arama sayfasının il hâli tek talepte bile doludur (il sayfalarındaki "en az 3 talep" sınırı burada yok; sayfa kendi kuralıyla dizine girer).
+    const withReq = (pl?.places ?? []).filter((p) => p.top === l.top && (l.sub ? p.sub === l.sub : !p.sub)).map((p) => p.city);
     const cities = [...new Set([...BIG_CITIES, ...withReq])];
     return [
       { url: u(`/${l.slug}`), changeFrequency: "daily" as const, priority: 0.8 },
