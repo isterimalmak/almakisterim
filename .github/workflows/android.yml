@@ -72,6 +72,6 @@ jobs:
             console.log(out);
           "
 
-      - name: Google Play'e gönder (dahili test)
+      - name: Google Play'e gönder (üretim, otomatik yayın)
         if: ${{ inputs.submit }}
         run: npx --yes eas-cli@25 submit --platform android --profile production --latest --non-interactive
