@@ -4,12 +4,16 @@
 #   EXPO_TOKEN  — expo.dev erişim anahtarı
 #   ASC_API_KEY — App Store Connect API anahtarının (.p8) içeriği (Users and Access > Integrations > App Store Connect API)
 # Anahtar numarası, yayıncı numarası ve takım numarası gizli değildir; aşağıda yazılıdır.
-# İmza sertifikası ve dağıtım profili ilk derlemede bu anahtarla Apple'da oluşturulur, Expo'da saklanır.
+# İmza sertifikası, dağıtım profili ve bildirim anahtarı bir kez "kurulum" seçeneğiyle bu anahtarla oluşturulur, Expo'da saklanır.
 name: iOS (App Store)
 
 on:
   workflow_dispatch:
     inputs:
+      kurulum:
+        description: "İlk kurulum: Apple imza sertifikasını, dağıtım profilini ve bildirim anahtarını oluşturup Expo'ya kaydet (bir kez)"
+        type: boolean
+        default: false
       submit:
         description: "Derlemeden sonra App Store Connect'e (TestFlight) gönder"
         type: boolean
@@ -64,6 +68,28 @@ jobs:
         run: |
           umask 077
           printf '%s\n' "$ASC_API_KEY" > asc-api-key.p8
+
+      # Expo, imza sertifikasını yalnız etkileşimli kurulumda oluşturuyor. Kurulumun sorularına varsayılan cevap
+      # ("evet": yeni sertifika, yeni profil, bildirim anahtarı) otomatik verilir; Apple'a giriş bu anahtarla yapılır.
+      # Oluşan imza bilgileri Expo'da saklanır; sonraki derlemeler etkileşimsiz çalışır.
+      - name: İlk kurulum – imza bilgilerini oluştur
+        if: ${{ inputs.kurulum }}
+        run: |
+          sudo apt-get install -y -qq expect > /dev/null
+          cat > kurulum.exp <<'EXP'
+          set timeout 600
+          spawn npx --yes eas-cli@25 credentials:configure-build --platform ios --profile production
+          expect {
+            -re {[Ll]og in to your Apple account} { send "y\r"; exp_continue }
+            -re {\(Y/n\)|\(y/N\)|Y/n|y/N} { send "y\r"; exp_continue }
+            -re {\? .*›} { send "\r"; exp_continue }
+            -re {Apple ID:|Password|[Pp]assword:} { puts "\nApple girişi isteniyor; anahtarla giriş çalışmadı."; exit 2 }
+            eof
+          }
+          catch wait result
+          exit [lindex $result 3]
+          EXP
+          expect kurulum.exp
 
       - name: iOS paketini derle (IPA)
         run: |
