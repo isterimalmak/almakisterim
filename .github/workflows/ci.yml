@@ -11,7 +11,8 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Playwright (uçtan uca testlerin tarayıcısı) ubuntu-latest'in yeni sürümünü (26.04) henüz desteklemiyor; desteklenen sürümde sabit.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
       postgres:
