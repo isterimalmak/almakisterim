@@ -1,0 +1,84 @@
+# Telefon uygulamasını (apps/mobile, Expo) App Store için derler ve gönderir: Expo'nun bulutunda (EAS), Mac gerekmez.
+# Yalnızca elle başlatılır: GitHub > Actions > "iOS (App Store)" > Run workflow (main).
+# Gizli değerler (sahibi GitHub > Settings > Secrets and variables > Actions'a kendisi girer; bu dosyada ve log'da görünmez):
+#   EXPO_TOKEN  — expo.dev erişim anahtarı
+#   ASC_API_KEY — App Store Connect API anahtarının (.p8) içeriği (Users and Access > Integrations > App Store Connect API)
+# Anahtar numarası, yayıncı numarası ve takım numarası gizli değildir; aşağıda yazılıdır.
+# İmza sertifikası ve dağıtım profili ilk derlemede bu anahtarla Apple'da oluşturulur, Expo'da saklanır.
+name: iOS (App Store)
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: "Derlemeden sonra App Store Connect'e (TestFlight) gönder"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      ASC_API_KEY: ${{ secrets.ASC_API_KEY }}
+      # EAS'ın Apple'a girişsiz (anahtarla) bağlanması için
+      EXPO_ASC_API_KEY_PATH: ${{ github.workspace }}/apps/mobile/asc-api-key.p8
+      EXPO_ASC_KEY_ID: C797U3XQUG
+      EXPO_ASC_ISSUER_ID: 92c76211-95d8-4995-b35b-eb8028959b06
+      EXPO_APPLE_TEAM_ID: 48LQW3T79Z
+      EXPO_APPLE_TEAM_TYPE: INDIVIDUAL
+    steps:
+      - name: Yetki kontrolü
+        working-directory: .
+        env:
+          KIM: ${{ github.triggering_actor }}
+          DAL: ${{ github.ref }}
+        run: |
+          [[ "$KIM" == "isterimalmak" || "$KIM" == "coskungulerlokalusta" ]] || { echo "::error::Bu hesap derleme başlatamaz: $KIM"; exit 1; }
+          [[ "$DAL" == "refs/heads/main" ]] || { echo "::error::Derleme yalnızca main dalından yapılır."; exit 1; }
+          [ -n "$EXPO_TOKEN" ] || { echo "::error::EXPO_TOKEN tanımlı değil."; exit 1; }
+          [ -n "$ASC_API_KEY" ] || { echo "::error::ASC_API_KEY tanımlı değil. GitHub > Settings > Secrets and variables > Actions > New repository secret: ASC_API_KEY (.p8 dosyasının içeriği)"; exit 1; }
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bağımlılıklar ve tip denetimi
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: App Store Connect anahtarını geçici dosyaya yaz
+        run: |
+          umask 077
+          printf '%s\n' "$ASC_API_KEY" > asc-api-key.p8
+
+      - name: iOS paketini derle (IPA)
+        run: |
+          npx --yes eas-cli@25 build --platform ios --profile production --non-interactive --wait --json > build.json
+          node -e "
+            const b = require('./build.json')[0];
+            const out = ['### iOS derlemesi ✅', '- Sürüm: ' + b.appVersion + ' (' + b.appBuildVersion + ')'].join('\n');
+            require('fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY, out + '\n');
+            console.log(out);
+          "
+
+      - name: App Store Connect'e gönder (TestFlight; incelemeye App Store Connect'ten gönderilir)
+        if: ${{ inputs.submit }}
+        run: npx --yes eas-cli@25 submit --platform ios --profile production --latest --non-interactive
+
+      - name: Geçici anahtar dosyasını sil
+        if: ${{ always() }}
+        run: rm -f asc-api-key.p8

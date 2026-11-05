@@ -27,6 +27,13 @@
       "android": {
         "track": "production",
         "releaseStatus": "completed"
+      },
+      "ios": {
+        "ascAppId": "6831243444",
+        "ascApiKeyPath": "./asc-api-key.p8",
+        "ascApiKeyId": "C797U3XQUG",
+        "ascApiKeyIssuerId": "92c76211-95d8-4995-b35b-eb8028959b06",
+        "appleTeamId": "48LQW3T79Z"
       }
     }
   }

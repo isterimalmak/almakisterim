@@ -13,3 +13,6 @@ apps/web/test-results/
 apps/web/playwright-report/
 apps/web/next-env.d.ts
 *.tsbuildinfo
+
+# App Store Connect anahtarı: yalnız iOS iş akışında geçici olarak yazılır, depoya girmez
+*.p8
