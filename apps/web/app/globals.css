@@ -1484,5 +1484,13 @@ button.link{padding:0;font-size:inherit}
 .lp-n{flex:none;width:30px;height:30px;border-radius:50%;background:var(--orange);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center}
 @media (max-width:760px){.lp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.lp-stats b{font-size:18px}.lp-steps ol{grid-template-columns:1fr}.lp-hero .il-h1{font-size:23px}}
 .ft-pop{display:flex;flex-wrap:wrap;gap:6px 14px;padding:14px 0;margin-top:14px;border-top:1px solid var(--line);font-size:12.5px}
-.ft-pop b{width:100%;margin-bottom:2px}
+.ft-pop b{width:100%;margin:6px 0 2px}
 .ft-pop a{color:var(--muted)}
+/* Çerez kutusu */
+.cookie-bar{position:fixed;left:16px;right:16px;bottom:16px;z-index:60;max-width:760px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(19,35,91,.18);padding:14px 16px;display:flex;gap:14px;align-items:center}
+.cookie-bar p{margin:0;font-size:13px;color:#3A4250;flex:1}
+.cookie-bar a{color:var(--navy);text-decoration:underline}
+.cookie-btns{display:flex;gap:8px;flex:none}
+.ft-cookie{background:none;border:0;padding:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
+@media (max-width:860px){.cookie-bar{flex-direction:column;align-items:stretch;left:10px;right:10px;bottom:calc(72px + env(safe-area-inset-bottom))}.cookie-btns .btn{flex:1}}
+.cat-about{margin:14px 0}.cat-about p{margin:0 0 10px;color:#3A4250;font-size:14px;max-width:860px}

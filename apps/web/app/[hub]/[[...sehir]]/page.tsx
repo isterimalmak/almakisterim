@@ -24,7 +24,7 @@ function resolve(hub: string, sehir: string[] = []) {
   return { l: l!, city, bad };
 }
 const query = (l: Landing, city?: string) =>
-  new URLSearchParams({ top: l.top, ...(l.sub ? { sub: l.sub } : {}), ...(city ? { city } : {}), ...(l.filters ?? {}) });
+  new URLSearchParams({ ...(l.top ? { top: l.top } : {}), ...(l.sub ? { sub: l.sub } : {}), ...(city ? { city } : {}), ...(l.filters ?? {}) });
 const heading = (l: Landing, city?: string) => (city ? `${locative(city)} ${l.h1}` : l.h1);
 
 export async function generateMetadata({ params }: P): Promise<Metadata> {
@@ -32,16 +32,16 @@ export async function generateMetadata({ params }: P): Promise<Metadata> {
   const { l, city, bad } = resolve(hub, sehir);
   if (bad) return { title: "Sayfa bulunamadı", robots: { index: false, follow: true } };
   const path = `/${l.slug}${city ? `/${slugify(city)}` : ""}`;
-  // İl sayfası: büyük iller her zaman, diğerleri ancak o ilde açık talep varsa arama sonuçlarına açılır.
-  const stats = city && !BIG_CITIES.includes(city) ? await serverApi<LandingStats>(`/seo/stats?${query(l, city)}`) : null;
-  const thin = !!city && !BIG_CITIES.includes(city) && !(stats?.count);
+  // İl hâli ancak o ilde gerçek (açık) talep varsa arama sonuçlarına açılır; boş il sayfası birbirinin kopyası sayılır.
+  const stats = city ? await serverApi<LandingStats>(`/seo/stats?${query(l, city)}`) : null;
+  const thin = !!city && !(stats?.count);
   const title = city ? `${locative(city)} ${l.title}` : l.title;
   const description = city ? `${locative(city)} ${l.description.charAt(0).toLocaleLowerCase("tr")}${l.description.slice(1)}` : l.description;
   return {
     title: { absolute: `${title} | almakisterim.com` }, description,
     alternates: { canonical: path },
     robots: thin ? { index: false, follow: true } : undefined,
-    openGraph: { ...OG_BASE, title, description, url: path, images: ogImage("kategori", l.top, l.sub) },
+    openGraph: { ...OG_BASE, title, description, url: path, images: l.top ? ogImage("kategori", l.top, l.sub) : ogImage("site") },
   };
 }
 
@@ -64,14 +64,14 @@ export default async function HubPage({ params }: P) {
     { title: "İlgili aramalar", links: l.related.map((s) => landingBySlug(s)).filter((x): x is Landing => !!x)
       .map((x) => ({ href: city ? `/${x.slug}/${slugify(city)}` : `/${x.slug}`, label: heading(x, city) })) },
   ];
-  const listHref = `/kategori/${l.top}${l.sub ? `/${l.sub}` : ""}${city ? `?city=${encodeURIComponent(city)}` : ""}`;
+  const listHref = `/kategori${l.top ? `/${l.top}` : ""}${l.sub ? `/${l.sub}` : ""}${city ? `?city=${encodeURIComponent(city)}` : ""}`;
   const metin = l.metin ? `${l.metin}${city ? `${city}` : ""}` : "";
   return (
     <LandingView
       crumbs={[{ name: "Ana Sayfa", path: "/" }, { name: l.h1, path: `/${l.slug}` }, ...(city ? [{ name: city, path: `/${l.slug}/${slugify(city)}` }] : [])]}
       h1={heading(l, city)} intro={l.intro} kind={l.kind} n={l.n} acc={l.acc} place={city ? locative(city) : undefined}
       stats={stats} items={list?.items ?? []} listHref={listHref}
-      talepHref={`/talep-ver?kategori=${l.sub ?? l.top}${metin ? `&metin=${encodeURIComponent(metin)}` : ""}`}
+      talepHref={`/talep-ver?${new URLSearchParams({ ...(l.sub ?? l.top ? { kategori: (l.sub ?? l.top)! } : {}), ...(metin ? { metin } : {}) })}`}
       faq={l.faq} groups={groups} />
   );
 }

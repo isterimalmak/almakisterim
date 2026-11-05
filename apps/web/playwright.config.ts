@@ -8,6 +8,8 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {},
+    // Çerez kutusu daha önce yanıtlanmış gibi açılır (alttaki düğmeleri kapatmasın); çerez kutusunun kendi testi boş tarayıcıyla açar.
+    storageState: "e2e/cerez-secildi.json",
   },
   projects: [
     { name: "masaustu", use: { ...devices["Desktop Chrome"] } },

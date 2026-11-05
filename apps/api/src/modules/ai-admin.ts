@@ -45,6 +45,15 @@ const TOPICS: [string, string | null][] = [
   ["İkinci el saat alırken orijinallik nasıl anlaşılır?", "moda"],
   ["İkinci el bebek eşyası alırken güvenlik kontrolleri", "bebek"],
   ["Toptan ambalaj alırken fiyat nasıl karşılaştırılır?", "toptan"],
+  // Satmak isteyenlerin ve fiyat araştıranların çok aradığı sorular (arama sayfalarıyla aynı konular)
+  ["İkinci el araç fiyatı nasıl belirlenir?", "vasita"],
+  ["Arabamı en hızlı ve en iyi fiyata nasıl satarım?", "vasita"],
+  ["Ev satın alırken nelere dikkat edilmeli?", "emlak"],
+  ["Evimi emlakçısız nasıl satarım?", "emlak"],
+  ["Telefonumu satmadan önce yapılması gereken 8 şey", "elektronik"],
+  ["Mobilya satın alırken nelere dikkat edilmeli?", "ev"],
+  ["Eşyalarımı spotçuya mı satmalıyım, alıcıya mı?", "ev"],
+  ["Sahibinden araba alırken noter ve ödeme nasıl yapılır?", "vasita"],
 ];
 export const BLOG_TOPICS = TOPICS.map(([t]) => t);
 const TOPIC_TOP = new Map(TOPICS);

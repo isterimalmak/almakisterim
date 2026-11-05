@@ -6,6 +6,7 @@ import { serverApi, siteData } from "@/lib/server-api";
 import { dateTr } from "@/lib/format";
 import { alimTalepleri, ldJson, OG_BASE, ogImage, SITE_URL, talepPath } from "@/lib/seo";
 import type { RequestItem } from "@/lib/api";
+import { landingsFor } from "@/lib/landing";
 
 export const dynamic = "force-dynamic";
 type Post = { slug: string; title: string; summary: string; body: string; published_at: string; top: string | null };
@@ -59,6 +60,12 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
           <ul className="box-b">
             {rel.items.map((r) => <li key={r.id}><Link href={talepPath(r)}>{r.title}</Link> <span className="muted">· {r.city}</span></li>)}
           </ul>
+        </section>
+      )}
+      {p.top && landingsFor(p.top).length > 0 && (
+        <section className="box blog-rel" aria-label="İlgili sayfalar">
+          <div className="box-h"><h2>İlgili sayfalar</h2></div>
+          <div className="box-b chips">{landingsFor(p.top).slice(0, 8).map((l) => <Link key={l.slug} className="chip" href={`/${l.slug}`}>{l.h1}</Link>)}</div>
         </section>
       )}
       <div className="blog-cta">

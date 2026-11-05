@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CategoryView, type ListingInitial } from "@/components/CategoryView";
 import type { RequestItem } from "@/lib/api";
 import { fmt } from "@/lib/format";
+import { CAT_TEXT, landingsFor } from "@/lib/landing";
 import { alimTalepleri, ilPath, ldJson, locative, OG_BASE, ogImage, SITE_URL } from "@/lib/seo";
 import { serverApi, siteData } from "@/lib/server-api";
 
@@ -63,6 +64,8 @@ export default async function KategoriPage({ params, searchParams }: P) {
   // Bu kategorinin yeterince talebi olan illeri: il sayfalarına bağlantı (arama motorları da bu yoldan bulur).
   const pl = await serverApi<{ places: Place[]; min: number }>("/seo/places");
   const cities = (pl?.places ?? []).filter((p) => p.top === (t?.id ?? null) && p.sub === (s?.id ?? null) && p.count >= pl!.min).slice(0, 30);
+  const name = s?.name ?? t?.name;
+  const hubs = t ? landingsFor(t.id, s?.id).slice(0, 12) : [];
   return (
     <>
       {t && (
@@ -83,6 +86,27 @@ export default async function KategoriPage({ params, searchParams }: P) {
             <div className="box-b chips">
               {cities.map((p) => <Link key={p.city} className="chip" href={ilPath(p.city, t?.id, s?.id)}>{locative(p.city)} <span className="muted">({fmt(p.count)})</span></Link>)}
             </div>
+          </section>
+        </div>
+      )}
+      {/* Kategori hakkında: arama motorunun ve ziyaretçinin sayfanın ne olduğunu anlaması için kısa, kategoriye özel bilgi. */}
+      {t && (
+        <div className="wrap">
+          <section className="box cat-about" aria-label={`${name} alım talepleri hakkında`}>
+            <div className="box-h"><h2>{`${name} alım talepleri nasıl çalışır?`}</h2></div>
+            <div className="box-b">
+              <p>{CAT_TEXT[t.id] ?? "Almak isteyenler ne aradığını, bütçesini ve ilini yazar."} Bu sayfada {name?.toLocaleLowerCase("tr")} almak isteyen alıcıların güncel talepleri var; ilanı alıcı verir, satıcılar uygun talebi bulup alıcıya doğrudan ulaşır.</p>
+              <p><b>Almak mı istiyorsunuz?</b> Aradığınızı ücretsiz yazın, elinde olan satıcılar size teklif versin. <b>Satıcı mısınız?</b> Elinizdekine uyan talebi açın ya da alarm kurun; yeni talep gelince ilk siz duyun.</p>
+              <div className="il-cta"><Link className="btn btn-or" href={`/talep-ver?kategori=${s?.id ?? t.id}`}>Ücretsiz talep ver</Link><Link className="btn btn-bl" href="/bana-ozel?s=alarm">Talep alarmı kur</Link></div>
+            </div>
+            {!s && t.subs.length > 0 && (
+              <><div className="box-h"><h3>{t.name} alt kategorileri</h3></div>
+                <div className="box-b chips">{t.subs.map((x) => <Link key={x.id} className="chip" href={`/kategori/${t.id}/${x.id}`}>{alimTalepleri(x.name, true)}</Link>)}</div></>
+            )}
+            {hubs.length > 0 && (
+              <><div className="box-h"><h3>Çok aranan {t.name.toLocaleLowerCase("tr")} sayfaları</h3></div>
+                <div className="box-b chips">{hubs.map((l) => <Link key={l.slug} className="chip" href={`/${l.slug}`}>{l.h1}</Link>)}</div></>
+            )}
           </section>
         </div>
       )}

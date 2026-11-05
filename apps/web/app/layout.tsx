@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/AppShell";
+import { CookieConsent } from "@/components/CookieConsent";
 import { Footer, Header } from "@/components/Header";
 import { SessionProvider } from "@/components/Session";
 import { ldJson, SITE_URL } from "@/lib/seo";
 import { siteData } from "@/lib/server-api";
 import "./globals.css";
 
-export const metadata: Metadata = {
+const base: Metadata = {
   metadataBase: new URL(SITE_URL),
   // Arama sonuçlarında kesilmesin: başlık en fazla ~60, açıklama ~160 karakter.
   title: { default: "almakisterim – Alım talebi verin, satıcılar size ulaşsın", template: "%s · almakisterim.com" },
@@ -17,6 +18,11 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "almakisterim", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
 };
+// Search Console ve Bing doğrulama kodları Yönetim → SEO ve Ölçüm'den gelir (<meta name="google-site-verification">).
+export async function generateMetadata(): Promise<Metadata> {
+  const t = (await siteData())?.tracking;
+  return { ...base, verification: { ...(t?.gsc ? { google: t.gsc } : {}), ...(t?.bing ? { other: { "msvalidate.01": t.bing } } : {}) } };
+}
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#13235B", viewportFit: "cover" };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -36,6 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main className="page-min">{children}</main>
           <Footer />
           <AppShell />
+          <CookieConsent ga4={site?.tracking?.ga4_id} />
         </SessionProvider>
       </body>
     </html>

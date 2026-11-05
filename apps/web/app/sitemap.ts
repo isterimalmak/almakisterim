@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { serverApi } from "@/lib/server-api";
-import { BIG_CITIES, LANDINGS } from "@/lib/landing";
+import { LANDINGS } from "@/lib/landing";
 import { PRODUCT_MODELS } from "@/lib/products";
 import { ilPath, SITE_URL, slugify, talepPath } from "@/lib/seo";
 
@@ -34,8 +34,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Arama sayfaları (/nakit-araba-alanlar…) ve il hâlleri: büyük iller her zaman, diğer iller o kategoride açık talep varsa.
   const hubs: MetadataRoute.Sitemap = LANDINGS.flatMap((l) => {
     // Arama sayfasının il hâli tek talepte bile doludur (il sayfalarındaki "en az 3 talep" sınırı burada yok; sayfa kendi kuralıyla dizine girer).
-    const withReq = (pl?.places ?? []).filter((p) => p.top === l.top && (l.sub ? p.sub === l.sub : !p.sub)).map((p) => p.city);
-    const cities = [...new Set([...BIG_CITIES, ...withReq])];
+    // Yalnız gerçek talebi olan iller. Süzgeçli sayfalarda (dizel, 3+1…) il sayısı bilinmediği için il hâlleri haritaya girmez;
+    // sayfa yine açılır ve kendi sayısıyla dizine girip girmeyeceğine karar verir.
+    const cities = l.filters ? [] : (pl?.places ?? []).filter((p) => (l.top ? p.top === l.top && (l.sub ? p.sub === l.sub : !p.sub) : !p.top)).map((p) => p.city);
     return [
       { url: u(`/${l.slug}`), changeFrequency: "daily" as const, priority: 0.8 },
       ...cities.map((c) => ({ url: u(`/${l.slug}/${slugify(c)}`), changeFrequency: "daily" as const, priority: 0.6 })),

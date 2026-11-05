@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { paymentsUi, siteFooter, visibleFooter } from "./site.js";
 import { homeBlocks } from "./home-blocks.js";
+import { tracking } from "./seo-admin.js";
 import type { Deps } from "../context.js";
 import type { Pool } from "../db.js";
 import { z } from "zod";
@@ -74,6 +75,8 @@ export function categoryRoutes(app: FastifyInstance, { pool, storage }: Deps) {
       // Ödeme bölümleri (Güvenli Al, kredi) yönetimden gizlenebilir.
       ...ui,
       site_name: typeof s.site_name === "string" && s.site_name.trim() ? s.site_name : "almakisterim.com",
+      // Google Analytics ölçüm kimliği ve arama motoru doğrulama kodları (sayfaya yazılan herkese açık değerler).
+      tracking: await tracking(pool),
       // Eski biçim (önceki sürümle uyum için).
       home_order: Array.isArray(s.home_order) ? s.home_order : [],
       home_hidden: Array.isArray(s.home_hidden) ? s.home_hidden : [],

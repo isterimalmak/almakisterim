@@ -1351,7 +1351,7 @@ test("yönetici alt bilgiyi, sayfaları, sözleşme metnini, şirket bilgilerini
   await page.goto("/sozlesmeler/cerez-politikasi");
   await expect(page.getByText(`Çerezler küçük metin dosyalarıdır. ${tag}`)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sürüm geçmişi" })).toBeVisible();
-  await page.getByRole("link", { name: "Sürüm 1.0" }).click();
+  await page.getByRole("link", { name: "Sürüm 1.1" }).click();
   await expect(page.getByText("Bu metnin eski bir sürümünü görüntülüyorsunuz.", { exact: false })).toBeVisible();
   // Şirket bilgileri (aynı yönetici girişiyle: yönetici e-postasına saatte en çok 5 kod gider).
   await page.goto("/yonetim");
@@ -1423,6 +1423,48 @@ test("yönetici alt bilgiyi, sayfaları, sözleşme metnini, şirket bilgilerini
   await loginSms(np, newPhone, "Kullanılmayan Ad");
   expect((await (await np.request.get("/api/me")).json()).user.name).toBe("Düzeltilmiş Üye");
   await nctx.close();
+
+  // SEO ve Ölçüm (aynı yönetici girişiyle): Analytics kimliği, Search Console kodu; çerez kutusu ve ilk geliş kaydı.
+  const saved = await page.request.put("/api/admin/seo", { data: { ga4_id: "G-TEST12345", gsc: "dogrulama-kodu-123", bing: "" } });
+  expect(saved.ok(), await saved.text()).toBeTruthy();
+  expect(await (await page.request.get("/")).text()).toContain('<meta name="google-site-verification" content="dogrulama-kodu-123"/>');
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "SEO ve Ölçüm" }).click();
+  await expect(page.getByLabel("Google Analytics 4 ölçüm kimliği")).toHaveValue("G-TEST12345");
+  await expect(page.getByRole("heading", { name: "Arama motorlarından gelen talepler" })).toBeVisible();
+
+  // Boş tarayıcı: kutu çıkar; reddedince Analytics betiği yüklenmez, kutu yeniden açılmaz.
+  const c1 = await browser.newContext({ storageState: undefined });
+  const v1 = await c1.newPage();
+  await v1.goto("/");
+  const bar = v1.getByRole("dialog", { name: "Çerez tercihleri" });
+  await expect(bar).toBeVisible();
+  await bar.getByRole("button", { name: "Reddet" }).click();
+  await expect(bar).toBeHidden();
+  await v1.reload();
+  await expect(v1.getByRole("dialog", { name: "Çerez tercihleri" })).toHaveCount(0);
+  expect(await v1.locator('script[src*="googletagmanager.com/gtag/js"]').count()).toBe(0);
+  expect(await v1.evaluate(() => localStorage.getItem("ak_kaynak"))).toBeNull();
+  // Alt bilgideki bağlantı kutuyu yeniden açar.
+  await v1.getByRole("button", { name: "Çerez tercihleri" }).click();
+  await expect(v1.getByRole("dialog", { name: "Çerez tercihleri" })).toBeVisible();
+  await c1.close();
+
+  // Google'dan arama sayfasına gelen ziyaretçi kabul eder: Analytics yüklenir, ilk geliş (google, ilk sayfa) saklanır.
+  const c2 = await browser.newContext({ storageState: undefined });
+  const v2 = await c2.newPage();
+  await v2.goto("/nakit-araba-alanlar", { referer: "https://www.google.com/" });
+  await v2.getByRole("dialog", { name: "Çerez tercihleri" }).getByRole("button", { name: "Kabul et" }).click();
+  await expect(v2.locator('script[src*="googletagmanager.com/gtag/js?id=G-TEST12345"]')).toHaveCount(1);
+  const src = JSON.parse((await v2.evaluate(() => localStorage.getItem("ak_kaynak"))) ?? "{}");
+  expect(src).toMatchObject({ ref: "www.google.com", landing: "/nakit-araba-alanlar" });
+  // Site içinde başka sayfaya geçince ilk geliş değişmez.
+  await v2.goto("/kategori");
+  expect(JSON.parse((await v2.evaluate(() => localStorage.getItem("ak_kaynak"))) ?? "{}").landing).toBe("/nakit-araba-alanlar");
+  await c2.close();
+
+  // Temizlik
+  expect((await page.request.put("/api/admin/seo", { data: { ga4_id: "", gsc: "", bing: "" } })).ok()).toBeTruthy();
 });
 
 test("üye telefon numarasını değiştirir: önce mevcut numarayla kimlik doğrular, sonra yeni numarayı doğrular", async ({ page }) => {
@@ -1599,7 +1641,10 @@ test("arama sayfaları: nakit araba alanlar ve il hâlleri, sahibinden satılık
   expect(kars).toContain("Kars&#x27;ta Nakit Araba Alanlar");
   expect(kars).toContain(`href="/talep/${id}-`);
   expect(kars).not.toContain('content="noindex');
-  expect(await (await page.request.get("/nakit-araba-alanlar/istanbul")).text()).not.toContain('content="noindex');
+  // Büyük il de olsa talep yoksa dizine girmez (boş il sayfası kopya içerik sayılır).
+  const ist = (await (await page.request.get("/api/seo/stats?top=vasita&city=%C4%B0stanbul")).json()).count as number;
+  const istHtml = await (await page.request.get("/nakit-araba-alanlar/istanbul")).text();
+  if (ist > 0) expect(istHtml).not.toContain('content="noindex'); else expect(istHtml).toContain('<meta name="robots" content="noindex, follow"/>');
   expect(await (await page.request.get("/nakit-araba-alanlar/bayburt")).text()).toContain('<meta name="robots" content="noindex, follow"/>');
   expect((await page.request.get("/nakit-araba-alanlar/atlantis")).status()).toBe(404);
   expect((await page.request.get("/boyle-bir-sayfa-yok")).status()).toBe(404);
@@ -1626,6 +1671,29 @@ test("arama sayfaları: nakit araba alanlar ve il hâlleri, sahibinden satılık
   await page.goto("/");
   await expect(page.getByRole("navigation", { name: "Çok aranan sayfalar" }).getByRole("link", { name: "Nakit Araba Alanlar" })).toHaveAttribute("href", "/nakit-araba-alanlar");
   const map = await (await page.request.get("/sitemap.xml")).text();
-  for (const p of ["/nakit-araba-alanlar", "/nakit-araba-alanlar/kars", "/nakit-araba-alanlar/istanbul", "/sahibinden-satilik-ev", "/alicilar/arac/volkswagen/passat", "/alicilar/telefon/apple"]) expect(map).toContain(`<loc>https://almakisterim.com${p}</loc>`);
+  for (const p of ["/nakit-araba-alanlar", "/nakit-araba-alanlar/kars", "/sahibinden-satilik-ev", "/satilik-daire", "/ucretsiz-alim-talebi", "/alicilar/arac/volkswagen/passat", "/alicilar/telefon/apple"]) expect(map).toContain(`<loc>https://almakisterim.com${p}</loc>`);
   expect(map).not.toContain("<loc>https://almakisterim.com/nakit-araba-alanlar/bayburt</loc>");
 });
+
+test("alıcı aramaları ve kategori bilgisi: satılık daire, 3+1 süzgeci, ürün arıyorum; kategori sayfasında nasıl çalışır bölümü; talepte Demand verisi", async ({ page }, info) => {
+  test.skip(info.project.name !== "masaustu");
+  const daire = await (await page.request.get("/3-1-satilik-daire")).text();
+  expect(daire).toContain("<title>3+1 Satılık Daire Arayanlar – İlçenizi ve Bütçenizi Yazın | almakisterim.com</title>");
+  expect(daire).toContain('"@type":"FAQPage"');
+  // Bütün kategorileri kapsayan sayfa: talep formu kategorisiz açılır.
+  await page.goto("/urun-ariyorum");
+  await expect(page.getByRole("heading", { level: 1, name: "Ürün Arıyorum" })).toBeVisible();
+  await page.locator(".lp-hero").getByRole("link", { name: "Ücretsiz talep ver" }).click();
+  await expect(page).toHaveURL(/\/talep-ver\?metin=%C3%9Cr%C3%BCn\+Ar%C4%B1yorum/);
+  // Kategori sayfası: kategoriye özel bilgi, alt kategoriler ve çok aranan sayfalar sunucuda.
+  const cat = await (await page.request.get("/kategori/emlak")).text();
+  expect(cat).toMatch(/<h2>Emlak(<!-- -->)? alım talepleri nasıl çalışır\?<\/h2>/);
+  expect(cat).toContain('href="/satilik-daire"');
+  expect(cat).toContain('href="/kategori/emlak/satilik"');
+  // Talep sayfası: schema.org Demand (bütçe, il) — alıcının adı ya da numarası yok.
+  const r = (await (await page.request.get("/api/requests?per=1")).json()).items[0];
+  const html = await (await page.request.get(`/talep/${r.id}`)).text();
+  expect(html).toContain('"@type":"Demand"');
+  expect(html).toContain(`"maxPrice":${r.budget_max}`);
+});
+

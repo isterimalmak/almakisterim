@@ -42,7 +42,16 @@ export default async function TalepPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       {r && (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson({
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson([{
+          // Talep, schema.org'da bir "Demand" (alım isteği): ne arandığı, bütçe, il ve son tarih. Alıcının kişisel bilgisi yok.
+          "@context": "https://schema.org", "@type": "Demand", name: r.title, url: `${SITE_URL}${talepPath(r)}`,
+          ...(r.description ? { description: snippet(r.description, 300) } : {}),
+          businessFunction: "http://purl.org/goodrelations/v1#Buy",
+          itemOffered: { "@type": "Product", name: r.title, category: `${r.top_name} > ${r.category_name}` },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "TRY", maxPrice: r.budget_max, ...(r.budget_min ? { minPrice: r.budget_min } : {}) },
+          ...(r.city ? { areaServed: { "@type": "City", name: r.city } } : {}),
+          availabilityStarts: r.created_at, availabilityEnds: r.expires_at,
+        }, {
           "@context": "https://schema.org", "@type": "BreadcrumbList",
           itemListElement: [
             { "@type": "ListItem", position: 1, name: "Ana Sayfa", item: SITE_URL },
@@ -50,7 +59,7 @@ export default async function TalepPage({ params }: { params: Promise<{ id: stri
             { "@type": "ListItem", position: 3, name: r.category_name, item: `${SITE_URL}/kategori/${r.top_id}/${r.category_id}` },
             { "@type": "ListItem", position: 4, name: r.title, item: `${SITE_URL}${talepPath(r)}` },
           ],
-        }) }} />
+        }]) }} />
       )}
       <RequestView id={id} initial={d} />
       {r?.city && (
