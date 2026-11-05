@@ -70,6 +70,11 @@ const CreateBody = z.object({
   vehicle_media: z.record(z.string().max(90), MediaIds).optional(),
   // Numaranın ücret ödeyen satıcılarla paylaşılması zorunludur; alıcı bunu açıkça onaylar.
   contact_consent: z.literal(true, { error: "Talep vermek için numaranızın satıcılarla paylaşılmasını onaylamalısınız." }),
+  // Ziyaretçinin siteye ilk geldiği yer (arama motoru ölçümü): gelinen sitenin adı ve ilk açılan sayfanın yolu.
+  source: z.object({
+    ref: z.string().max(100).regex(/^[a-z0-9.-]*$/i).default(""),
+    landing: z.string().max(200).regex(/^(\/[^\s?#]*)?$/).default(""),
+  }).optional().catch(undefined),
 });
 
 // Sayı özelliklerinde alıcının değeri satıcınınkiyle nasıl karşılaştırılır (web/lib/catalog.ts'deki alanlarla aynı anahtarlar):
@@ -340,10 +345,11 @@ export function requestRoutes(app: FastifyInstance, deps: Deps) {
       for (const u of units) {
         const { rows } = await c.query<{ id: number }>(
           `INSERT INTO requests (buyer_id, category_id, title, description, budget_min, budget_max, city, district, neighbourhood, condition, attrs,
-                                 is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at, ai_checked_at, group_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now() + make_interval(days => $16), now(), now(), $17) RETURNING id`,
+                                 is_urgent, is_corporate, status, moderation_note, expires_at, contact_consent_at, ai_checked_at, group_id, source_ref, source_landing)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now() + make_interval(days => $16), now(), now(), $17, $18, $19) RETURNING id`,
           [user.id, b.category_id, titleOf(u), description, budgetMin, b.budget_max, b.city, b.district, b.neighbourhood, b.condition, u.attrs,
-            b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days, group]);
+            b.is_urgent, b.is_corporate || user.is_corporate, status, mod.verdict === "ok" ? null : mod.reason, b.days, group,
+            (b.source?.ref ?? "").toLowerCase(), b.source?.landing ?? ""]);
         await attachMedia(c, user.id, u.media, { request_id: rows[0]!.id });
         // Telefon numarasının satıcılarla paylaşılmasına açık rıza: talep bazında, metnin sürümüyle.
         await recordConsent(c, req, user.id, ["acik-riza-metni"], `talep:${rows[0]!.id}`);

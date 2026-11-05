@@ -12,6 +12,7 @@ import { useSession } from "@/components/Session";
 import { VehicleFields, VehicleRows } from "@/components/VehicleFields";
 import { api, type Draft, type Media } from "@/lib/api";
 import { attrsFor, CITIES, condsFor, optionsFor, pickAttr } from "@/lib/catalog";
+import { sourceForRequest, track } from "@/lib/consent";
 import { budgetTxt } from "@/lib/format";
 import { isVehicleSub, type VehicleAttrs } from "@/lib/vehicles";
 
@@ -187,8 +188,11 @@ function Create() {
         ...(needCode ? { phone: pPhone, phone_code: pCode } : {}),
         media_ids: multi ? [] : d.media.map((m) => m.id),
         ...(multi ? { vehicle_media: Object.fromEntries(cars.map((c) => [carKey(c), (d.carMedia[carKey(c)] ?? []).map((m) => m.id)])) } : {}),
+        // Siteye ilk gelinen yer (yalnız analiz çerezlerine onay verildiyse): Yönetim → SEO ve Ölçüm raporu.
+        source: sourceForRequest(),
       } });
       const n = res.ids?.length ?? 1;
+      track("talep_olusturuldu", { kategori: d.sub, adet: n });
       toast(n > 1 && res.status === "active" ? `${n} araç için ${n} ayrı talep yayınlandı. Her aracın satıcıları ayrı ayrı haberdar edildi.`
         : res.status === "active" ? "Talebiniz yayında. Satıcılara bildirim gönderildi."
         : res.status === "rejected" ? `Talebiniz kurallara uymadığı için yayınlanmadı${res.moderation?.reason ? `: ${res.moderation.reason}` : "."}`

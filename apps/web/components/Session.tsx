@@ -8,7 +8,7 @@ import { DEFAULT_FOOTER, type Footer } from "@/lib/footer";
 
 type Browse = { min_requests: number; show_counts_min: number };
 // /api/categories yanıtı: kategoriler ve site ayarları. Kök düzen sunucuda alıp verir; sayfa ilk açılışta dolu gelir, kaymaz.
-export type SiteData = { categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_blocks?: HomeBlock[]; site_name?: string; footer?: Footer; show_safe?: boolean; show_credits?: boolean };
+export type SiteData = { categories: CategoryTop[]; browse?: Browse; launch_mode?: boolean; phone_required?: boolean; publish_sms?: boolean; photo_required?: boolean; home_urgent_box?: boolean; home_blocks?: HomeBlock[]; site_name?: string; footer?: Footer; show_safe?: boolean; show_credits?: boolean; tracking?: { ga4_id: string; gsc: string; bing: string } };
 
 type Ctx = {
   user: User | null;
