@@ -35,9 +35,10 @@ export function Hero({ T, examples }: { T: (k: string) => string; examples: stri
   useEffect(() => { if (q) return; const t = setInterval(() => setEx((i) => (i + 1) % examples.length), 4000); return () => clearInterval(t); }, [q, examples.length]);
   const go = () => router.push({ pathname: "/talep-ver", params: q.trim() ? { metin: q.trim() } : {} });
   return (
-    <LinearGradient colors={["#FFF4EA", "#FFFFFF", "#F3F6FF"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[{ margin: 12, marginBottom: 14, padding: 16, borderRadius: R.lg, borderWidth: 1, borderColor: "#FBE0CF", gap: 10 }, SH.sm]}>
+    <LinearGradient colors={["#FFF4EA", "#FFFFFF", "#F3F6FF"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[{ marginHorizontal: 12, marginTop: 2, marginBottom: 14, padding: 16, borderRadius: R.lg, borderWidth: 1, borderColor: "#FBE0CF", gap: 10 }, SH.sm]}>
       {T("badge") ? <Text style={{ alignSelf: "flex-start", backgroundColor: C.orange, color: "#fff", fontWeight: "800", fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: R.pill, overflow: "hidden" }}>{T("badge")}</Text> : null}
-      <Text accessibilityRole="header" style={{ fontSize: 26, fontWeight: "800", color: C.navy }}>{T("title")}</Text>
+      {/* Başlık "?" işaretinden iki satıra bölünür: üstte soru, altta "Satıcılar Sizi Bulsun." (ekran genişliğinden bağımsız). */}
+      <Text accessibilityRole="header" style={{ fontSize: 26, fontWeight: "800", color: C.navy }}>{T("title").replace(/\?\s+/, "?\n")}</Text>
       {T("sub") ? <Text style={{ fontSize: 15, color: "#3A4250" }}>{T("sub")}</Text> : null}
       <View style={{ backgroundColor: "#fff", borderRadius: R.md, borderWidth: 1, borderColor: "#F5CDB4", padding: 6, gap: 6 }}>
         <TextInput accessibilityLabel="Ne almak istiyorsunuz?" value={q} onChangeText={setQ} placeholder={`Örn. ${examples[ex]}`} placeholderTextColor="#9AA1AB"
