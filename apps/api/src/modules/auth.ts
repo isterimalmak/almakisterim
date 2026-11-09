@@ -6,6 +6,7 @@ import { z } from "zod";
 import { isAppClient, requireUser, SESSION_COOKIE, SESSION_DAYS, sessionToken, setSessionCookie, type Deps } from "../context.js";
 import type { Client, Pool } from "../db.js";
 import { HttpError, maskTarget, normalizeEmail, normalizePhone, randomToken, safeEqual, sha256, sixDigitCode } from "../lib/util.js";
+import { logLogin } from "./visits.js";
 import { verifyAppleToken } from "../services/apple.js";
 
 const CODE_TTL_MIN = 10;
@@ -29,6 +30,8 @@ async function createSession(db: Pool | Client, userId: string): Promise<string>
     `INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))`,
     [userId, sha256(token), SESSION_DAYS],
   );
+  // Yönetim → Ziyaretçiler: giriş kaydı (oturum çıkışta silinse de kayıt 90 gün kalır).
+  await logLogin(db, userId);
   return token;
 }
 

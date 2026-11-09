@@ -8,6 +8,7 @@ import { listCategories, toTree } from "./categories.js";
 import { cleanupOrphans, mediaFor } from "./media.js";
 import { expiryReminders, notifyAlarmMatches, requestStatusEmail } from "./notifications.js";
 import { autoBlog, recheckHeld } from "./ai-admin.js";
+import { cleanupVisits } from "./visits.js";
 import { mailEvent, mailTick } from "./mailstudio.js";
 
 // Ana sayfanın orta sütunundaki bölümler (web/app/page.tsx ile aynı adlar).
@@ -319,6 +320,8 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     for (const x of r.rows) await mailEvent(pool, "request_expired", x.buyer_id, x.id);
     const s = await pool.query("DELETE FROM sessions WHERE expires_at <= now()");
     const c = await pool.query("DELETE FROM auth_codes WHERE created_at < now() - interval '2 days'");
+    // Ziyaretçi kayıtları 90 günden eski olunca silinir.
+    await cleanupVisits(pool).catch(() => {});
     const m = await cleanupOrphans(pool, deps.storage);
     // Süresi dolmak üzere olan talepler için hatırlatma; otomatik blog açıksa sırası gelen yazı.
     const reminded = await expiryReminders(deps).catch(() => 0);

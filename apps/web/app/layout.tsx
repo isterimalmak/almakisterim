@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/AppShell";
 import { CookieConsent } from "@/components/CookieConsent";
 import { Footer, Header } from "@/components/Header";
+import { PageTracker } from "@/components/PageTracker";
 import { SessionProvider } from "@/components/Session";
 import { ldJson, SITE_URL } from "@/lib/seo";
 import { siteData } from "@/lib/server-api";
@@ -43,6 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Footer />
           <AppShell />
           <CookieConsent ga4={site?.tracking?.ga4_id} />
+          <PageTracker />
         </SessionProvider>
       </body>
     </html>

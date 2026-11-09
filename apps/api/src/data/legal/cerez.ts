@@ -4,8 +4,8 @@ export const CEREZ: LegalDoc = {
   slug: "cerez-politikasi",
   title: "Çerez Politikası",
   summary: "Platform'da kullanılan çerezler ve tarayıcı depolama kayıtları, amaçları ve süreleri.",
-  version: "1.1",
-  effective: "2026-11-04",
+  version: "1.2",
+  effective: "2026-11-09",
   sections: [
     { h: "1. Çerez Nedir?", p: [
       "Çerezler, bir internet sitesini ziyaret ettiğinizde tarayıcınıza kaydedilen küçük metin dosyalarıdır. Tarayıcının yerel depolama (localStorage) ve oturum depolama (sessionStorage) alanları da benzer amaçla kullanılır. Bu politikada hepsi birlikte \"çerez\" olarak anılır.",
@@ -30,6 +30,7 @@ export const CEREZ: LegalDoc = {
     { h: "5. Analiz (Ölçüm) Çerezleri — Yalnızca Onayınızla", p: [
       "Google Analytics (_ga, _ga_* çerezleri) — Hangi sayfaların ziyaret edildiğini, ziyaretçilerin siteye hangi arama motorundan geldiğini ve kaç ziyaretin talep vermeyle sonuçlandığını toplu olarak ölçer. Google LLC tarafından sağlanır; veriler Google'ın yurt dışındaki sunucularında işlenir, reklam ve kişiselleştirme özellikleri kapalıdır. Süresi: en fazla 2 yıl.",
       "ak_kaynak (yerel depolama) — Siteye ilk geldiğiniz sitenin adını (ör. google.com) ve ilk açtığınız sayfanın adresini saklar; talep verdiğinizde bu bilgi talebinize eklenir ve hangi sayfaların talep getirdiğini ölçmek için kullanılır. Arama sözcükleriniz kaydedilmez. Süresi: 30 gün.",
+      "ak_ziyaretci (yerel depolama) — Tarayıcınıza verilen rastgele bir numaradır (adınızı, e-postanızı ya da telefonunuzu içermez). Bu numarayla sitede açtığınız sayfaların adresi (arama sözcükleri ve sorgu bilgileri hariç), sayfada kaldığınız süre, cihaz türü (telefon/bilgisayar) ve siteye geldiğiniz sitenin adı sunucularımıza kaydedilir; sitenin kullanımını ve sorunlu sayfaları görmek için kullanılır. Üye girişi yaptıysanız kayıt hesabınızla ilişkilendirilir. Kayıtlar 90 gün saklanır, hesabınızı silerseniz silinir. Süresi: onayınızı geri alana kadar.",
       "Onay vermezseniz bu çerezler hiç oluşturulmaz; onayınızı geri aldığınızda yeniden oluşturulmaz.",
     ] },
     { h: "6. E-postalardaki Ölçüm", p: [
