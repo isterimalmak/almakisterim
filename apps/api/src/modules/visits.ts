@@ -35,6 +35,11 @@ export function visitRoutes(app: FastifyInstance, deps: Deps) {
     const b = TrackBody.parse(req.body);
     // Sorgu dizesindeki kişisel bilgi (arama sözcüğü, kod) saklanmaz; yalnız sayfa yolu.
     const path = b.path.split("?")[0]!.slice(0, 200);
+    // Önceki sayfanın çıkış bildirimi gelmediyse (hızlı geçiş, sekme kapanırken kaybolan bildirim) süresi bu geçişten hesaplanır.
+    await pool.query(
+      `UPDATE visits SET duration_ms = LEAST(extract(epoch FROM now() - created_at) * 1000, 30 * 60 * 1000)::int
+        WHERE id = (SELECT id FROM visits WHERE visitor = $1 AND kind = 'view' AND created_at > now() - interval '30 minutes'
+                     ORDER BY created_at DESC LIMIT 1) AND duration_ms IS NULL`, [b.visitor]);
     const { rows } = await pool.query<{ id: string }>(
       "INSERT INTO visits (visitor, user_id, path, ref, device) VALUES ($1, $2, $3, $4, $5) RETURNING id",
       [b.visitor, req.user?.id ?? null, path, b.ref.toLowerCase(), b.device]);
