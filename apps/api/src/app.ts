@@ -5,6 +5,7 @@ import { legalRoutes } from "./modules/legal.js";
 import { siteRoutes } from "./modules/site.js";
 import { seoRoutes } from "./modules/seo.js";
 import { seoAdminRoutes } from "./modules/seo-admin.js";
+import { visitRoutes } from "./modules/visits.js";
 import { pushAdminRoutes } from "./modules/push-admin.js";
 import { ExpoPush, MemoryPush, setPushTransport } from "./services/push.js";
 import { homeBlockRoutes } from "./modules/home-blocks.js";
@@ -120,6 +121,7 @@ export async function buildApp(deps: Deps, opts: FastifyServerOptions = {}) {
     siteRoutes(api, deps);
     seoRoutes(api, deps);
     seoAdminRoutes(api, deps);
+    visitRoutes(api, deps);
     pushAdminRoutes(api, deps);
     homeBlockRoutes(api, deps);
     mailStudioRoutes(api, deps);

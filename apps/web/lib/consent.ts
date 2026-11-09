@@ -1,10 +1,11 @@
 "use client";
 
 // Analiz (ölçüm) çerezleri yalnızca ziyaretçi "Kabul et" derse çalışır (Çerez Politikası, 5. bölüm):
-// Google Analytics 4 ve siteye ilk gelinen yerin kaydı (ak_kaynak). Reddedilirse hiçbiri oluşturulmaz.
+// Google Analytics 4, siteye ilk gelinen yerin kaydı (ak_kaynak) ve gezilen sayfaların kaydı (ak_ziyaretci). Reddedilirse hiçbiri oluşturulmaz.
 const KEY = "ak_cerez";
 const SRC = "ak_kaynak";
 const SRC_DAYS = 30;
+const VISITOR = "ak_ziyaretci";
 
 type Gtag = (...args: unknown[]) => void;
 declare global { interface Window { dataLayer?: unknown[]; gtag?: Gtag } }
@@ -16,7 +17,7 @@ const del = (k: string) => { try { localStorage.removeItem(k); } catch { /* gizl
 export const consent = (): "evet" | "hayir" | null => { const v = get(KEY); return v === "evet" || v === "hayir" ? v : null; };
 export function setConsent(v: "evet" | "hayir") {
   set(KEY, v);
-  if (v === "hayir") del(SRC);
+  if (v === "hayir") { del(SRC); del(VISITOR); }
   window.dispatchEvent(new Event("ak-cerez"));
 }
 
@@ -40,6 +41,18 @@ function readSource(): { ref: string; landing: string } | null {
 }
 // Talep verilirken talebe eklenir (yalnız onay varsa).
 export const sourceForRequest = () => (consent() === "evet" ? readSource() ?? undefined : undefined);
+
+// Ziyaretçi numarası: tarayıcıda üretilen rastgele değer (kişisel bilgi içermez); yalnız onay varsa oluşturulur.
+export function visitorId(): string | null {
+  if (consent() !== "evet") return null;
+  const cur = get(VISITOR);
+  if (cur && /^[a-z0-9]{16,40}$/.test(cur)) return cur;
+  const b = new Uint8Array(12);
+  crypto.getRandomValues(b);
+  const id = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  set(VISITOR, id);
+  return id;
+}
 
 // Google Analytics 4: reklam ve Google sinyalleri kapalı. Tek sayfa gezinmeleri GA'nın "geçmiş değişikliği" ölçümüyle sayılır.
 let loaded = "";

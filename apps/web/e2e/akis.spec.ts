@@ -1351,7 +1351,7 @@ test("yönetici alt bilgiyi, sayfaları, sözleşme metnini, şirket bilgilerini
   await page.goto("/sozlesmeler/cerez-politikasi");
   await expect(page.getByText(`Çerezler küçük metin dosyalarıdır. ${tag}`)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sürüm geçmişi" })).toBeVisible();
-  await page.getByRole("link", { name: "Sürüm 1.1" }).click();
+  await page.getByRole("link", { name: "Sürüm 1.2" }).click();
   await expect(page.getByText("Bu metnin eski bir sürümünü görüntülüyorsunuz.", { exact: false })).toBeVisible();
   // Şirket bilgileri (aynı yönetici girişiyle: yönetici e-postasına saatte en çok 5 kod gider).
   await page.goto("/yonetim");
@@ -1445,13 +1445,15 @@ test("yönetici alt bilgiyi, sayfaları, sözleşme metnini, şirket bilgilerini
   await expect(v1.getByRole("dialog", { name: "Çerez tercihleri" })).toHaveCount(0);
   expect(await v1.locator('script[src*="googletagmanager.com/gtag/js"]').count()).toBe(0);
   expect(await v1.evaluate(() => localStorage.getItem("ak_kaynak"))).toBeNull();
+  expect(await v1.evaluate(() => localStorage.getItem("ak_ziyaretci"))).toBeNull();
   // Alt bilgideki bağlantı kutuyu yeniden açar.
   await v1.getByRole("button", { name: "Çerez tercihleri" }).click();
   await expect(v1.getByRole("dialog", { name: "Çerez tercihleri" })).toBeVisible();
   await c1.close();
 
   // Google'dan arama sayfasına gelen ziyaretçi kabul eder: Analytics yüklenir, ilk geliş (google, ilk sayfa) saklanır.
-  const c2 = await browser.newContext({ storageState: undefined });
+  // (Gerçek tarayıcı kimliğiyle: otomatik tarayıcılar ziyaretçi sayılmaz.)
+  const c2 = await browser.newContext({ storageState: undefined, userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36" });
   const v2 = await c2.newPage();
   await v2.goto("/nakit-araba-alanlar", { referer: "https://www.google.com/" });
   await v2.getByRole("dialog", { name: "Çerez tercihleri" }).getByRole("button", { name: "Kabul et" }).click();
@@ -1461,7 +1463,30 @@ test("yönetici alt bilgiyi, sayfaları, sözleşme metnini, şirket bilgilerini
   // Site içinde başka sayfaya geçince ilk geliş değişmez.
   await v2.goto("/kategori");
   expect(JSON.parse((await v2.evaluate(() => localStorage.getItem("ak_kaynak"))) ?? "{}").landing).toBe("/nakit-araba-alanlar");
+  const visitor = await v2.evaluate(() => localStorage.getItem("ak_ziyaretci"));
+  expect(visitor).toMatch(/^[a-z0-9]{16,40}$/);
+  await v2.locator(`header a[href="/talep-ver"]`).first().click(); // site içi geçiş (sayfa yenilenmeden)
+  await expect(v2).toHaveURL(/\/talep-ver/);
   await c2.close();
+
+  // Yönetim → Ziyaretçiler: bu ziyaretçinin giriş/çıkış sayfası, geldiği yer ve sırasıyla gezdiği sayfalar; son girişler.
+  await page.goto("/yonetim");
+  await page.getByRole("button", { name: "Ziyaretçiler" }).click();
+  await expect(page.getByRole("heading", { name: "Son girişler" })).toBeVisible();
+  const row = page.locator("tr.row", { hasText: `Üye değil · ${visitor!.slice(0, 6)}` });
+  await expect(row).toContainText("/nakit-araba-alanlar");
+  await expect(row).toContainText("/talep-ver");
+  await expect(row).toContainText("www.google.com");
+  await row.click();
+  const steps = page.getByRole("list", { name: "Gezdiği sayfalar" }).getByRole("listitem");
+  await expect(steps).toHaveCount(3);
+  await expect(steps.nth(0)).toContainText("/nakit-araba-alanlar");
+  await expect(steps.nth(1)).toContainText("/kategori");
+  await expect(steps.nth(2)).toContainText("/talep-ver");
+  // Önceki sayfalarda geçen süre kaydedilir.
+  await expect(steps.nth(0)).not.toContainText("süre bilinmiyor");
+  // Yönetim sayfaları kaydedilmez.
+  expect((await (await page.request.get("/api/admin/visits?days=1")).json()).pages.some((p: { path: string }) => p.path.startsWith("/yonetim"))).toBe(false);
 
   // Temizlik
   expect((await page.request.put("/api/admin/seo", { data: { ga4_id: "", gsc: "", bing: "" } })).ok()).toBeTruthy();
