@@ -22,6 +22,15 @@ describe("Yönetim → Ziyaretçiler", () => {
     await track({ visitor: anon, path: "/kategori/vasita" });
     // Üye: giriş yapmış hâlde gezer.
     await track({ visitor: mem, path: "/talep-ver", device: "masaustu" }, { cookie: member });
+    // Çıkış bildirimi gelmeden sonraki sayfaya geçilirse önceki sayfanın süresi geçişten hesaplanır.
+    const quick = "c".repeat(20);
+    const q1 = (await track({ visitor: quick, path: "/" })).json().id;
+    await ctx.pool.query("UPDATE visits SET created_at = now() - interval '7 seconds' WHERE id = $1", [q1]);
+    await track({ visitor: quick, path: "/kategori" });
+    const qd = (await ctx.pool.query<{ duration_ms: number }>("SELECT duration_ms FROM visits WHERE id = $1", [q1])).rows[0]!.duration_ms;
+    expect(qd).toBeGreaterThanOrEqual(7000);
+    expect(qd).toBeLessThan(60000);
+    await ctx.pool.query("DELETE FROM visits WHERE visitor = $1", [quick]);
     // Bot ve geçersiz yol/numara kaydedilmez.
     expect((await track({ visitor: anon, path: "/" }, { "user-agent": "Googlebot/2.1" })).json().id).toBeNull();
     expect((await track({ visitor: "kisa", path: "/" })).statusCode).toBe(400);

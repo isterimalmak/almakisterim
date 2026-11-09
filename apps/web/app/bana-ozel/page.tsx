@@ -220,7 +220,7 @@ function ProfileForm() {
     if (!user) return;
     setName(user.name ?? ""); setCorp(user.is_corporate ?? false); setMarketing(user.marketing ?? false);
     if (user.mail_prefs) setPrefs(user.mail_prefs);
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.name]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="box"><div className="box-h"><h2>Hesap Bilgileri</h2></div><div className="box-b">
       <div className="form-grid" style={{ maxWidth: 560 }}>
