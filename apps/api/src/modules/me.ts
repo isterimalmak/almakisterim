@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { recordConsent, termsAccepted } from "./legal.js";
 import { z } from "zod";
 import { requireUser, SESSION_COOKIE, type Deps } from "../context.js";
-import { tx } from "../db.js";
+import { tx, type Client } from "../db.js";
 import { HttpError, idParam } from "../lib/util.js";
 import { CITIES } from "../services/ai.js";
 import { unreadMessages } from "./messages.js";
@@ -13,6 +13,23 @@ import { ALARM_SELECT, alarmQuery, cleanAlarmFilters, type AlarmRow } from "./al
 import { FROM, listFilters } from "./requests.js";
 import { MAIL_KINDS, wantsMail, type MailPrefs } from "./notifications.js";
 import { PUSH_KINDS, wantsPush, type PushPrefs } from "../services/push.js";
+
+// Hesabı siler (üyenin kendisi ya da yönetici): kişisel bilgiler silinir, açık talepler kapanır, oturumlar düşer.
+// Satış ve ödeme kayıtları yasal saklama için anonim kalır; karşı tarafa yazılan mesajlar "Silinmiş üye" adıyla görünür.
+// Devam eden Güvenli Al satışı varsa silinmez. Silinen hesabın (bilgi verilecek) e-posta adresini döner.
+export async function deleteAccount(c: Client, userId: string, busyMsg: string): Promise<string | null> {
+  const open = (await c.query("SELECT 1 FROM safe_sales WHERE (buyer_id = $1 OR seller_id = $1) AND status IN ('odeme_bekliyor', 'odendi', 'kargoda', 'sorunlu') LIMIT 1", [userId])).rowCount;
+  if (open) throw new HttpError(409, "satis_suruyor", busyMsg);
+  const u = (await c.query<{ email: string | null; phone: string | null }>("SELECT email, phone FROM users WHERE id = $1 FOR UPDATE", [userId])).rows[0]!;
+  await c.query("UPDATE requests SET status = 'closed' WHERE buyer_id = $1 AND status IN ('pending_review', 'active')", [userId]);
+  await c.query("UPDATE offers SET status = 'withdrawn' WHERE seller_id = $1 AND status = 'active'", [userId]);
+  for (const t of ["sessions", "alarms", "favorites", "notifications", "push_tokens", "visits"]) await c.query(`DELETE FROM ${t} WHERE user_id = $1`, [userId]);
+  await c.query("DELETE FROM mail_sends WHERE user_id = $1 AND status = 'queued'", [userId]);
+  await c.query("DELETE FROM auth_codes WHERE target = ANY($1::text[])", [[u.email, u.phone].filter(Boolean)]);
+  await c.query(`UPDATE users SET email = NULL, phone = NULL, google_sub = NULL, apple_sub = NULL, name = 'Silinmiş üye', iban = NULL, iban_name = NULL,
+                   marketing_at = NULL, mail_prefs = '{}'::jsonb, push_prefs = '{}'::jsonb, deleted_at = now() WHERE id = $1`, [userId]);
+  return u.email;
+}
 
 export function meRoutes(app: FastifyInstance, deps: Deps) {
   const { pool } = deps;
@@ -58,24 +75,11 @@ export function meRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   // Hesap silme (Google Play / App Store zorunluluğu). Kişisel bilgiler silinir, açık talepler kapanır, oturumlar düşer.
-  // Satış ve ödeme kayıtları yasal saklama için anonim kalır; karşı tarafa yazılan mesajlar "Silinmiş üye" adıyla görünür.
   app.delete("/me", async (req, reply) => {
     const user = requireUser(req);
     z.object({ onay: z.literal("SİL", { error: "Silmek için kutuya büyük harflerle SİL yazın." }) }).parse(req.body ?? {});
     if (user.role === "admin") throw new HttpError(409, "yonetici_silinemez", "Yönetici hesabı buradan silinemez.");
-    const email = await tx(pool, async (c) => {
-      const open = (await c.query("SELECT 1 FROM safe_sales WHERE (buyer_id = $1 OR seller_id = $1) AND status IN ('odeme_bekliyor', 'odendi', 'kargoda', 'sorunlu') LIMIT 1", [user.id])).rowCount;
-      if (open) throw new HttpError(409, "satis_suruyor", "Devam eden bir Güvenli Al satışınız var. Satış tamamlandıktan ya da iptal edildikten sonra hesabınızı silebilirsiniz.");
-      const u = (await c.query<{ email: string | null; phone: string | null }>("SELECT email, phone FROM users WHERE id = $1 FOR UPDATE", [user.id])).rows[0]!;
-      await c.query("UPDATE requests SET status = 'closed' WHERE buyer_id = $1 AND status IN ('pending_review', 'active')", [user.id]);
-      await c.query("UPDATE offers SET status = 'withdrawn' WHERE seller_id = $1 AND status = 'active'", [user.id]);
-      for (const t of ["sessions", "alarms", "favorites", "notifications", "push_tokens", "visits"]) await c.query(`DELETE FROM ${t} WHERE user_id = $1`, [user.id]);
-      await c.query("DELETE FROM mail_sends WHERE user_id = $1 AND status = 'queued'", [user.id]);
-      await c.query("DELETE FROM auth_codes WHERE target = ANY($1::text[])", [[u.email, u.phone].filter(Boolean)]);
-      await c.query(`UPDATE users SET email = NULL, phone = NULL, google_sub = NULL, apple_sub = NULL, name = 'Silinmiş üye', iban = NULL, iban_name = NULL,
-                       marketing_at = NULL, mail_prefs = '{}'::jsonb, push_prefs = '{}'::jsonb, deleted_at = now() WHERE id = $1`, [user.id]);
-      return u.email;
-    });
+    const email = await tx(pool, (c) => deleteAccount(c, user.id, "Devam eden bir Güvenli Al satışınız var. Satış tamamlandıktan ya da iptal edildikten sonra hesabınızı silebilirsiniz."));
     reply.clearCookie(SESSION_COOKIE, { path: "/" });
     if (email) void deps.mailer.send(email, "Hesabınız silindi",
       `Merhaba,\n\nalmakisterim.com hesabınız isteğiniz üzerine silindi. Adınız, telefon numaranız ve e-posta adresiniz sistemden kaldırıldı; açık talepleriniz kapatıldı.\n\nBu işlemi siz yapmadıysanız destek@almakisterim.com adresine yazın.`).catch(() => {});

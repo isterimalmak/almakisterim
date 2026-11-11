@@ -10,6 +10,7 @@ import { expiryReminders, notifyAlarmMatches, requestStatusEmail } from "./notif
 import { autoBlog, recheckHeld } from "./ai-admin.js";
 import { cleanupVisits } from "./visits.js";
 import { mailEvent, mailTick } from "./mailstudio.js";
+import { deleteAccount } from "./me.js";
 
 // Ana sayfanın orta sütunundaki bölümler (web/app/page.tsx ile aynı adlar).
 const HOME_SECTIONS = ["hero", "urgent", "cats", "ads_m", "center_ads", "vitrin", "latest", "corp"] as const;
@@ -272,6 +273,29 @@ export function adminRoutes(app: FastifyInstance, deps: Deps) {
     if (changed.includes("phone") && cur.phone) void deps.sms.send(cur.phone, notice("telefon numarası")).catch(() => {});
     if (changed.includes("email") && cur.email) void deps.mailer.send(cur.email, "Hesap bilgileriniz değiştirildi", notice("e-posta adresi"), { critical: true }).catch(() => {});
     return { ok: true, changed: changed.map((k) => FIELD_TR[k]) };
+  });
+
+  // Üyeyi silme (yönetici): üyenin kendi silmesiyle aynı işlem; neden ve yöneticinin adı üye kartında kalır, üyeye e-posta gider.
+  // Yönetici hesapları ve devam eden Güvenli Al satışı olan üyeler silinmez.
+  app.delete("/admin/users/:id", { config: { rateLimit: { max: 30, timeWindow: "1 hour" } } }, async (req) => {
+    const admin = requireAdmin(req);
+    const id = z.string().uuid().parse((req.params as { id: string }).id);
+    const b = z.object({
+      onay: z.literal("SİL", { error: "Silmek için kutuya büyük harflerle SİL yazın." }),
+      note: z.string().trim().min(5, "Silme nedenini yazın (ör. üye e-postayla hesabının silinmesini istedi).").max(300),
+    }).parse(req.body ?? {});
+    const cur = (await pool.query<{ name: string; role: string; deleted_at: string | null }>("SELECT name, role, deleted_at FROM users WHERE id = $1", [id])).rows[0];
+    if (!cur) throw new HttpError(404, "bulunamadi", "Üye bulunamadı.");
+    if (cur.deleted_at) throw new HttpError(400, "silinmis", "Bu hesap zaten silinmiş.");
+    if (cur.role === "admin" || id === admin.id) throw new HttpError(409, "yonetici_silinemez", "Yönetici hesabı silinemez.");
+    const email = await tx(pool, async (c) => {
+      const mail = await deleteAccount(c, id, "Üyenin devam eden bir Güvenli Al satışı var. Satış tamamlandıktan ya da iptal edildikten sonra silinebilir.");
+      await c.query("INSERT INTO user_edits (user_id, admin_id, field, old_value, new_value, note) VALUES ($1, $2, 'hesap', $3, 'Silindi', $4)", [id, admin.id, cur.name, b.note]);
+      return mail;
+    });
+    if (email) void deps.mailer.send(email, "Hesabınız silindi",
+      `Merhaba,\n\nalmakisterim.com hesabınız destek ekibimiz tarafından silindi. Adınız, telefon numaranız ve e-posta adresiniz sistemden kaldırıldı; açık talepleriniz kapatıldı.\n\nBu işlemi siz istemediyseniz destek@almakisterim.com adresine yazın.`, { critical: true }).catch(() => {});
+    return { ok: true };
   });
 
   // Bildirim gönder: seçilen kitleye site içi bildirim (zil simgesinde görünür).
