@@ -6,11 +6,11 @@ import { api } from "@/lib/api";
 import { dateTr } from "@/lib/format";
 
 type Card = {
-  user: { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; is_corporate: boolean; created_at: string; google: boolean; apple: boolean };
+  user: { id: string; name: string; email: string | null; phone: string | null; role: string; credits: number; is_corporate: boolean; created_at: string; deleted_at: string | null; google: boolean; apple: boolean };
   edits: { id: number; field: string; old_value: string | null; new_value: string | null; note: string; created_at: string; admin_name: string | null }[];
   phone_changes: { old_phone: string; new_phone: string; identity_via: "sms" | "email"; completed_at: string }[];
 };
-const FIELD: Record<string, string> = { name: "Ad soyad", email: "E-posta", phone: "Telefon", is_corporate: "Kurumsal" };
+const FIELD: Record<string, string> = { name: "Ad soyad", email: "E-posta", phone: "Telefon", is_corporate: "Kurumsal", hesap: "Hesap" };
 // 905321234567 → 0532 123 45 67
 const phoneTr = (p: string | null) => (p && /^90\d{10}$/.test(p) ? `0${p.slice(2, 5)} ${p.slice(5, 8)} ${p.slice(8, 10)} ${p.slice(10)}` : p ?? "");
 
@@ -67,6 +67,9 @@ export function UserEdit({ id, onClose, onSaved }: { id: string; onClose: () => 
         )}
         <button className="btn btn-or" style={{ marginTop: 10 }} disabled={busy} onClick={save}>Üye bilgilerini kaydet</button>
 
+        {u.role !== "admin" && !u.deleted_at && <DeleteUser id={id} name={u.name} onDone={async () => { await load(); onSaved(); }} />}
+        {u.deleted_at && <div className="note n-warn" style={{ marginTop: 14 }}><span>Bu hesap {dateTr(u.deleted_at)} tarihinde silindi.</span></div>}
+
         <h3 style={{ margin: "20px 0 8px", fontSize: 15 }}>Değişiklik geçmişi</h3>
         {card.edits.length || card.phone_changes.length ? (
           <table className="tbl"><thead><tr><th>Tarih</th><th>Bilgi</th><th>Eski → Yeni</th><th>Kim / Neden</th></tr></thead><tbody>
@@ -79,6 +82,37 @@ export function UserEdit({ id, onClose, onSaved }: { id: string; onClose: () => 
           </tbody></table>
         ) : <div className="muted">Henüz değişiklik yapılmadı.</div>}
       </div>
+    </div>
+  );
+}
+
+// Üyeyi silme: üyenin kendi "Hesabı sil"i ile aynı işlem. Neden zorunlu, SİL yazılarak onaylanır; üyeye e-posta gider.
+function DeleteUser({ id, name, onDone }: { id: string; name: string; onDone: () => Promise<void> }) {
+  const { toast } = useSession();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [txt, setTxt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    setBusy(true);
+    try { await api(`/admin/users/${id}`, { method: "DELETE", body: { onay: txt.trim(), note } }); toast(`${name || "Üye"} silindi.`); setOpen(false); await onDone(); }
+    catch (e) { toast((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div style={{ marginTop: 20, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+      <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>Üyeyi sil</h3>
+      <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>Üyenin adı, telefonu ve e-postası kalıcı olarak silinir; açık talepleri kapanır, alarmları ve favorileri silinir, bütün cihazlardan çıkış yapılır. Satış ve ödeme kayıtları anonim olarak saklanır. Geri alınamaz.</p>
+      {!open ? <button className="btn btn-wh" onClick={() => setOpen(true)}>Üyeyi sil</button> : (
+        <div style={{ display: "grid", gap: 8, maxWidth: 420 }}>
+          <label htmlFor="ud-note" style={{ fontSize: 13, fontWeight: 700 }}>Silme nedeni (zorunlu)</label>
+          <input id="ud-note" className="inp" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ör. Üye e-postayla hesabının silinmesini istedi" />
+          <label htmlFor="ud-ok" style={{ fontSize: 13, fontWeight: 700 }}>Onaylamak için kutuya büyük harflerle SİL yazın</label>
+          <input id="ud-ok" className="inp" value={txt} onChange={(e) => setTxt(e.target.value)} autoComplete="off" />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-or" disabled={busy || txt.trim() !== "SİL" || note.trim().length < 5} onClick={go}>Üyeyi kalıcı olarak sil</button>
+            <button className="btn btn-gh" onClick={() => { setOpen(false); setTxt(""); setNote(""); }}>Vazgeç</button>
+          </div>
+        </div>)}
     </div>
   );
 }
